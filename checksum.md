@@ -54,6 +54,34 @@ here is a deployment record.
   GitHub APK release; (3) per-family device acceptance walks. WAF/Upstash
   rate-limit rule remains a scale item; the in-memory limiter is per-instance
   and the shared limiter fails open (both documented).
+- **Apps/native (codex):** kiosk pinning now actually engages —
+  `enterLockTask`/`exitLockTask` exported and called from the customer app on
+  locked state + LockedScreen mount (A8/D1/D3 had a dead call before). The JS
+  LOCK path now runs the unlock-wins watermark (`serverNow − elapsedDelta`,
+  rewritten `stale.ts`, 9/9 tests) and acks SUPERSEDED instead of executing a
+  stale lock (D8 on both paths). `notify_only` plans can no longer be
+  hard-locked by the SIM sentinel or SMS LOCK (lock_mode gate). Config plugin
+  airplane-mode action fixed (`AIRPLANE_MODE_CHANGED`). Hidden long-press
+  PIN/TOTP entry on the lock screen wired to the native verifiers + local
+  unlock (a11y docblock now describes the real behavior). Library manifest
+  drops ACCESS_BACKGROUND_LOCATION; FRP id placeholderized in
+  `.env.example` files. `HeartbeatResponse` fully typed (`pollOnce` has no
+  `any`); retailer Enrol tab follows the chosen customer brand; `lock_mode` in
+  the createCustomer type. FGS start failures logged with honest A15 dataSync
+  notes; API-24-safe `DpcContext` wrapper at all device-protected-storage call
+  sites + `rebootDevice` guard; `FinancingProtection.status()` reports
+  `user_control_attempted` honestly.
+- **Final polish (codex + lead):** G3 done — retailer Customers/Devices and
+  owner Retailers/Audit lists are FlatLists (empty states kept; audit gained
+  one). Checklist evidence refreshed (A8/D8/D10/D11 wiring, G1/G3, I1 live-DB
+  truth). Worker guide reconciled: Vercel API is the canonical app URL; the
+  Worker reuses web handlers so a `wrangler deploy` picks up all of today's
+  fixes. Local PIN/TOTP unlock updates the device immediately; the portal lock
+  indicator follows the next command ack/heartbeat (documented, D11).
+- **Final checks (lead, after all edits):** `npm run verify` PASS (7 tsc
+  surfaces + 9/9 tests) · `next build` PASS (14/14 pages) · landing tsc PASS ·
+  pushed as 2b648a8 + 9c22a17. Live re-probe: portal 200; DB still pre-0011
+  (expected — user action 1 above).
 
 ## 2026-10-02 claim-sweep fixes (push b5cb2b8)
 
