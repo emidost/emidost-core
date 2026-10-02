@@ -4,6 +4,12 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-02 accounts wiring
+
+- GitHub: private repo created + pushed — https://github.com/emidost/emidost (commits b95a384 initial, 50e142e Supabase wiring). Git credential via the provided token; recommend rotating it after setup.
+- Supabase: project ref `fhmndtznwtchqrfuobyq` wired into `.mcp.json` (Claude Code project MCP, committed) and into all four `.env.example` URLs. Anon + service_role keys still required. `claude /mcp` authentication is the user's terminal step.
+- Consent: removed as a blocking precondition (direct counter consent is the business rule); enrolment + QR generate without a consent record; optional audit row remains possible.
+
 ## 2026-10-02 system review + full verification checklist
 
 - Confirmed in code, with evidence: **kiosk install (Device Owner) = implemented** (QR with DPC + signature checksum → `onProfileProvisioningComplete` → `setLockTaskPackages` + HOME takeover + `startLockTask`; activation only on the phone's own `mode=device_owner` readback). **Wireless-debugging self-pair = NOT implemented** (honest skeleton: `EmidostAdbBridge` reports `implemented=false`; SPAKE2 is the Stage-1 spike; the QR path is the working fallback). **FRP = wired end-to-end** (env-only `EXPO_PUBLIC_FRP_ACCOUNTS` → heartbeat → `setFactoryResetProtectionPolicy` at activation + boot restore; OS-side application is unverifiable until a device, reported as `frp_os_confirmed=false`).
