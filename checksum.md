@@ -4,6 +4,26 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 first EAS build: Gradle failure found + fixed, compression wave
+
+- First customer EAS build (f9b4bbf4) ERRORED: expo-speech
+  "compileSdkVersion is not specified" + :expo "unknown property 'release'"
+  (the known SDK 51 expo-speech Gradle pair). Fix: expo-build-properties with
+  compileSdk/targetSdk 34 pinned in apps/customer/app.json (push 98ea05b).
+  Rebuild queued: fddb56a0-32cc-48af-b856-0c789a53a152.
+- APK compression (user rule: keep the app light): the retailer adb bundle is
+  now ONE zip (ZIP_DEFLATED 9, 4,841,606 bytes, sha256
+  ff46309b9de47fe1ee6fb665148483c95b754f8d98671bb0232052dfed48b492) instead of
+  57 loose files (11,811,777 bytes) = 59% smaller, ~6.6 MB off the retailer
+  APK. plugin-adb-assets ships only the zip + NOTICE + SHA256SUMS;
+  EmidostAdbBridge stream-unzips to filesDir/emidost-adb on first use
+  (ZipInputStream, .prepared marker, loose-asset fallback kept). Loose files
+  removed from the repo.
+- API URL decision: account env EXPO_PUBLIC_API_URL switched to
+  https://emidost-pd8s.vercel.app for the testing phase (always-current
+  handlers); the Cloudflare worker stays the commercial-launch path (one
+  wrangler deploy then env flip back).
+
 ## 2026-10-03 Firebase/FCM completion + first build (lead executed)
 
 - User provided google-services.json (project emidost-c9136, package

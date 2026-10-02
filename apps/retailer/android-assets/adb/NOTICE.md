@@ -33,7 +33,13 @@ Runtime layout (extracted by EmidostAdbBridge at first use):
 
 ```text
 eabd694d4004f4e98667c2b6c72622292f17ba318b2fbe13393440858b5f9a8f  adb
+ff46309b9de47fe1ee6fb665148483c95b754f8d98671bb0232052dfed48b492  adb-bundle.zip
 ```
+
+The `adb-bundle.zip` entry is the COMPRESSED shipment (ZIP_DEFLATED level 9,
+contains `bin/adb` + `lib/*.so`). It is runtime-unzipped by EmidostAdbBridge on
+first use; the inner files match `SHA256SUMS`.
+
 Full per-file list: `SHA256SUMS` next to this file.
 
 Verification script that produced this bundle (download → extract → dependency

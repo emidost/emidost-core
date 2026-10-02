@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.zip.ZipInputStream
 
 /**
  * Wireless-debugging self-pair runner. Drives a bundled AOSP adb client binary
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit
  */
 object EmidostAdbBridge {
 
+  private const val ASSET_ZIP = "adb/adb-bundle.zip"
   private const val ASSET_ADB = "adb/adb"
   private const val ASSET_LIB_DIR = "adb/lib"
   private const val PAIRING_TTL_MS = 10 * 60_000L
@@ -79,14 +81,21 @@ object EmidostAdbBridge {
 
   private fun libDir(c: Context): File = File(File(c.filesDir, "emidost-adb"), "lib")
 
-  /** True once the binary asset exists in the APK (runtime copy happens in prepare). */
+  private fun preparedMarker(c: Context): File = File(c.filesDir, "emidost-adb/.prepared")
+
+  /** True once a binary asset exists in the APK (runtime copy happens in prepare). */
   fun isImplemented(c: Context): Boolean {
     if (adbFile(c).exists() && adbFile(c).canExecute()) return true
     return try {
-      c.assets.open(ASSET_ADB).close()
+      c.assets.open(ASSET_ZIP).close()
       true
     } catch (_: Exception) {
-      false
+      try {
+        c.assets.open(ASSET_ADB).close()
+        true
+      } catch (_: Exception) {
+        false
+      }
     }
   }
 
@@ -98,30 +107,66 @@ object EmidostAdbBridge {
   }
 
   /**
-   * Copy assets/adb/adb → filesDir/emidost-adb/bin/adb (chmod 700) and the
-   * full assets/adb/lib closure → filesDir/emidost-adb/lib/. The ELF RUNPATHs
-   * are origin-relative, so no LD_LIBRARY_PATH is set at exec time.
+   * Primary path: stream-unzip assets/adb/adb-bundle.zip (entries bin/adb +
+   * lib/*.so) into filesDir/emidost-adb/, preserving entry paths, then chmod
+   * 700 on the adb binary. A `.prepared` marker skips re-unzip on later runs.
+   * Fallback: the loose assets/adb/adb + assets/adb/lib/* layout. Honest
+   * reporting unchanged: "adb binary missing" when neither exists.
    */
   fun prepare(c: Context): Map<String, Any> {
+    val adb = adbFile(c)
+    val marker = preparedMarker(c)
+    if (marker.exists() && adb.exists() && adb.canExecute()) {
+      return mapOf("ok" to true, "output" to "${adb.absolutePath} (already prepared)")
+    }
     return try {
-      val adb = adbFile(c)
-      val lib = libDir(c)
-      adb.parentFile?.mkdirs()
-      lib.mkdirs()
-      copyAsset(c, ASSET_ADB, adb)
-      val libNames = c.assets.list(ASSET_LIB_DIR) ?: emptyArray()
-      for (name in libNames) {
-        copyAsset(c, "$ASSET_LIB_DIR/$name", File(lib, name))
+      val unzipped = unzipBundle(c)
+      if (!unzipped) {
+        // Loose-asset fallback (older bundles).
+        adb.parentFile?.mkdirs()
+        libDir(c).mkdirs()
+        copyAsset(c, ASSET_ADB, adb)
+        val libNames = c.assets.list(ASSET_LIB_DIR) ?: emptyArray()
+        for (name in libNames) {
+          copyAsset(c, "$ASSET_LIB_DIR/$name", File(libDir(c), name))
+        }
       }
       if (!adb.setExecutable(true, true)) {
         return mapOf("ok" to false, "output" to "", "error" to "chmod 700 failed on the adb binary")
       }
-      mapOf(
-        "ok" to (adb.exists() && adb.canExecute()),
-        "output" to "${adb.absolutePath} (+${libNames.size} libraries)",
-      )
+      val ok = adb.exists() && adb.canExecute()
+      if (ok) {
+        try { marker.writeText("prepared") } catch (_: Exception) {}
+      }
+      mapOf("ok" to ok, "output" to adb.absolutePath)
     } catch (e: Exception) {
       mapOf("ok" to false, "output" to "", "error" to "adb binary missing or copy failed: ${e.message}")
+    }
+  }
+
+  /** Stream-unzip the compressed bundle into the runtime dir; false when absent or unreadable. */
+  private fun unzipBundle(c: Context): Boolean {
+    return try {
+      c.assets.open(ASSET_ZIP).use { input ->
+        ZipInputStream(input.buffered()).use { zis ->
+          var entry = zis.nextEntry
+          var count = 0
+          while (entry != null) {
+            val name = entry.name.replace('\\', '/')
+            if (!entry.isDirectory) {
+              val dest = File(c.filesDir, "emidost-adb/$name")
+              dest.parentFile?.mkdirs()
+              dest.outputStream().use { out -> zis.copyTo(out) }
+              count++
+            }
+            zis.closeEntry()
+            entry = zis.nextEntry
+          }
+          count > 0
+        }
+      }
+    } catch (_: Exception) {
+      false
     }
   }
 
