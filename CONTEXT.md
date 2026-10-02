@@ -19,6 +19,15 @@ github.com/emidost/emidost).
 
 ## 2. Live infrastructure (verified 2026-10-02)
 
+- **Architecture rule: Supabase is the single source of truth.** Auth, data,
+  RLS policies, and every business rule (ledger, allowances, payments,
+  commands, rate limits) live in the Supabase Postgres DB and are enforced
+  there. The Vercel portal and the Cloudflare worker are STATELESS edges that
+  execute the same `web/lib/apiHandlers` code and hold no data of their own
+  (verified: no KV, no D1, no caches, no bindings in wrangler.toml). The apps
+  read through RLS and write through the API; the only transient state is the
+  documented per-instance in-memory rate limiter, whose cross-instance
+  counterpart is the Supabase `rate_limits` table.
 - Supabase: `https://fhmndtznwtchqrfuobyq.supabase.co` (project ref
   `fhmndtznwtchqrfuobyq`). Keys live in `web/.env.local` + `apps/*/.env`
   (gitignored; never commit).
