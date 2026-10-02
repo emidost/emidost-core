@@ -1,4 +1,4 @@
-package com.emidost.devicemanagement
+﻿package com.emidost.devicemanagement
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -8,7 +8,7 @@ object CommandServiceStore {
   private const val PREFS = "emidost_command_service"
 
   private fun prefs(c: Context): SharedPreferences =
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
   fun configure(c: Context, baseUrl: String, installationId: String, deviceToken: String) {
     prefs(c).edit()

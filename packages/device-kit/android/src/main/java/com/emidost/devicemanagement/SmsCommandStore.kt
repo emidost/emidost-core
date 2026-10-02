@@ -1,4 +1,4 @@
-package com.emidost.devicemanagement
+﻿package com.emidost.devicemanagement
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -38,7 +38,7 @@ object SmsCommandStore {
     phone.replace(Regex("[^0-9]"), "").takeLast(10)
 
   private fun prefs(c: Context): SharedPreferences =
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
 
 /**
@@ -50,14 +50,14 @@ object DevicePinStore {
   private const val PREFS = "emidost_pin"
 
   fun setVerifyHash(c: Context, hash: String) {
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("verify", hash).apply()
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("verify", hash).apply()
   }
 
   fun hasPin(c: Context): Boolean =
-    !c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "").isNullOrEmpty()
+    !c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "").isNullOrEmpty()
 
   fun verify(c: Context, entered: String): Boolean {
-    val expected = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "") ?: return false
+    val expected = c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "") ?: return false
     val installationId = CommandServiceStore.getInstallationId(c) ?: ""
     val candidate = sha256("$entered:$installationId")
     return candidate == expected

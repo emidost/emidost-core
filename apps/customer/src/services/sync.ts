@@ -188,6 +188,9 @@ export async function pollOnce(): Promise<PollUiState | null> {
     is_locked: Boolean(resp?.is_locked),
   });
   await markSyncOk();
+  // Native mirror: the watchdog must work with the app closed or killed.
+  await DeviceMgmt.markSyncOkNative();
+  await DeviceMgmt.setLockModeNative(resp?.lock_mode === 'notify_only' ? 'notify_only' : 'lock');
 
   const loanStatus: string = resp?.loan_status ?? '';
   if (loanStatus === 'COMPLETE' || loanStatus === 'SETTLED') {

@@ -151,6 +151,16 @@ export function getLocation(): Promise<{ lat: number; lng: number; accuracy: num
 export function kickCommandService(): Promise<boolean> {
   return native.kickCommandService();
 }
+
+/** Mirror a successful sync natively so the 5-day watchdog survives a killed app. */
+export function markSyncOkNative(): Promise<boolean> {
+  return native.markSyncOkNative();
+}
+
+/** Mirror the plan mode natively (lock vs notify_only). */
+export function setLockModeNative(mode: 'lock' | 'notify_only'): Promise<boolean> {
+  return native.setLockModeNative(mode);
+}
 export function isAccessibilityEnabled(): Promise<boolean> {
   return native.isAccessibilityEnabled();
 }

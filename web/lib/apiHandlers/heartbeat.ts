@@ -74,8 +74,10 @@ export async function POST(req: NextRequest) {
     .split(',').map((s: string) => s.trim()).filter(Boolean);
 
   const nextDue = dueRows?.data?.[0] ?? null;
-  const overdueDays = nextDue && nextDue.status !== 'PENDING'
-    ? Math.max(0, Math.floor((Date.now() - new Date(nextDue.due_date).getTime()) / 86_400_000))
+  // Overdue truth derives from the due date itself (PENDING rows past their
+  // date are overdue even before any updater marks them).
+  const overdueDays = nextDue
+    ? Math.max(0, Math.floor((Date.now() - new Date(nextDue.due_date + 'T00:00:00').getTime()) / 86_400_000))
     : 0;
 
   return Response.json({

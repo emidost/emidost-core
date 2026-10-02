@@ -1,4 +1,4 @@
-package com.emidost.devicemanagement
+﻿package com.emidost.devicemanagement
 
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
@@ -17,7 +17,7 @@ object LockStateStore {
   private const val PREFS = "emidost_lock_state"
 
   private fun prefs(c: Context): SharedPreferences =
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
   fun setLocked(c: Context, locked: Boolean) {
     prefs(c).edit().putBoolean("locked", locked).apply()

@@ -1,4 +1,4 @@
-package com.emidost.devicemanagement
+﻿package com.emidost.devicemanagement
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -17,21 +17,21 @@ object SimSentinelStore {
   private const val PREFS = "emidost_sim_sentinel"
 
   fun setBaseline(c: Context, imsi: String, iccid: String) {
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
       .putString("imsi", imsi).putString("iccid", iccid).apply()
   }
 
   fun baselineImsi(c: Context): String? =
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("imsi", null)
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("imsi", null)
 
   fun baselineIccid(c: Context): String? =
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("iccid", null)
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("iccid", null)
 
   fun loanOutstanding(c: Context): Boolean =
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("loan_outstanding", false)
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("loan_outstanding", false)
 
   fun setLoanOutstanding(c: Context, outstanding: Boolean) {
-    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("loan_outstanding", outstanding).apply()
+    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("loan_outstanding", outstanding).apply()
   }
 }
 
@@ -58,6 +58,20 @@ class EmidostSimSentinelReceiver : BroadcastReceiver() {
       // SIM swap detected.
       DeviceActions.hardLock(context)
       return
+    }
+
+    // IMSI reads can be null on Android 10+ (non-privileged apps). Fall back
+    // to the ICCID baseline via SubscriptionManager so swaps still lock.
+    val baselineIccid = SimSentinelStore.baselineIccid(context)
+    if (baselineIccid != null) {
+      val currentIccid = try {
+        SubscriptionManager.from(context).activeSubscriptionInfoList
+          ?.firstOrNull()?.iccid
+      } catch (_: Exception) { null }
+      if (!currentIccid.isNullOrBlank() && currentIccid != baselineIccid) {
+        DeviceActions.hardLock(context)
+        return
+      }
     }
 
     // Only a confirmed ABSENT state locks, after the debounce. UNKNOWN is

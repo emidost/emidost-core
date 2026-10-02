@@ -82,6 +82,14 @@ class EmidostCommandService : Service() {
       val ex = Executors.newSingleThreadScheduledExecutor()
       executor = ex
       scheduleNext(ex)
+      // Local enforcement is independent of network polling: re-assert the
+      // hard lock every 2 minutes, offline, even if the app is never opened.
+      try {
+        ex.scheduleWithFixedDelay(
+          { try { reassertIfLocked() } catch (_: Throwable) {} },
+          REASSERT_MS, REASSERT_MS, TimeUnit.MILLISECONDS,
+        )
+      } catch (_: Exception) {}
       scheduled = true
     }
     return START_STICKY
@@ -111,20 +119,9 @@ class EmidostCommandService : Service() {
   }
 
   private fun tick() {
-    // 2-minute hard-lock re-assert, BEFORE any network call (offline-safe).
-    if (LockStateStore.isLocked(this) && DeviceActions.isOwner(this)) {
-      val last = LockStateStore.getLastLockAssertAt(this)
-      if (System.currentTimeMillis() - last >= REASSERT_MS) {
-        LockStateStore.setLastLockAssertAt(this, System.currentTimeMillis())
-        LockPolicies.apply(this, true)
-        try {
-          val dpm = DeviceActions.dpm(this)
-          if (dpm.isAdminActive(DeviceActions.admin(this))) dpm.lockNow()
-        } catch (_: Exception) {}
-        if (!EmidostOverlay.isShowing()) {
-          EmidostOverlay.show(this, "lock", "Phone locked", "EMI payment required", null)
-        }
-      }
+    // Native 5-day no-internet watchdog (survives a killed app).
+    if (SyncStateStore.offlineLockDue(this)) {
+      executeHardLock()
     }
 
     val baseUrl = CommandServiceStore.getBaseUrl(this) ?: return
@@ -143,8 +140,26 @@ class EmidostCommandService : Service() {
       return
     }
 
+    // Full offline capability, native side: install the server truth so SMS
+    // unlock, offline TOTP, the watchdog and protection all work with the app
+    // closed or after a reboot.
+    SyncStateStore.setLastSyncOk(this, System.currentTimeMillis())
+    SyncStateStore.setLockMode(this, resp.optString("lock_mode", "lock"))
+    val outstanding = loanStatus == "RUNNING" || loanStatus == "NPA"
+    SimSentinelStore.setLoanOutstanding(this, outstanding)
+
+    val totpSecret = resp.optString("totp_secret", "")
+    if (totpSecret.isNotBlank()) Totp.setSecret(this, totpSecret)
+    val pinVerify = resp.optString("pin_verify", "")
+    if (pinVerify.isNotBlank()) DevicePinStore.setVerifyHash(this, pinVerify)
+    val retailerPhone = resp.optString("retailer_phone", "")
+    val customerCode = resp.optString("customer_code", "")
+    if (retailerPhone.isNotBlank() && customerCode.isNotBlank()) {
+      SmsCommandStore.configure(this, retailerPhone, customerCode)
+    }
+
     // Keep financing protection fresh while the loan is outstanding.
-    if (loanStatus == "RUNNING" || loanStatus == "NPA") {
+    if (outstanding) {
       try { FinancingProtection.apply(this, true, FinancingProtection.requestedFrpAccounts(this)) } catch (_: Exception) {}
     }
 
@@ -186,6 +201,23 @@ class EmidostCommandService : Service() {
         else -> handled = false
       }
       if (handled) ack(baseUrl, installationId, deviceToken, id, ackStatus, extraPayload)
+    }
+  }
+
+  /** 2-minute local re-assert, fully offline, independent of the poll timer. */
+  private fun reassertIfLocked() {
+    if (!LockStateStore.isLocked(this)) return
+    if (!DeviceActions.isOwner(this)) return
+    val last = LockStateStore.getLastLockAssertAt(this)
+    if (System.currentTimeMillis() - last < REASSERT_MS) return
+    LockStateStore.setLastLockAssertAt(this, System.currentTimeMillis())
+    LockPolicies.apply(this, true)
+    try {
+      val dpm = DeviceActions.dpm(this)
+      if (dpm.isAdminActive(DeviceActions.admin(this))) dpm.lockNow()
+    } catch (_: Exception) {}
+    if (!EmidostOverlay.isShowing()) {
+      EmidostOverlay.show(this, "lock", "Phone locked", "EMI payment required", null)
     }
   }
 

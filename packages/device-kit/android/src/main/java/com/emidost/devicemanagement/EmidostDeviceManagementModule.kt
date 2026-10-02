@@ -157,6 +157,16 @@ class EmidostDeviceManagementModule : Module() {
       DevicePinStore.setVerifyHash(context, hash)
       true
     }
+    // Offline watchdog mirror: the JS sync loop records its successful sync
+    // and the plan mode natively, so enforcement survives a killed app.
+    Function("markSyncOkNative") {
+      SyncStateStore.setLastSyncOk(context, System.currentTimeMillis())
+      true
+    }
+    Function("setLockModeNative") { mode: String ->
+      SyncStateStore.setLockMode(context, if (mode == "notify_only") "notify_only" else "lock")
+      true
+    }
     Function("verifyDevicePin") { pin: String -> DevicePinStore.verify(context, pin) }
     Function("hasDevicePin") { DevicePinStore.hasPin(context) }
 
