@@ -23,6 +23,7 @@ export interface CachedState {
   loan_status: string;
   lock_mode: 'lock' | 'notify_only';
   next_due: string | null;
+  next_due_amount: number | null;
   overdue_days: number;
   emi_amount: number | null;
   emi_months: number | null;
@@ -175,7 +176,8 @@ export async function pollOnce(): Promise<PollUiState | null> {
   await saveCachedState({
     loan_status: resp?.loan_status ?? '',
     lock_mode: resp?.lock_mode ?? 'lock',
-    next_due: resp?.next_due ?? null,
+    next_due: resp?.next_due?.due_date ?? null,
+    next_due_amount: resp?.next_due?.amount_due ?? null,
     overdue_days: resp?.overdue_days ?? 0,
     emi_amount: resp?.emi_amount ?? null,
     emi_months: resp?.emi_months ?? null,

@@ -58,11 +58,12 @@ object LockStateStore {
   fun isLockStale(c: Context, commandCreatedServerMs: Long, serverNowMs: Long): Boolean {
     val lastUnlockElapsed = getLastUnlockElapsed(c)
     if (lastUnlockElapsed <= 0L) return false
-    val lastUnlockWall = getLastUnlockedAt(c)
-    if (lastUnlockWall <= 0L) return false
     if (commandCreatedServerMs <= 0L || serverNowMs <= 0L) return true
     val elapsedDelta = SystemClock.elapsedRealtime() - lastUnlockElapsed
-    val unlockAtServerTime = lastUnlockWall + elapsedDelta
+    // Map the unlock to server time using the server's clock, not the device
+    // wall clock (which the customer can change). A LOCK created after the
+    // unlock is fresh and applies; anything older is stale and must not run.
+    val unlockAtServerTime = serverNowMs - elapsedDelta
     return commandCreatedServerMs <= unlockAtServerTime
   }
 

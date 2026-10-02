@@ -164,9 +164,13 @@ function PaymentRow({ customerId, onDone }: { customerId: string; onDone: () => 
   const [amount, setAmount] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function record() {
+    if (busy) return;
+    setBusy(true);
     setErr(null);
+    setMsg(null);
     try {
       await api.recordPayment(customerId, { amount: parseFloat(amount), method: 'cash' });
       setMsg('Payment recorded');
@@ -174,6 +178,8 @@ function PaymentRow({ customerId, onDone }: { customerId: string; onDone: () => 
       onDone();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Payment failed');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -187,9 +193,9 @@ function PaymentRow({ customerId, onDone }: { customerId: string; onDone: () => 
           value={amount}
           onChangeText={setAmount}
         />
-        <TouchableOpacity style={[s.button, { marginTop: 0, paddingVertical: 10 }]} onPress={record}>
+        <TouchableOpacity style={[s.button, { marginTop: 0, paddingVertical: 10 }]} onPress={record} disabled={busy}>
           <Banknote size={14} color="#fff" />
-          <Text style={s.buttonText}>Record</Text>
+          <Text style={s.buttonText}>{busy ? '…' : 'Record'}</Text>
         </TouchableOpacity>
       </View>
       {msg && <Text style={{ color: '#16A34A', fontSize: 12, marginTop: 4 }}>{msg}</Text>}
@@ -206,9 +212,12 @@ function NewCustomer({ onDone }: { onDone: () => void }) {
   });
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const set = (k: string) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   async function save() {
+    if (busy) return;
+    setBusy(true);
     setErr(null);
     try {
       await api.createCustomer({
@@ -221,6 +230,8 @@ function NewCustomer({ onDone }: { onDone: () => void }) {
       setTimeout(onDone, 1500);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -260,8 +271,8 @@ function NewCustomer({ onDone }: { onDone: () => void }) {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity style={s.button} onPress={save}>
-        <Text style={s.buttonText}>Add customer</Text>
+      <TouchableOpacity style={s.button} onPress={save} disabled={busy}>
+        <Text style={s.buttonText}>{busy ? 'Adding…' : 'Add customer'}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

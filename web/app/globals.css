@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Emidost portal styles. Tokens mirror packages/shared/src/designTokens.ts and
  * docs/DESIGN_SPEC.md sections 1, 2 and 4. Dark surface means locked.
  */
@@ -326,12 +326,12 @@ h1.page-title { font-size: 20px; font-weight: 700; margin: 4px 0 16px; display: 
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
   margin-bottom: 18px; animation: riseIn .5s ease-out both;
 }
-.dash-title { font-size: 24px; margin: 0; color: var(--textHi); letter-spacing: -.02em; }
+.dash-title { font-size: 24px; margin: 0; color: var(--text-hi); letter-spacing: -.02em; }
 .dash-sub { color: var(--muted); margin: 4px 0 0; font-size: 14px; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 @media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
 .stat-card {
-  position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 14px;
+  position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 14px;
   padding: 16px; background: #fff; animation: riseIn .55s ease-out both;
   transition: transform .18s ease-out, box-shadow .18s ease-out;
 }
@@ -339,11 +339,11 @@ h1.page-title { font-size: 20px; font-weight: 700; margin: 4px 0 16px; display: 
 .stat-icon {
   display: inline-flex; padding: 9px; border-radius: 10px; margin-bottom: 10px; color: #fff;
 }
-.tone-indigo .stat-icon { background: linear-gradient(135deg,#6366F1,#4F46E5); }
-.tone-teal .stat-icon { background: linear-gradient(135deg,#14B8A6,#0D9488); }
-.tone-danger .stat-icon { background: linear-gradient(135deg,#F43F5E,#DC2626); }
-.tone-amber .stat-icon { background: linear-gradient(135deg,#F59E0B,#D97706); }
-.stat-num { font-size: 28px; font-weight: 800; color: var(--textHi); font-variant-numeric: tabular-nums; }
+.tone-indigo .stat-icon { background: #4F46E5; }
+.tone-teal .stat-icon { background: #0D9488; }
+.tone-danger .stat-icon { background: #DC2626; }
+.tone-amber .stat-icon { background: #D97706; }
+.stat-num { font-size: 28px; font-weight: 800; color: var(--text-hi); font-variant-numeric: tabular-nums; }
 .stat-label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
 .stat-sheen {
   position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.5) 50%, transparent 70%);
@@ -352,47 +352,47 @@ h1.page-title { font-size: 20px; font-weight: 700; margin: 4px 0 16px; display: 
 .stat-card:hover .stat-sheen { animation: sheen .8s ease-out; }
 @keyframes sheen { to { transform: translateX(120%); } }
 .dash-section { margin-top: 26px; animation: riseIn .55s ease-out both; }
-.dash-h2 { font-size: 15px; color: var(--textHi); margin: 0 0 12px; }
+.dash-h2 { font-size: 15px; color: var(--text-hi); margin: 0 0 12px; }
 .step-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 @media (max-width: 900px) { .step-grid { grid-template-columns: repeat(2, 1fr); } }
 .step-card {
-  position: relative; border: 1px solid var(--line); border-radius: 14px; padding: 16px 14px;
+  position: relative; border: 1px solid var(--border); border-radius: 14px; padding: 16px 14px;
   background: #fff; animation: riseIn .55s ease-out both;
   transition: transform .18s ease-out, box-shadow .18s ease-out, border-color .18s;
 }
-.step-card:hover { transform: translateY(-3px); border-color: var(--teal); box-shadow: 0 10px 24px rgba(13,148,136,.10); }
+.step-card:hover { transform: translateY(-3px); border-color: var(--accent-teal); box-shadow: 0 10px 24px rgba(13,148,136,.10); }
 .step-badge {
   position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; border-radius: 50%;
-  background: #F0FDFA; color: var(--teal); font-weight: 800; font-size: 12px;
+  background: #F0FDFA; color: var(--accent-teal); font-weight: 800; font-size: 12px;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.step-ic { color: var(--teal); margin-bottom: 6px; }
-.step-card h3 { font-size: 14px; margin: 4px 0; color: var(--textHi); }
+.step-ic { color: var(--accent-teal); margin-bottom: 6px; }
+.step-card h3 { font-size: 14px; margin: 4px 0; color: var(--text-hi); }
 .step-card p { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
 .step-link {
-  display: inline-flex; align-items: center; gap: 4px; color: var(--teal);
+  display: inline-flex; align-items: center; gap: 4px; color: var(--accent-teal);
   font-size: 12.5px; font-weight: 700; text-decoration: none;
 }
 .step-link:hover { text-decoration: underline; }
 .quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 @media (max-width: 900px) { .quick-row { grid-template-columns: 1fr; } }
 .quick-card {
-  display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line);
-  border-radius: 12px; padding: 14px; background: #fff; color: var(--textHi);
+  display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; background: #fff; color: var(--text-hi);
   text-decoration: none; transition: transform .18s ease-out, border-color .18s;
 }
-.quick-card:hover { transform: translateY(-2px); border-color: var(--teal); }
-.quick-card svg { color: var(--teal); flex-shrink: 0; margin-top: 1px; }
+.quick-card:hover { transform: translateY(-2px); border-color: var(--accent-teal); }
+.quick-card svg { color: var(--accent-teal); flex-shrink: 0; margin-top: 1px; }
 .quick-card span { font-size: 12.5px; color: var(--muted); }
-.quick-card strong { display: block; color: var(--textHi); font-size: 13.5px; margin-bottom: 2px; }
+.quick-card strong { display: block; color: var(--text-hi); font-size: 13.5px; margin-bottom: 2px; }
 .dash-note {
   display: flex; align-items: center; gap: 6px; margin: 14px 0 0; font-size: 12.5px;
   color: var(--muted); background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 10px; padding: 10px 12px;
 }
-.dash-note svg { color: var(--teal); }
-.choice { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; }
+.dash-note svg { color: var(--accent-teal); }
+.choice { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: 10px; cursor: pointer; }
 .choice span { font-size: 12.5px; color: var(--muted); }
-.choice strong { color: var(--textHi); font-size: 13px; }
+.choice strong { color: var(--text-hi); font-size: 13px; }
 @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .dash-hero, .stat-card, .dash-section, .step-card { animation: none; }

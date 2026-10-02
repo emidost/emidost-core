@@ -18,15 +18,15 @@ object LockPolicies {
     if (!dpm.isDeviceOwnerApp(c.packageName)) return
     val admin = ComponentName(c, EmidostDeviceAdminReceiver::class.java)
     val pkg = c.packageName
-    val um = c.getSystemService(Context.USER_SERVICE) as UserManager
 
     try { dpm.setLockTaskPackages(admin, if (active) arrayOf(pkg) else arrayOf()) } catch (_: Exception) {}
 
     // Call block. Emergency calls stay reachable (framework exemption), and
-    // every family runs a live 112 test in the acceptance walk.
+    // every family runs a live 112 test in the acceptance walk. Restrictions
+    // go through the DevicePolicyManager DO API.
     try {
-      if (active) um.setUserRestriction(admin, UserManager.DISALLOW_OUTGOING_CALLS)
-      else um.clearUserRestriction(admin, UserManager.DISALLOW_OUTGOING_CALLS)
+      if (active) dpm.addUserRestriction(admin, UserManager.DISALLOW_OUTGOING_CALLS)
+      else dpm.clearUserRestriction(admin, UserManager.DISALLOW_OUTGOING_CALLS)
     } catch (_: Exception) {}
 
     // Lock-task features. GLOBAL_ACTIONS is deliberately NOT included while

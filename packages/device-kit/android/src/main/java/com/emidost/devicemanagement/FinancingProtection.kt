@@ -1,6 +1,7 @@
 package com.emidost.devicemanagement
 
 import android.app.admin.DevicePolicyManager
+import android.app.admin.FactoryResetProtectionPolicy
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
@@ -31,22 +32,22 @@ object FinancingProtection {
     val dpm = c.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
     if (!dpm.isDeviceOwnerApp(c.packageName)) return
     val admin = ComponentName(c, EmidostDeviceAdminReceiver::class.java)
-    val um = c.getSystemService(Context.USER_SERVICE) as UserManager
     val pkg = c.packageName
 
     try { dpm.setUninstallBlocked(admin, pkg, active) } catch (_: Exception) {}
-    try { um.setUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET, active) } catch (_: Exception) {}
-    try { um.setUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT, active) } catch (_: Exception) {}
-    try { um.setUserRestriction(admin, UserManager.DISALLOW_ADD_USER, active) } catch (_: Exception) {}
-    try { um.setUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES, active) } catch (_: Exception) {}
-    try { um.setUserRestriction(admin, UserManager.DISALLOW_CONFIG_DATE_TIME, active) } catch (_: Exception) {}
+    // Restrictions go through the DevicePolicyManager DO API.
+    try { if (active) dpm.addUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET) else dpm.clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET) } catch (_: Exception) {}
+    try { if (active) dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT) else dpm.clearUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT) } catch (_: Exception) {}
+    try { if (active) dpm.addUserRestriction(admin, UserManager.DISALLOW_ADD_USER) else dpm.clearUserRestriction(admin, UserManager.DISALLOW_ADD_USER) } catch (_: Exception) {}
+    try { if (active) dpm.addUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES) else dpm.clearUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES) } catch (_: Exception) {}
+    try { if (active) dpm.addUserRestriction(admin, UserManager.DISALLOW_CONFIG_DATE_TIME) else dpm.clearUserRestriction(admin, UserManager.DISALLOW_CONFIG_DATE_TIME) } catch (_: Exception) {}
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       try {
         val pkgList = if (active) {
           // The customer cannot touch the DPC, the retailer-visible apps, or Settings.
-          arrayOf(pkg, "com.android.settings")
-        } else emptyArray()
+          listOf(pkg, "com.android.settings")
+        } else emptyList<String>()
         dpm.setUserControlDisabledPackages(admin, pkgList)
       } catch (_: Exception) {}
     }
@@ -55,20 +56,20 @@ object FinancingProtection {
       rememberRequested(c, frpAccounts)
       try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          dpm.setFactoryResetProtectionPolicy(admin,
-            DevicePolicyManager.newFactoryResetProtectionPolicyBuilder()
-              .setFactoryResetProtectionAccounts(frpAccounts)
-              .setFactoryResetProtectionEnabled(true)
-              .build())
+          val frp = FactoryResetProtectionPolicy.Builder()
+            .setFactoryResetProtectionAccounts(frpAccounts)
+            .setFactoryResetProtectionEnabled(true)
+            .build()
+          dpm.setFactoryResetProtectionPolicy(admin, frp)
         }
       } catch (_: Exception) {}
     } else if (!active) {
       try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          dpm.setFactoryResetProtectionPolicy(admin,
-            DevicePolicyManager.newFactoryResetProtectionPolicyBuilder()
-              .setFactoryResetProtectionEnabled(false)
-              .build())
+          val frp = FactoryResetProtectionPolicy.Builder()
+            .setFactoryResetProtectionEnabled(false)
+            .build()
+          dpm.setFactoryResetProtectionPolicy(admin, frp)
         }
       } catch (_: Exception) {}
     }

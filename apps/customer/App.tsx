@@ -51,7 +51,7 @@ export default function App() {
           // Offline: fall back to the synced local copy and run the 5-day
           // no-internet watchdog (lock-enabled plans only).
           const cached = await getCachedState();
-          if (cached?.next_due) setDue({ due_date: cached.next_due, amount_due: cached.emi_amount ?? 0 });
+          if (cached?.next_due) setDue({ due_date: cached.next_due, amount_due: cached.next_due_amount ?? 0 });
           setOverdueDays(cached?.overdue_days ?? 0);
           setRetailerPhone(cached?.retailer_phone ?? null);
           await enforceOfflineWatchdog();

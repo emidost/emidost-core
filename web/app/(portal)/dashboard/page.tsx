@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import {
   Store, Smartphone, ShieldAlert, Wallet, UserPlus, QrCode,
   Coins, LockOpen, ArrowRight, CheckCircle2,
@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     <main className="page dashboard-page">
       <header className="dash-hero">
         <div>
-          <h1 className="dash-title">Everything at a glance</h1>
+          <h1 className="dash-title">Track retailers, phones, and overdue EMIs</h1>
           <p className="dash-sub">
             Retailers, financed phones, locks, and overdue instalments - live from the database.
           </p>

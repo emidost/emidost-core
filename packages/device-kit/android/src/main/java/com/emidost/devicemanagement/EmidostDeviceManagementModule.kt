@@ -16,7 +16,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
  */
 class EmidostDeviceManagementModule : Module() {
   private val context: Context
-    get() = appContext.reactContext ?: appContext
+    get() = requireNotNull(appContext.reactContext) { "react context unavailable" }
 
   override fun definition() = ModuleDefinition {
     Name("EmidostDeviceManagement")

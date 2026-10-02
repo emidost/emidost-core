@@ -16,7 +16,8 @@ class EmidostSmsReceiver : BroadcastReceiver() {
 
     val messages = messagesFrom(intent.extras) ?: return
     for (msg in messages) {
-      if (!SmsCommandStore.senderAllowed(context, msg.originatingAddress ?: continue)) continue
+      val sender = msg.originatingAddress ?: continue
+      if (!SmsCommandStore.senderAllowed(context, sender)) continue
       val body = msg.messageBody?.trim() ?: continue
       val parts = body.split(Regex("\\s+"))
       if (parts.size < 2) continue

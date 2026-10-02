@@ -50,12 +50,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let remaining = amount;
   for (const s of schedules ?? []) {
     if (remaining <= 0) break;
-    const need = Number(s.amount_due);
+    const need = Number(s.amount_due) - Number(s.amount_paid ?? 0);
+    if (need <= 0) continue;
     if (remaining >= need) {
-      await svc.from('emi_schedules').update({ status: 'PAID', amount_paid: s.amount_due }).eq('id', s.id);
+      await svc.from('emi_schedules')
+        .update({ status: 'PAID', amount_paid: Number(s.amount_due) }).eq('id', s.id);
       remaining -= need;
     } else {
-      await svc.from('emi_schedules').update({ status: 'PARTIAL', amount_paid: remaining }).eq('id', s.id);
+      await svc.from('emi_schedules')
+        .update({ status: 'PARTIAL', amount_paid: Number(s.amount_paid ?? 0) + remaining }).eq('id', s.id);
       remaining = 0;
     }
   }

@@ -114,19 +114,21 @@ object OemFingerprint {
 
 object OemPermissionHelper {
   fun openOemAutostartSettings(context: Context): Boolean = openFirst(context,
-    OemFingerprint.detect(context).autostartIntents)
+    OemFingerprint.detect(context).autostartIntents.map { c ->
+      android.content.Intent().setComponent(c).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    })
 
   fun openOemBackgroundPopups(context: Context): Boolean {
     val pkg = context.packageName
     val intents = OemFingerprint.detect(context).popupIntents.map { c ->
-      android.content.Intent().setComponent(c).putExtra("packagename", pkg).putExtra("packageName", pkg)
+      android.content.Intent().setComponent(c).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        .putExtra("packagename", pkg).putExtra("packageName", pkg)
     }
     return openFirst(context, intents)
   }
 
-  private fun openFirst(context: Context, components: List<ComponentName>): Boolean {
-    for (c in components) {
-      val i = android.content.Intent().setComponent(c).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+  private fun openFirst(context: Context, intents: List<android.content.Intent>): Boolean {
+    for (i in intents) {
       try {
         if (context.packageManager.resolveActivity(i, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY) != null) {
           context.startActivity(i)

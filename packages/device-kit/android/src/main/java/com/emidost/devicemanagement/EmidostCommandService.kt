@@ -95,12 +95,6 @@ class EmidostCommandService : Service() {
     super.onDestroy()
   }
 
-  override fun onTimeout(startId: Int) {
-    // Android 15+ dataSync foreground-service budget: stop cleanly instead of crashing.
-    try { stopSelf() } catch (_: Exception) {}
-    super.onTimeout(startId)
-  }
-
   private fun scheduleNext(ex: ScheduledExecutorService) {
     if (ex.isShutdown) return
     // Fast only during a burst window; the lock state itself never drives
