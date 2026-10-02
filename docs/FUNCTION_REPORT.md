@@ -48,9 +48,10 @@ Trust boundaries that matter:
    one RPC that also settles the loan and emits the release event.
 
 What this report does NOT claim: physical-device acceptance (per-OEM walks,
-the wireless self-pair path included), EAS-built APKs, and the pending SQL
-statements on the live database (`0011` rate-limit RLS + `0012` REBOOT command
-type). The wireless-debugging self-pair is now IMPLEMENTED in code via a
+the wireless self-pair path included), EAS-built APKs, and the one pending SQL
+statement on the live database (`0017` sales ledger — 0011–0016 are verified
+applied by the 2026-10-03 acceptance run). The
+wireless-debugging self-pair is now IMPLEMENTED in code via a
 bundled AOSP adb client (Apache-2.0, sha256 + NOTICE recorded) — it has simply
 never passed a real device, and the report never claims it has. Those items
 are listed explicitly in the honest-limits section at the end; everything else
@@ -308,7 +309,7 @@ below is code that was checked, not marketing.
 - **Claim**: A shared, cross-instance rate-limit counter that non-service roles cannot touch.
 - **How it works**: `rate_limit_hit` upserts a per-key count/reset_at atomically (`0009_rate_limit.sql:11-29`); `0011_rate_limits_rls.sql:10-15` enables RLS (no policies = closed) and revokes public EXECUTE on the function, granting only `service_role`.
 - **What it prevents**: anyone with the public anon key reading the key table (IP + installation pairs), deleting rows to reset their counters, or pre-inflating victims' counters for a denial of service — the table was previously wide open because Supabase grants anon table privileges and RLS was never enabled.
-- **Status**: CODE verified; the 0011 DDL is the one piece the user must run in a query tab (flagged in checksum).
+- **Status**: CODE verified, and APPLIED LIVE (2026-10-03 probe: anon INSERT into `rate_limits` is refused with a 42501 RLS violation).
 
 #### record_payment RPC
 - **Claim**: One transaction that records a payment and settles the oldest unpaid schedules, serialized per customer.
@@ -360,9 +361,10 @@ below is code that was checked, not marketing.
 Count: 39 functions covered (12 owner portal, 5 retailer console, 5 device API,
 9 retailer API + shared lib, 8 SQL layer), each with claim / mechanism / prevention / status.
 
-Items flagged for lead verification: (1) the pending DDL on the live DB is now
-`0011` (rate-limit RLS) + `0012` (REBOOT command type) — one query tab each (or
-the regenerated all-in-one); (2) the app-side halves (Totp.kt verify, retailer
+Items flagged for lead verification: (1) the pending DDL on the live DB is
+`0017` (sales ledger) — one all-in-one query tab (0011–0016 verified applied
+by the acceptance run); (2) the
+app-side halves (Totp.kt verify, retailer
 generator UI, worker dispatch parity for unlock-key, native REBOOT execution)
 are codex's rows in the merged report; (3) the report deliberately keeps all
 DEVICE items as CODE+DEVICE — no overclaiming.
@@ -748,12 +750,15 @@ passed.
 
 ## Honest limits and residuals (nothing here is hidden)
 
-1. **`0011_rate_limits_rls.sql` + `0012_reboot_command.sql` are not yet applied
-   to the live database.** Until the user runs them (or the regenerated
-   all-in-one) in a query tab, the live `rate_limits` table has no RLS (it is
-   empty today; the limiter still works, the table is just not closed) and
-   REBOOT commands would fail the command_type enum. These are the only
-   un-applied statements.
+1. **Migration `0017` (sales ledger) is not yet applied to the live database.**
+   Until the user runs it (or the regenerated
+   all-in-one) in a query tab, the `retailer_sales` table, the `sale` ledger
+   kind, the `sale_id` column and the bulk allowance RPCs do not exist, so the
+   sales routes return 500 and the Sales page shows nothing. 0011–0016 are
+   verified applied (rate_limits RLS blocks anon writes, FCM columns, photo
+   bucket, escalation column, ALERT/REMIND enums — acceptance run 2026-10-03).
+   This is the only
+   un-applied statement.
 2. **Physical acceptance is pending.** Every CODE + DEVICE item above needs a
    real per-OEM walk (enrol → lock → 112 dials → SIM pull → reboot → SMS →
    release, plus the wireless path B walk). No family is certified until then.
@@ -795,7 +800,7 @@ passed.
 
 ## Standing user actions (unchanged from the ledger)
 
-1. Run `supabase/migrations/0011_rate_limits_rls.sql` + `0012_reboot_command.sql`
+1. Run `supabase/migrations/0017_retailer_sales.sql`
    (or the regenerated all-in-one) in a NEW query tab.
 2. EAS builds (customer first, then retailer, then owner) + GitHub release for
    the APK download links.

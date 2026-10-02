@@ -37,12 +37,19 @@ object SimSentinelStore {
 }
 
 class EmidostSimSentinelReceiver : BroadcastReceiver() {
+  private companion object {
+    // TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED (API 29) is @SystemApi and
+    // not in the public SDK stubs, so match its action string directly. On
+    // API < 29 the broadcast simply never arrives; no version guard needed.
+    const val ACTION_SIM_CARD_STATE_CHANGED = "android.telephony.action.SIM_CARD_STATE_CHANGED"
+  }
+
   private val handler = Handler(Looper.getMainLooper())
   private var pending: Runnable? = null
 
   override fun onReceive(context: Context, intent: Intent) {
     val action = intent.action ?: return
-    if (action != TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED &&
+    if (action != ACTION_SIM_CARD_STATE_CHANGED &&
       action != "android.intent.action.SIM_STATE_CHANGED" &&
       action != Intent.ACTION_AIRPLANE_MODE_CHANGED
     ) return
@@ -69,7 +76,7 @@ class EmidostSimSentinelReceiver : BroadcastReceiver() {
     if (baselineIccid != null) {
       val currentIccid = try {
         SubscriptionManager.from(context).activeSubscriptionInfoList
-          ?.firstOrNull()?.iccid
+          ?.firstOrNull()?.iccId
       } catch (_: Exception) { null }
       if (!currentIccid.isNullOrBlank() && currentIccid != baselineIccid) {
         DeviceActions.hardLock(context)

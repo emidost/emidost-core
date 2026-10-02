@@ -108,9 +108,9 @@ object EmidostAdbBridge {
 
   /**
    * Primary path: stream-unzip assets/adb/adb-bundle.zip (entries bin/adb +
-   * lib/*.so) into filesDir/emidost-adb/, preserving entry paths, then chmod
+   * lib/<name>.so) into filesDir/emidost-adb/, preserving entry paths, then chmod
    * 700 on the adb binary. A `.prepared` marker skips re-unzip on later runs.
-   * Fallback: the loose assets/adb/adb + assets/adb/lib/* layout. Honest
+   * Fallback: the loose assets/adb/adb + assets/adb/lib/<name> layout. Honest
    * reporting unchanged: "adb binary missing" when neither exists.
    */
   fun prepare(c: Context): Map<String, Any> {

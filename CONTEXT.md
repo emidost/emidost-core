@@ -40,7 +40,11 @@ github.com/emidost/emidost).
   polling. Tokens live in `devices.fcm_token`, revoked from anon/authenticated
   (0013); sent via `web/lib/fcm.ts` with an optional `EXPO_PUSH_ACCESS_TOKEN`.
   App-side token registration + kick listener is the customer app's half.
-- Database: schema applied (tables verified). Indexes in
+- Database: schema applied — 0001–0016 verified live by the acceptance run
+  (2026-10-03: rate_limits RLS blocks anon writes, FCM columns, photo bucket,
+  escalation column + ALERT/REMIND enums, overpayment guard all present).
+  PENDING SQL on the live DB: migration 0017 (retailer_sales sales ledger) —
+  one all-in-one query tab remains a USER step. Indexes in
   `supabase/migrations/0002_perf_indexes.sql` (part of the all-in-one).
 - Accounts (no customer login exists; customers are retailer-created):
   - Owner: dip@emidost.in (role owner; password chosen by the owner via scripts/set_owner.mjs)

@@ -104,8 +104,18 @@ object FinancingProtection {
     val um = c.getSystemService(Context.USER_SERVICE) as UserManager
     val admin = ComponentName(c, EmidostDeviceAdminReceiver::class.java)
     val isOwner = dpm.isDeviceOwnerApp(c.packageName)
+    // Admin-scoped readback: the restrictions THIS admin set via
+    // addUserRestriction(admin, ...) in apply(), not restrictions that some
+    // other source happens to enforce. DevicePolicyManager.getUserRestrictions
+    // (admin) is API 24+ and throws SecurityException for a non-owner (caught
+    // → false). API 23 has no admin-scoped read, so fall back to the effective
+    // UserManager restrictions for the calling user.
     fun restriction(key: String): Boolean = try {
-      um.getUserRestrictions(admin)[key] ?: false
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        dpm.getUserRestrictions(admin).getBoolean(key, false)
+      } else {
+        um.userRestrictions.getBoolean(key, false)
+      }
     } catch (_: Exception) { false }
 
     val map = linkedMapOf<String, Any>()

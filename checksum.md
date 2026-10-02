@@ -4,6 +4,42 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 total debugging (claude half: claim-vs-code audit + A+B acceptance)
+
+- **Claim-vs-code audit:** walked CONTEXT / README / SETUP / checklist /
+  FUNCTION_REPORT against web+supabase+scripts (apps/device-kit read-only).
+  Fixed-in-doc: BUILD_AND_DEPLOY_STEPS owner login (owner@emidost.in →
+  dip@emidost.in) and migration count (11 → 17); CHECKLIST I1 + FUNCTION_REPORT
+  "does NOT claim" / flagged-items / honest-limit #1 / standing-actions and
+  CONTEXT §2 all updated to the VERIFIED live-DB state (below). No FALSE code
+  claims found in my scope; remaining honest limits unchanged.
+- **Live-DB truth (empirically probed this pass, not assumed):** 0001–0016 are
+  APPLIED — the A+B acceptance run exercised fcm_token storage (0013),
+  photo_path (0014), escalation_enabled (0015), ALERT + REMIND enums
+  (0015/0016), the overpayment-guarded record_payment, and an anon INSERT into
+  `rate_limits` is refused with a 42501 RLS violation (0011). The ONLY pending
+  SQL is **0017 (retailer_sales)** — the sales POST 500s and
+  `/rest/v1/retailer_sales` 404s until the user runs the all-in-one.
+- **A+B acceptance run** (`node scripts/acceptance_ab.mjs --api
+  http://localhost:3100`, local dev server): 37/47 PASS. The 10 FAILs are ALL
+  the 0017-sales-ledger checks (sale recorded, total, invoice, grants, ledger
+  rows, history, summary ×2) — blocked-by-SQL, not code bugs; assertions were
+  reviewed and kept as-is (they are correct). Everything else (token CAS,
+  register, heartbeat activation + escalation/photo/is_locked fields, LOCK
+  debit + FAILED refund, terminal ack immutability, ALERT/REMIND/LOCATION
+  plumbing, TOTP + unlock key, escalation toggle round-trip, payment +
+  overpayment 400, auth gates) PASSES against the live DB through the local
+  code.
+- Static A/B chain review (server side): enrolment mint/consume CAS, register
+  takeover guard + resale exception, heartbeat open-session activation and
+  delivered fields, ack terminal CAS + refunds + settled gate, unlock-key
+  gating, escalation toggle, sales grants + ledger — all correct as written;
+  no code changes were needed this pass. Checks: web tsc 0 · workers tsc 0 ·
+  `next build` exit 0.
+- Left undone (flagged): 0017 is a USER SQL step; the 0005 staff
+  SELECT-only rewrite and the REBOOT enum (0012) were not re-exercised by the
+  test (API paths only) — re-probe after the all-in-one run.
+
 ## 2026-10-03 owner sales ledger
 
 - Business model (user's words): the owner page is about selling locks to a

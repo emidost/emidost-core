@@ -1,5 +1,6 @@
 package com.emidost.devicemanagement
 
+import android.app.ActivityManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
@@ -80,9 +81,9 @@ object LockPolicies {
 
   /** Live OS readback: is lock-task actually active right now? */
   fun kioskActive(c: Context): Boolean {
-    val dpm = c.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    val am = c.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
     return try {
-      dpm.lockTaskModeState == DevicePolicyManager.LOCK_TASK_MODE_LOCKED
+      am.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_LOCKED
     } catch (_: Exception) { false }
   }
 }

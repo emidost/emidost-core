@@ -95,7 +95,7 @@ non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 ## I. Deployment gates (all yours, none done)
 | # | Item | State |
 |---|---|---|
-| I1 | Supabase project + migrations: live DB has 0001–0010 applied (probed 2026-10-03: lock_mode, LOCATION, record_payment, refund RPCs all present). Remaining: run 0011–0015 (or the all-in-one) in a NEW query tab to enable rate_limits RLS, the REBOOT/ALERT enums, the FCM token columns, the photo bucket and the escalation column | CRED (one query tab left) |
+| I1 | Supabase project + migrations: live DB verified by the acceptance run (2026-10-03) to have 0001–0016 (rate_limits RLS blocks anon writes, FCM columns, photo bucket, escalation column, ALERT/REMIND enums, overpayment guard). PENDING SQL: run 0017 (retailer_sales sales ledger; or the all-in-one) in a NEW query tab | CRED (one query tab left) |
 | I2 | EAS account + first builds (owner/retailer/customer) + Kotlin Gradle pass | CRED |
 | I3 | SMS provider (if SMS commands are used beyond the local receiver) | CRED |
 | I4 | GitHub release hosting for the customer APK (QR download link) | CRED |

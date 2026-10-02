@@ -8,7 +8,9 @@ Steps that need YOUR accounts. The repo ships with placeholders only; no real cr
 2. SQL: open the SQL editor in a NEW query tab and run the single file
    `supabase/migrations/0000_all_in_one.sql` (schema + indexes + hardening +
    JWT RLS + retention + lock modes + refunds + rate limits + atomic
-   payments). It is idempotent: safe to re-run.
+   payments + rate-limit RLS + REBOOT/ALERT/REMIND enums + FCM columns +
+   photo bucket + escalation column + sales ledger). It is idempotent: safe
+   to re-run.
 3. Copy values into the env files (see section 4):
    - `NEXT_PUBLIC_SUPABASE_URL` = `https://<ref>.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable key)

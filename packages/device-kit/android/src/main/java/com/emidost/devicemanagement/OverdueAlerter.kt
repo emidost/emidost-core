@@ -217,7 +217,7 @@ object OverdueAlerter {
     val cal = Calendar.getInstance()
     val year = cal.get(Calendar.YEAR)
     val day = cal.get(Calendar.DAY_OF_YEAR)
-    val minutesNow = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE_OF_HOUR)
+    val minutesNow = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
 
     val p = prefs(c)
     val storedDay = p.getInt("loc_day", -1)

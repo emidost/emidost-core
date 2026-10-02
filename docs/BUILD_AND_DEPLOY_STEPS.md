@@ -11,7 +11,7 @@ signing checksum. Owner app is private to the business owner.
   EXPO_PUBLIC_API_URL=https://emidost-pd8s.vercel.app
   Customer also needs EXPO_PUBLIC_FRP_ACCOUNTS=106892760455009935120
 - SQL: run the single supabase/migrations/0000_all_in_one.sql in a NEW Supabase
-  query tab (11 migrations: 0001-0011) before the first phone enrolment.
+  query tab (17 migrations: 0001-0017) before the first phone enrolment.
 
 ## 1. Build the customer APK
 ```
@@ -48,7 +48,7 @@ cd D:\emidost\apps\owner
 npx eas-cli login        (your PERSONAL account)
 npx eas-cli build -p android --profile owner
 ```
-Verify: login as owner@emidost.in, dashboard numbers, add-retailer form,
+Verify: login as dip@emidost.in, dashboard numbers, add-retailer form,
 credits/allowances, suspend/unsuspend, QR page. Tell me what to change; I fix,
 you rebuild until you approve.
 

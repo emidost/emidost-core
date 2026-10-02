@@ -30,6 +30,8 @@ class EmidostCommandService : Service() {
 
   companion object {
     private const val NOTIFICATION_ID = 4401
+    private const val CHANNEL_ID = "emidost_sync_quiet"
+    private const val LEGACY_CHANNEL_ID = "emidost_sync"
     // 2k-device free-tier budget: idle poll is 2 HOURS (12 req/day/device).
     // SMS is the instant command channel; a 15 s burst runs for 10 minutes
     // after any command, SMS event, or app foreground. The lock itself is
@@ -382,13 +384,31 @@ class EmidostCommandService : Service() {
     } catch (_: Exception) {}
   }
 
+  // The foreground service must stay: the 2-minute offline lock re-assert and
+  // the 5-day watchdog run on this process's executor. Without a foreground
+  // service, Android 8+ stops a background service within about a minute of
+  // the app leaving the foreground. Alarms cannot replace it, because Doze
+  // throttles setExactAndAllowWhileIdle to about once every 9 minutes. So the
+  // service keeps running, but its notification is kept as quiet as Android
+  // allows: an IMPORTANCE_MIN channel with no sound, vibration or badge, and
+  // short, calm text.
   private fun ensureChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      // A channel's importance cannot be lowered once it exists, so the quiet
+      // channel uses a new id and the old IMPORTANCE_LOW channel is removed.
+      try { nm.deleteNotificationChannel(LEGACY_CHANNEL_ID) } catch (_: Exception) {}
       val channel = NotificationChannel(
-        "emidost_sync", "emidost protection",
-        NotificationManager.IMPORTANCE_LOW,
-      ).apply { description = "Keeps device protection in sync" }
-      (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        CHANNEL_ID, "Phone protection",
+        NotificationManager.IMPORTANCE_MIN,
+      ).apply {
+        description = "Keeps device protection in sync"
+        setSound(null, null)
+        enableVibration(false)
+        enableLights(false)
+        setShowBadge(false)
+      }
+      nm.createNotificationChannel(channel)
     }
   }
 
@@ -398,16 +418,24 @@ class EmidostCommandService : Service() {
       PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
     } else null
     val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      android.app.Notification.Builder(this, "emidost_sync")
+      android.app.Notification.Builder(this, CHANNEL_ID)
     } else {
+      // Pre-O has no channels: the same quietness is set on the notification.
       @Suppress("DEPRECATION")
       android.app.Notification.Builder(this)
+        .setPriority(Notification.PRIORITY_MIN)
+        .setSound(null)
+        .setVibrate(null)
+        .setDefaults(0)
     }
     return builder
-      .setContentTitle("emidost protection")
-      .setContentText("Protection is running")
+      .setContentTitle("Phone protection")
+      .setContentText("Protection is on")
       .setSmallIcon(android.R.drawable.ic_lock_lock)
       .setContentIntent(pending)
+      .setOngoing(true)
+      .setShowWhen(false)
+      .setOnlyAlertOnce(true)
       .build()
   }
 }
