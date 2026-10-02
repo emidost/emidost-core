@@ -11,6 +11,7 @@ export default function NewCustomerPage() {
   const [form, setForm] = useState({
     name: '', phone: '', imei: '', brand: 'Samsung', model: '',
     emi_months: '12', emi_amount: '', emi_due_day: '1',
+    lock_mode: 'lock' as 'lock' | 'notify_only',
   });
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -59,6 +60,15 @@ export default function NewCustomerPage() {
         <input className="input" type="number" min={0} step="0.01" value={form.emi_amount} onChange={set('emi_amount')} />
         <label className="label">Due day of month (1-31)</label>
         <input className="input" type="number" min={1} max={31} value={form.emi_due_day} onChange={set('emi_due_day')} />
+        <label className="label" style={{ marginTop: 14 }}>Phone lock plan</label>
+        <label className="choice" style={{ borderColor: form.lock_mode === 'lock' ? 'var(--teal)' : 'var(--line)' }}>
+          <input type="radio" name="lock_mode" checked={form.lock_mode === 'lock'} onChange={() => setForm((f) => ({ ...f, lock_mode: 'lock' }))} />
+          <span><strong>Lock on missed payment</strong><br />Locks the phone when overdue or 5 days offline.</span>
+        </label>
+        <label className="choice" style={{ borderColor: form.lock_mode === 'notify_only' ? 'var(--teal)' : 'var(--line)' }}>
+          <input type="radio" name="lock_mode" checked={form.lock_mode === 'notify_only'} onChange={() => setForm((f) => ({ ...f, lock_mode: 'notify_only' }))} />
+          <span><strong>Never lock, only reminders</strong><br />Due and overdue notices only. The phone never locks.</span>
+        </label>
         <button className="btn teal" style={{ marginTop: 16, width: '100%', justifyContent: 'center' }}>Add customer</button>
       </form>
     </main>

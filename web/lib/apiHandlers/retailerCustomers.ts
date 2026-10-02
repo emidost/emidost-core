@@ -1,4 +1,4 @@
-﻿import { randomBytes } from 'crypto';
+import { randomBytes } from 'crypto';
 import { NextRequest } from 'next/server';
 import { bad, forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
@@ -43,12 +43,14 @@ export async function POST(req: NextRequest) {
   if (dup) return Response.json({ error: 'This IMEI is already registered by you' }, { status: 409 });
 
   const code = 'EMD-' + randomBytes(3).toString('hex').toUpperCase();
+  const lockMode = body.lock_mode === 'notify_only' ? 'notify_only' : 'lock';
   const { data, error } = await svc.from('customers').insert({
     retailer_id: profile.retailer_id,
     name: String(body.name), phone: String(body.phone), imei: String(body.imei),
     brand: String(body.brand), model: String(body.model),
     emi_months: emiMonths, emi_amount: emiAmount, emi_due_day: dueDay,
     customer_code: code,
+    lock_mode: lockMode,
   }).select().single();
   if (error || !data) return Response.json({ error: error?.message ?? 'insert failed' }, { status: 500 });
 

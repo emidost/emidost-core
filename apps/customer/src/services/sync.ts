@@ -9,10 +9,65 @@ const KEY_INSTALLATION = 'emidost.installation_id';
 const KEY_DEVICE_TOKEN = 'emidost.device_token';
 const KEY_REGISTERED = 'emidost.registered';
 const KEY_BASELINE = 'emidost.sim_baseline_set';
+const KEY_LAST_SYNC_OK = 'emidost.last_sync_ok_at';
+const KEY_CACHED_STATE = 'emidost.cached_state';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 const FRP_ACCOUNTS = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
   .split(',').map((s) => s.trim()).filter(Boolean);
+
+/** No-internet watchdog: a lock-enabled loan locks after 5 days offline. */
+export const OFFLINE_LOCK_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
+
+export interface CachedState {
+  loan_status: string;
+  lock_mode: 'lock' | 'notify_only';
+  next_due: string | null;
+  overdue_days: number;
+  emi_amount: number | null;
+  emi_months: number | null;
+  emi_due_day: number | null;
+  retailer_phone: string | null;
+  retailer_name: string | null;
+  customer_code: string | null;
+  is_locked: boolean;
+}
+
+export async function getCachedState(): Promise<CachedState | null> {
+  const raw = await AsyncStorage.getItem(KEY_CACHED_STATE);
+  if (!raw) return null;
+  try { return JSON.parse(raw) as CachedState; } catch { return null; }
+}
+
+export async function saveCachedState(s: CachedState): Promise<void> {
+  await AsyncStorage.setItem(KEY_CACHED_STATE, JSON.stringify(s));
+}
+
+export async function getLastSyncOkAt(): Promise<number> {
+  const raw = await AsyncStorage.getItem(KEY_LAST_SYNC_OK);
+  return raw ? parseInt(raw, 10) : 0;
+}
+
+export async function markSyncOk(): Promise<void> {
+  await AsyncStorage.setItem(KEY_LAST_SYNC_OK, String(Date.now()));
+}
+
+/**
+ * Offline enforcement: with no successful sync for 5 days, a lock-enabled
+ * loan hard-locks locally. notify_only plans never lock; they only remind.
+ * Returns true when the phone was just locked here.
+ */
+export async function enforceOfflineWatchdog(): Promise<boolean> {
+  const st = await getCachedState();
+  if (!st) return false;
+  if (st.lock_mode !== 'lock') return false;
+  if (st.loan_status !== 'RUNNING' && st.loan_status !== 'NPA') return false;
+  const last = await getLastSyncOkAt();
+  if (last === 0) return false; // never synced yet: no info to enforce
+  if (Date.now() - last < OFFLINE_LOCK_AFTER_MS) return false;
+  await DeviceMgmt.executeAuthorizedLock('offline-watchdog');
+  return true;
+}
 
 /** CSPRNG device identity (Math.random is predictable and must not be used). */
 export function randomHex(bytes: number): string {
@@ -114,6 +169,23 @@ export async function pollOnce(): Promise<PollUiState | null> {
     overdue_days: resp?.overdue_days ?? 0,
     retailer_phone: resp?.retailer_phone ?? null,
   };
+
+  // Full offline capability: persist the server truth locally, and remember
+  // the successful sync (the 5-day no-internet watchdog counts from here).
+  await saveCachedState({
+    loan_status: resp?.loan_status ?? '',
+    lock_mode: resp?.lock_mode ?? 'lock',
+    next_due: resp?.next_due ?? null,
+    overdue_days: resp?.overdue_days ?? 0,
+    emi_amount: resp?.emi_amount ?? null,
+    emi_months: resp?.emi_months ?? null,
+    emi_due_day: resp?.emi_due_day ?? null,
+    retailer_phone: resp?.retailer_phone ?? null,
+    retailer_name: resp?.retailer_name ?? null,
+    customer_code: resp?.customer_code ?? null,
+    is_locked: Boolean(resp?.is_locked),
+  });
+  await markSyncOk();
 
   const loanStatus: string = resp?.loan_status ?? '';
   if (loanStatus === 'COMPLETE' || loanStatus === 'SETTLED') {

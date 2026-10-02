@@ -41,6 +41,7 @@ export interface Customer {
   emi_due_day: number;
   customer_code: string | null;
   status: LoanStatus;
+  lock_mode: 'lock' | 'notify_only';
 }
 
 export interface Device {

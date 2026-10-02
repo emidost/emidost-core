@@ -8,7 +8,7 @@ import {
   colors, createApi, getOemProfile, type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
-  Banknote, CalendarDays, Coins, Hash, IndianRupee, Lock, LockOpen, LogIn, QrCode,
+  Banknote, BellRing, CalendarDays, Coins, Hash, IndianRupee, Lock, LockOpen, LogIn, QrCode,
   Settings2, Smartphone, Store, UserPlus, Wallet,
 } from 'lucide-react-native';
 
@@ -147,6 +147,10 @@ function Customers() {
               tone={c.status === 'NPA' ? colors.danger : c.status === 'RUNNING' ? colors.accentTeal : colors.textMid}
               label={c.status === 'NPA' ? 'Missed payment' : c.status === 'RUNNING' ? 'On time' : c.status === 'COMPLETE' ? 'Paid' : c.status === 'SETTLED' ? 'Settled' : c.status}
             />
+            <Chip
+              tone={c.lock_mode === 'notify_only' ? colors.textMid : colors.accentTeal}
+              label={c.lock_mode === 'notify_only' ? 'Reminders only' : 'Lock plan'}
+            />
           </View>
           <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
         </View>
@@ -198,6 +202,7 @@ function NewCustomer({ onDone }: { onDone: () => void }) {
   const [form, setForm] = useState({
     name: '', phone: '', imei: '', brand: 'Samsung', model: '',
     emi_months: '12', emi_amount: '', emi_due_day: '1',
+    lock_mode: 'lock' as 'lock' | 'notify_only',
   });
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -232,6 +237,29 @@ function NewCustomer({ onDone }: { onDone: () => void }) {
       <Field label="EMI months" value={form.emi_months} onChange={set('emi_months')} icon={CalendarDays} keyboard="numeric" />
       <Field label="EMI amount per month" value={form.emi_amount} onChange={set('emi_amount')} icon={IndianRupee} keyboard="numeric" />
       <Field label="Due day (1-31)" value={form.emi_due_day} onChange={set('emi_due_day')} icon={CalendarDays} keyboard="numeric" />
+
+      <Text style={[s.label, { marginTop: 14 }]}>Phone lock plan</Text>
+      <TouchableOpacity
+        style={[s.choice, form.lock_mode === 'lock' && { borderColor: ACCENT, backgroundColor: '#F0FDFA' }]}
+        onPress={() => set('lock_mode')('lock')}
+      >
+        <Lock size={14} color={form.lock_mode === 'lock' ? ACCENT : '#6B7280'} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontWeight: '700' }}>Lock on missed payment</Text>
+          <Text style={{ color: '#6B7280', fontSize: 12 }}>Locks the phone when overdue or 5 days offline.</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[s.choice, form.lock_mode === 'notify_only' && { borderColor: ACCENT, backgroundColor: '#F0FDFA' }]}
+        onPress={() => set('lock_mode')('notify_only')}
+      >
+        <BellRing size={14} color={form.lock_mode === 'notify_only' ? ACCENT : '#6B7280'} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontWeight: '700' }}>Never lock, only reminders</Text>
+          <Text style={{ color: '#6B7280', fontSize: 12 }}>Due and overdue notices only. The phone never locks.</Text>
+        </View>
+      </TouchableOpacity>
+
       <TouchableOpacity style={s.button} onPress={save}>
         <Text style={s.buttonText}>Add customer</Text>
       </TouchableOpacity>
@@ -352,6 +380,7 @@ const s = StyleSheet.create({
   button: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT, borderRadius: 8, padding: 14, marginTop: 12 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, marginTop: 6 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 12, fontWeight: '600', color: '#1A1D21' },
