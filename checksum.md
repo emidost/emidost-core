@@ -13,6 +13,40 @@ here is a deployment record.
   evidence, honest limits, and standing user actions. Drafts kept in
   `.review/`.
 
+## 2026-10-03 wireless-debugging self-pair (no PC) — bundled adb decision
+
+- Plan reference: `.review/wireless-plan.md` (lead decision). Reality check
+  accepted: Android exposes no TLS 1.3 PSK/SPAKE2 mode, so a from-scratch
+  Kotlin SPAKE2 would need embedded BoringSSL. Instead the retailer app drives
+  a VENDORED AOSP adb client (Termux `android-tools`, Apache-2.0; source URL +
+  sha256 + NOTICE recorded by the lead before vendoring) — the checklist now
+  honestly says "bundled AOSP adb client", not "Kotlin SPAKE2".
+- Flow: target app = overlay grant + accessibility toggle + wireless-debugging
+  walk + pairing-code read (settings only, 10-min, cleared); retailer app =
+  staff-typed host/port/code → `adb pair` → `connect` → `pm grant` ×8 →
+  `appops SYSTEM_ALERT_WINDOW` → `dpm set-device-owner` → `dpm list
+  device-owners` readback → debug-off cleanup → disconnect; then the normal
+  bind/activation (heartbeat, mode readback, hideSelf). QR path (A) remains
+  the documented alternative until a device passes the walk.
+- Threat-residual fixes decided: (1) heartbeat lock-state write (below);
+  (2) SMS LOCK same-customer 60 s debounce; (3) `simBaselinePresent` status
+  readback; (4) 5-day watchdog KEPT (business decision; settled-loan offline
+  residual stays documented with the TOTP SMS escape); (5) hardware-hold
+  reboot, FRP OS readback, A12+ user-control, FGS cap and in-memory limiter
+  stay honest documented residuals.
+- **Web (claude):** heartbeat accepts optional `locked` (device enforcedLocked
+  readback): `true` → `devices.is_locked = true`; `false` → clear ONLY when no
+  LOCK/DEVICE_ACTION is PENDING/RECEIVED for the device (no extra query — the
+  pending load already returns command_type); settled loans skip the write so
+  a paid-off phone can never read "Locked" server-side.
+- **Native/app (codex):** EmidostAdbBridge step runner, asset + manifest
+  wiring, pairing walkthrough screen, retailer wireless-enrol flow, SMS
+  debounce, status additions. Lead fetches/verifies the binaries.
+- Docs: CONTEXT §5(b) rewritten, SETUP §6 wireless walk, checklist B2/B3/B5 +
+  H8 now CODE + DEVICE.
+- Checks: web tsc 0 · `next build` exit 0 (re-verified after the heartbeat
+  change). DEVICE walks pending (vivo first).
+
 ## 2026-10-03 offline unlock — retailer Authenticator-style TOTP generator
 
 - Design contract: `.review/offline-unlock-plan.md`. The phone already verifies

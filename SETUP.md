@@ -55,6 +55,8 @@ must be verified per device family.
 
 Per family: fresh reset, no accounts, no passcode → enrol → lock → 112 dials → SIM out locks within 30 s → reboot auto-locks → power menu has no Reboot → offline SMS LOCK/UNLOCK from the retailer number works → release unhides the app. Record model, firmware, build id in `checksum.md`.
 
+Wireless path (B) walk, same per-family rule: overlay grant + accessibility toggle → wireless debugging on → pairing code read/shown → retailer app `adb pair`/`connect` → pm grants → `dpm set-device-owner` → `dpm list device-owners` readback shows the component → debug-off cleanup confirms `adb_enabled 0` → app hidden. A family counts as "working" only after this passes on a real device.
+
 ## 7. What is NOT shipped
 
 No real Supabase/EAS/SMS credentials, no deployment config, no releases. Deployment requires explicit confirmation.

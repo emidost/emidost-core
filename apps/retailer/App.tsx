@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
+import * as DeviceMgmt from '@emidost/device-kit';
 import Svg, { Circle } from 'react-native-svg';
 import {
   colors, createApi, getOemProfile, totpCode, totpSecondsLeft,
@@ -46,6 +47,8 @@ export default function App() {
   const [enrolBrand, setEnrolBrand] = useState('');
   // Full-screen offline unlock code view for one device.
   const [unlockFor, setUnlockFor] = useState<Device | null>(null);
+  // Full-screen wireless enrol runner.
+  const [wirelessEnrol, setWirelessEnrol] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -65,6 +68,7 @@ export default function App() {
   if (session === null) return <View style={s.center}><ActivityIndicator color={ACCENT} size="large" /></View>;
   if (!session) return <Login onDone={() => setSession(true)} />;
   if (unlockFor) return <UnlockCodeScreen device={unlockFor} onClose={() => setUnlockFor(null)} />;
+  if (wirelessEnrol) return <WirelessEnrol onClose={() => setWirelessEnrol(false)} />;
 
   return (
     <View style={{ flex: 1 }}>
@@ -78,7 +82,7 @@ export default function App() {
       {tab === 'customers' && <Customers />}
       {tab === 'new' && <NewCustomer onDone={() => setTab('customers')} onBrand={setEnrolBrand} />}
       {tab === 'devices' && <Devices onUnlockCode={setUnlockFor} />}
-      {tab === 'enrol' && <Enrol brand={enrolBrand} />}
+      {tab === 'enrol' && <Enrol brand={enrolBrand} onWirelessEnrol={() => setWirelessEnrol(true)} />}
       <View style={s.tabs}>
         <TabButton icon={Wallet} label="Customers" active={tab === 'customers'} onPress={() => setTab('customers')} />
         <TabButton icon={UserPlus} label="New" active={tab === 'new'} onPress={() => setTab('new')} />
@@ -555,7 +559,7 @@ function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => 
   );
 }
 
-function Enrol({ brand }: { brand: string }) {
+function Enrol({ brand, onWirelessEnrol }: { brand: string; onWirelessEnrol: () => void }) {
   const [steps, setSteps] = useState<string[]>([]);
   const [hint, setHint] = useState('');
   const [profileName, setProfileName] = useState('');
@@ -591,7 +595,131 @@ function Enrol({ brand }: { brand: string }) {
         <QrCode color="#fff" size={16} />
         <Text style={s.buttonText}>Open portal QR page</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={[s.outlineBtn, { marginTop: 12 }]}
+        onPress={onWirelessEnrol}
+        accessibilityRole="button"
+        accessibilityLabel="Wireless enrol"
+      >
+        <Settings2 size={14} color={ACCENT} />
+        <Text style={s.outlineBtnText}>Wireless enrol</Text>
+      </TouchableOpacity>
     </ScrollView>
+  );
+}
+
+/**
+ * Wireless self-pair enrolment: the staff types the host, pair port, connect
+ * port and 6-digit code from the customer phone (pairing dialog + wireless
+ * debugging screen), then the bundled adb client runs pair → connect →
+ * pm grant → device owner → readback → debug off → disconnect. Every step
+ * reports { ok, output } honestly; a failed step stops the chain and shows
+ * the exact adb output.
+ */
+function WirelessEnrol({ onClose }: { onClose: () => void }) {
+  const [host, setHost] = useState('');
+  const [pairPort, setPairPort] = useState('');
+  const [connectPort, setConnectPort] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [steps, setSteps] = useState<{ label: string; status: 'pending' | 'running' | 'ok' | 'failed'; output: string }[]>([
+    { label: 'Prepare adb', status: 'pending', output: '' },
+    { label: 'Pair', status: 'pending', output: '' },
+    { label: 'Connect', status: 'pending', output: '' },
+    { label: 'Grant permissions', status: 'pending', output: '' },
+    { label: 'Set device owner', status: 'pending', output: '' },
+    { label: 'Turn off debugging', status: 'pending', output: '' },
+    { label: 'Disconnect', status: 'pending', output: '' },
+  ]);
+
+  const setStep = (i: number, status: 'pending' | 'running' | 'ok' | 'failed', output: string) => {
+    setSteps((prev) => prev.map((s, idx) => (idx === i ? { ...s, status, output } : s)));
+  };
+
+  async function run() {
+    if (busy) return;
+    if (!host.trim() || !pairPort.trim() || !connectPort.trim() || !code.trim()) {
+      setErr('Type the host, pair port, connect port and pairing code first.');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const pkg = 'com.emidost.customer';
+    const admin = 'com.emidost.devicemanagement.EmidostDeviceAdminReceiver';
+    try {
+      setStep(0, 'running', '');
+      let r = await DeviceMgmt.adbPrepare();
+      if (!r.ok) { setStep(0, 'failed', r.error ?? r.output); return; }
+      setStep(0, 'ok', r.output);
+
+      setStep(1, 'running', '');
+      r = await DeviceMgmt.adbPair(host.trim(), pairPort.trim(), code.trim());
+      if (!r.ok) { setStep(1, 'failed', r.error ?? r.output); return; }
+      setStep(1, 'ok', r.output);
+
+      setStep(2, 'running', '');
+      r = await DeviceMgmt.adbConnect(host.trim(), connectPort.trim());
+      if (!r.ok) { setStep(2, 'failed', r.error ?? r.output); return; }
+      setStep(2, 'ok', r.output);
+
+      setStep(3, 'running', '');
+      r = await DeviceMgmt.adbGrantRuntimePermissions(pkg);
+      setStep(3, r.ok ? 'ok' : 'failed', r.output);
+      // Refused grants are skipped, not fatal; the chain continues.
+
+      setStep(4, 'running', '');
+      r = await DeviceMgmt.adbSetDeviceOwner(pkg, admin);
+      if (!r.ok) { setStep(4, 'failed', r.error ?? r.output); return; }
+      setStep(4, 'ok', r.output);
+
+      setStep(5, 'running', '');
+      r = await DeviceMgmt.adbDisableDebugging();
+      setStep(5, r.ok ? 'ok' : 'failed', r.error || r.output);
+    } finally {
+      if (host.trim() && connectPort.trim()) {
+        try {
+          const d = await DeviceMgmt.adbDisconnect(host.trim(), connectPort.trim());
+          setStep(6, d.ok ? 'ok' : 'failed', d.output);
+        } catch {
+          setStep(6, 'failed', 'disconnect failed');
+        }
+      } else {
+        setStep(6, 'pending', '');
+      }
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={s.page}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to enrol">
+          <Text style={s.backText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={s.title}>Wireless enrol</Text>
+      </View>
+      <Text style={s.muted}>Type the three numbers from the customer phone: the pair port and code from the pairing dialog, and the connect port from the Wireless debugging screen.</Text>
+      <TextInput style={s.input} placeholder="Host (192.168.1.5)" value={host} onChangeText={setHost} autoCapitalize="none" autoCorrect={false} />
+      <TextInput style={s.input} placeholder="Pair port (37001)" value={pairPort} onChangeText={setPairPort} keyboardType="numeric" />
+      <TextInput style={s.input} placeholder="Connect port (40051)" value={connectPort} onChangeText={setConnectPort} keyboardType="numeric" />
+      <TextInput style={s.input} placeholder="6-digit pairing code" value={code} onChangeText={setCode} keyboardType="numeric" maxLength={6} />
+      {err && <Text style={s.error}>{err}</Text>}
+      <TouchableOpacity style={s.button} onPress={run} disabled={busy}>
+        <Text style={s.buttonText}>{busy ? 'Running…' : 'Start'}</Text>
+      </TouchableOpacity>
+
+      <View style={s.card}>
+        {steps.map((st, i) => (
+          <View key={st.label} style={{ marginTop: i === 0 ? 0 : 8 }}>
+            <Text style={[s.stepLabel, st.status === 'failed' && { color: '#DC2626' }, st.status === 'ok' && { color: '#16A34A' }]}>
+              {st.label}{st.status === 'running' ? '…' : ''} {st.status === 'ok' ? 'ok' : st.status === 'failed' ? 'failed' : ''}
+            </Text>
+            {!!st.output && <Text style={s.stepOutput}>{st.output}</Text>}
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -627,4 +755,8 @@ const s = StyleSheet.create({
   codeLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280' },
   bigCode: { fontSize: 56, fontWeight: '700', color: ACCENT, fontVariant: ['tabular-nums'], letterSpacing: 2, marginTop: 8 },
   ringWrap: { marginTop: 12 },
+
+  // Wireless enrol steps.
+  stepLabel: { fontSize: 13, fontWeight: '600', color: '#1A1D21' },
+  stepOutput: { fontSize: 12, color: '#6B7280', marginTop: 2, fontFamily: 'monospace' },
 });

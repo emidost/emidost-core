@@ -39,6 +39,21 @@ object SmsCommandStore {
   fun normalize(phone: String): String =
     phone.replace(Regex("[^0-9]"), "").takeLast(10)
 
+  /**
+   * SMS LOCK DoS debounce: an identical LOCK for the same customer code within
+   * 60 s is ignored (spoofed-SMS LOCK floods can otherwise spam the lock
+   * overlay). UNLOCK is untouched. Returns true when the command is debounced.
+   */
+  fun lockDebounced(c: Context, customerCode: String): Boolean {
+    val p = prefs(c)
+    val lastCode = p.getString("last_lock_code", "")
+    val lastAt = p.getLong("last_lock_at", 0L)
+    val now = System.currentTimeMillis()
+    if (lastCode == customerCode && now - lastAt < 60_000L) return true
+    p.edit().putString("last_lock_code", customerCode).putLong("last_lock_at", now).apply()
+    return false
+  }
+
   private fun prefs(c: Context): SharedPreferences =
     DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

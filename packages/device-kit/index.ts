@@ -19,6 +19,8 @@ export interface DeviceStatus {
   lastUnlockBoot: number;
   bootCount: number;
   elapsedRealtime: number;
+  // True when the SIM baseline has a readable IMSI or ICCID (null on some devices — documented).
+  simBaselinePresent: boolean;
 }
 
 export interface OemProfile {
@@ -50,6 +52,27 @@ export interface LockResult {
   mode?: string;
   enforced?: boolean;
   reason?: string | null;
+}
+
+/** One bundled-adb step result (honest per-step reporting). */
+export interface AdbStepResult {
+  ok: boolean;
+  output: string;
+  error?: string;
+  skipped?: boolean;
+  readback?: boolean;
+  results?: Array<{ perm: string; ok: boolean; skipped: boolean; output: string }>;
+}
+
+/** Transient pairing capture (settings package only, 10-min expiry). */
+export interface AdbPairingInfo {
+  address: string;
+  port: string;
+  code: string;
+  /** Main wireless-debugging screen "IP address & Port" (connect target); empty until seen. */
+  connectHost: string;
+  connectPort: string;
+  expiresAt: number;
 }
 
 export function isDeviceOwner(): Promise<boolean> {
@@ -185,6 +208,50 @@ export function setEnrolmentSessionActive(active: boolean): Promise<boolean> {
 export function getAdbBridgeStatus(): Promise<{ implemented: boolean; note: string }> {
   return native.getAdbBridgeStatus();
 }
+
+// Pairing walkthrough helpers (customer app, pre-bind).
+export function canDrawOverlays(): Promise<boolean> {
+  return native.canDrawOverlays();
+}
+export function openOverlaySettings(): Promise<boolean> {
+  return native.openOverlaySettings();
+}
+export function openAccessibilitySettings(): Promise<boolean> {
+  return native.openAccessibilitySettings();
+}
+export function openDevelopmentSettings(): Promise<boolean> {
+  return native.openDevelopmentSettings();
+}
+export function getPairingInfo(): Promise<AdbPairingInfo> {
+  return native.getPairingInfo();
+}
+export function clearPairingInfo(): Promise<boolean> {
+  return native.clearPairingInfo();
+}
+
+// Bundled-adb self-pair steps (background thread; 20 s timeout each).
+export function adbPrepare(): Promise<AdbStepResult> {
+  return native.adbPrepare();
+}
+export function adbPair(host: string, port: string, code: string): Promise<AdbStepResult> {
+  return native.adbPair(host, port, code);
+}
+export function adbConnect(host: string, port: string): Promise<AdbStepResult> {
+  return native.adbConnect(host, port);
+}
+export function adbGrantRuntimePermissions(pkg: string): Promise<AdbStepResult> {
+  return native.adbGrantRuntimePermissions(pkg);
+}
+export function adbSetDeviceOwner(pkg: string, adminComponent: string): Promise<AdbStepResult> {
+  return native.adbSetDeviceOwner(pkg, adminComponent);
+}
+export function adbDisableDebugging(): Promise<AdbStepResult> {
+  return native.adbDisableDebugging();
+}
+export function adbDisconnect(host: string, port: string): Promise<AdbStepResult> {
+  return native.adbDisconnect(host, port);
+}
+
 export function rebootDevice(): Promise<{ ok: boolean; reason?: string }> {
   return native.rebootDevice();
 }

@@ -118,6 +118,14 @@ export interface HeartbeatNextDue {
 }
 
 /** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */
+/** Heartbeat request body: device-reported OS readback (server never trusts the client blindly). */
+export interface HeartbeatRequest {
+  mode: DeviceMode | string;
+  heartbeat?: boolean;
+  /** Live enforcedLocked readback; the server reconciles devices.is_locked from it. */
+  locked: boolean;
+}
+
 export interface HeartbeatResponse {
   commands: HeartbeatCommand[];
   device_pin_hash: string | null;

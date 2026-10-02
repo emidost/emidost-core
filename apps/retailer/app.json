@@ -7,7 +7,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-    "plugins": [],
+    "plugins": [
+      "./plugin-adb-assets"
+    ],
     "android": {
       "package": "com.emidost.retailer",
       "versionCode": 1,

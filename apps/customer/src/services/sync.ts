@@ -5,7 +5,7 @@ import * as DeviceMgmt from '@emidost/device-kit';
 import * as Notifications from 'expo-notifications';
 import {
   dueReminderCopy, isLockCommandStale, isoToEpochMillis,
-  type HeartbeatNextDue, type HeartbeatResponse,
+  type HeartbeatNextDue, type HeartbeatRequest, type HeartbeatResponse,
 } from '@emidost/shared';
 
 const KEY_INSTALLATION = 'emidost.installation_id';
@@ -175,10 +175,13 @@ export async function pollOnce(): Promise<PollUiState | null> {
   await DeviceMgmt.kickCommandService();
   let resp: HeartbeatResponse;
   try {
+    // The device reports its own live state; the server reconciles
+    // devices.is_locked from the enforcedLocked readback (web scope).
+    const body: HeartbeatRequest = { mode: stBefore.mode, locked: stBefore.enforcedLocked };
     const res = await fetch(`${API_URL}/api/device/heartbeat?installation_id=${installationId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Device-Token': deviceToken },
-      body: JSON.stringify({ mode: stBefore.mode }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) return null;
     resp = (await res.json()) as HeartbeatResponse;

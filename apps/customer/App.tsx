@@ -157,6 +157,7 @@ function BindScreen({ onBound }: { onBound: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [oem, setOem] = useState<string | null>(null);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -178,6 +179,10 @@ function BindScreen({ onBound }: { onBound: () => void }) {
     else setError(result.error ?? 'Binding failed');
   }
 
+  if (showWalkthrough) {
+    return <PairingWalkthrough onDone={() => setShowWalkthrough(false)} />;
+  }
+
   return (
     <View style={[s.page, { padding: 24 }]}>
       <Smartphone color={ACCENT} size={36} />
@@ -197,6 +202,184 @@ function BindScreen({ onBound }: { onBound: () => void }) {
         <KeyRound color="#fff" size={16} />
         <Text style={s.buttonText}>{busy ? 'Binding…' : 'Bind this phone'}</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={s.linkRow}
+        onPress={() => setShowWalkthrough(true)}
+        accessibilityRole="button"
+      >
+        <Text style={s.linkText}>Wireless pairing walkthrough</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/**
+ * Pre-bind pairing walkthrough: overlay grant → accessibility → wireless
+ * debugging → the pairing dialog (ip:port + 6-digit code) shown big for the
+ * retailer to type. The accessibility service reads only the settings-package
+ * pairing dialog during the authorized session (10-min expiry, cleared on
+ * exit or consumption).
+ */
+function PairingWalkthrough({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [overlayOk, setOverlayOk] = useState<boolean | null>(null);
+  const [a11yOk, setA11yOk] = useState<boolean | null>(null);
+  const [pairing, setPairing] = useState<DeviceMgmt.AdbPairingInfo | null>(null);
+  const [expired, setExpired] = useState(false);
+
+  // Step 1: poll the overlay permission until granted.
+  useEffect(() => {
+    if (step !== 1) return;
+    let active = true;
+    const tick = async () => {
+      const ok = await DeviceMgmt.canDrawOverlays();
+      if (active) setOverlayOk(ok);
+    };
+    void tick();
+    const t = setInterval(tick, 1000);
+    return () => { active = false; clearInterval(t); };
+  }, [step]);
+
+  // Step 2: poll the accessibility toggle until the service is on.
+  useEffect(() => {
+    if (step !== 2) return;
+    let active = true;
+    const tick = async () => {
+      const ok = await DeviceMgmt.isAccessibilityEnabled();
+      if (active) setA11yOk(ok);
+    };
+    void tick();
+    const t = setInterval(tick, 1000);
+    return () => { active = false; clearInterval(t); };
+  }, [step]);
+
+  // Step 3: keep the authorized session alive and watch for the pairing dialog.
+  useEffect(() => {
+    if (step !== 3) return;
+    let active = true;
+    const tick = async () => {
+      await DeviceMgmt.setEnrolmentSessionActive(true);
+      const info = await DeviceMgmt.getPairingInfo();
+      if (active && info.address && info.code) {
+        setPairing(info);
+        setStep(4);
+      }
+    };
+    void tick();
+    const t = setInterval(tick, 1000);
+    return () => { active = false; clearInterval(t); };
+  }, [step]);
+
+  // Step 4: watch the 10-min expiry and refresh the connect address when the
+  // main wireless-debugging screen is read after the pairing dialog.
+  useEffect(() => {
+    if (step !== 4 || !pairing) return;
+    const t = setInterval(async () => {
+      if (pairing.expiresAt > 0 && Date.now() > pairing.expiresAt) {
+        setExpired(true);
+        return;
+      }
+      const info = await DeviceMgmt.getPairingInfo();
+      if (info.address && info.code) {
+        setPairing((prev) => {
+          if (!prev) return prev;
+          if (prev.connectHost === info.connectHost && prev.connectPort === info.connectPort) return prev;
+          return { ...prev, connectHost: info.connectHost, connectPort: info.connectPort };
+        });
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [step, pairing]);
+
+  // Exit: end the session and wipe the transient pairing values.
+  useEffect(() => () => {
+    void DeviceMgmt.setEnrolmentSessionActive(false);
+    void DeviceMgmt.clearPairingInfo();
+  }, []);
+
+  return (
+    <View style={[s.page, { padding: 24 }]}>
+      <TouchableOpacity onPress={onDone} accessibilityRole="button" accessibilityLabel="Back to bind screen">
+        <Text style={s.linkText}>Back</Text>
+      </TouchableOpacity>
+      <Text style={s.title}>Wireless pairing</Text>
+
+      {step === 1 && (
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Step 1: allow the lock overlay</Text>
+          <Text style={s.muted}>The lock screen covers other apps while the EMI is unpaid. Allow drawing over other apps.</Text>
+          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openOverlaySettings()}>
+            <Text style={s.buttonText}>Open overlay permission</Text>
+          </TouchableOpacity>
+          <Text style={s.muted}>{overlayOk ? 'Overlay allowed.' : 'Waiting for the permission…'}</Text>
+          <TouchableOpacity style={s.button} onPress={() => setStep(2)} disabled={!overlayOk}>
+            <Text style={s.buttonText}>Continue</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {step === 2 && (
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Step 2: turn on emidost protection</Text>
+          <Text style={s.muted}>Open accessibility settings and switch on emidost protection. It reads only the pairing code during this walkthrough.</Text>
+          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openAccessibilitySettings()}>
+            <Text style={s.buttonText}>Open accessibility settings</Text>
+          </TouchableOpacity>
+          <Text style={s.muted}>{a11yOk ? 'Service is on.' : 'Waiting for the switch…'}</Text>
+          <TouchableOpacity style={s.button} onPress={() => setStep(3)} disabled={!a11yOk}>
+            <Text style={s.buttonText}>Continue</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {step === 3 && (
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Step 3: start wireless pairing</Text>
+          <Text style={s.muted}>Open developer options, tap Wireless debugging, then Pair device with pairing code. The numbers appear here.</Text>
+          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openDevelopmentSettings()}>
+            <Text style={s.buttonText}>Open developer options</Text>
+          </TouchableOpacity>
+          <Text style={s.muted}>Watching for the pairing code…</Text>
+        </View>
+      )}
+
+      {step === 4 && pairing && (
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Give these numbers to the retailer's phone</Text>
+          {expired ? (
+            <Text style={s.error}>This pairing code expired. Start a new one on the phone.</Text>
+          ) : (
+            <>
+              <Text style={s.pairLabel}>Pairing port</Text>
+              <Text style={s.pairBig} accessibilityLabel={`Pairing address ${pairing.address} port ${pairing.port}`}>
+                {pairing.address}:{pairing.port}
+              </Text>
+              <Text style={s.pairLabel}>Pairing code</Text>
+              <Text style={s.pairCode} accessibilityLabel={`Pairing code ${pairing.code}`}>{pairing.code}</Text>
+              <Text style={s.pairLabel}>Connect port</Text>
+              {pairing.connectHost && pairing.connectPort ? (
+                <Text style={s.pairMid} accessibilityLabel={`Connect port ${pairing.connectPort}`}>
+                  {pairing.connectHost}:{pairing.connectPort}
+                </Text>
+              ) : (
+                <Text style={s.muted}>Not seen yet. Read it on the phone's Wireless debugging screen.</Text>
+              )}
+              <Text style={s.muted}>Valid for 10 minutes.</Text>
+            </>
+          )}
+          <TouchableOpacity
+            style={s.button}
+            onPress={async () => {
+              await DeviceMgmt.clearPairingInfo();
+              setPairing(null);
+              setExpired(false);
+              setStep(3);
+            }}
+          >
+            <Text style={s.buttonText}>{expired ? 'Start again' : 'Clear and pair again'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -418,6 +601,14 @@ const s = StyleSheet.create({
   error: { color: '#DC2626', marginTop: 8 },
   button: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT, borderRadius: 8, padding: 14, marginTop: 12 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  // Pairing walkthrough.
+  linkRow: { alignItems: 'center', marginTop: 16 },
+  linkText: { color: ACCENT, fontSize: 14, fontWeight: '600', marginTop: 8 },
+  pairLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 12 },
+  pairBig: { fontSize: 34, fontWeight: '700', color: '#1A1D21', fontVariant: ['tabular-nums'], marginTop: 4 },
+  pairMid: { fontSize: 24, fontWeight: '700', color: '#1A1D21', fontVariant: ['tabular-nums'], marginTop: 4 },
+  pairCode: { fontSize: 56, fontWeight: '700', color: ACCENT, fontVariant: ['tabular-nums'], letterSpacing: 6, marginTop: 4 },
 
   // Lock screen (dark = locked).
   lockPage: { flex: 1, backgroundColor: LOCKED.bg, padding: 24, alignItems: 'center', justifyContent: 'center' },

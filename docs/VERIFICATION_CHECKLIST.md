@@ -22,10 +22,10 @@ Every item carries one of four states:
 | # | Item | State | Evidence |
 |---|---|---|---|
 | B1 | Pairing-code read: accessibility, settings package only, transient, 10-min expiry, cleared | CODE | EmidostAccessibilityService + AdbBridge.clear |
-| B2 | Kotlin SPAKE2 self-pair (ALPN adbpair, hairpin loopback) | **SPIKE — NOT implemented** | EmidostAdbBridge reports implemented=false |
-| B3 | pm grant ×8 + `dpm set-device-owner` + readback + debug-off cleanup | SPIKE | AdbBridge skeleton |
-| B4 | Fallback while the spike is pending: provisioning QR (A above) | CODE | QR page |
-| B5 | Staff-typed pairing code fallback (when the a11y read misses) | CODE (UI stub) | retailer Enrol tab text; keypad UI is a follow-up |
+| B2 | Pairing handshake (ALPN adbpair SPAKE2-in-TLS): performed by the bundled AOSP adb client (Termux android-tools, Apache-2.0, source URL + sha256 + NOTICE recorded) — honestly NOT a from-scratch Kotlin SPAKE2 | CODE + DEVICE | vendor assets in packages/device-kit; per-OEM walk pending |
+| B3 | pm grant ×8 + `dpm set-device-owner` + readback + debug-off cleanup, driven from the retailer app | CODE + DEVICE | EmidostAdbBridge step runner (honest per-step ok/output/readback); per-OEM walk pending |
+| B4 | Fallback while the wireless path is unverified: provisioning QR (A above) | CODE | QR page |
+| B5 | Staff-typed pairing code fallback (when the a11y read misses) | CODE | retailer app "Wireless enrol" flow (host/port/code entry) |
 
 ## C. FRP and protection set
 | # | Item | State | Evidence |
@@ -89,7 +89,7 @@ non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 | H5 | Offline SMS LOCK/UNLOCK from the retailer number | DEVICE |
 | H6 | UNLOCK/RELEASE → fully released, app unhidden, no re-lock | DEVICE |
 | H7 | Paid loan (COMPLETE) → never re-locks | DEVICE |
-| H8 | Wireless self-pair (B) spike on vivo | SPIKE |
+| H8 | Wireless self-pair (B): pair → connect → pm grant → dpm set-device-owner → DO readback → debug off → app hidden, on vivo (or any first certified family) | CODE + DEVICE |
 
 ## I. Deployment gates (all yours, none done)
 | # | Item | State |

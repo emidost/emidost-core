@@ -30,14 +30,17 @@ class EmidostSmsReceiver : BroadcastReceiver() {
       when (command) {
         "LOCK" -> {
           // Hard-lock-only, never after settlement/release, and never on a
-          // notify_only plan (reminders only, no locking).
-          if (DeviceActions.isOwner(context) &&
+          // notify_only plan (reminders only, no locking). An identical LOCK
+          // within 60 s is debounced (spoofed-SMS DoS hardening).
+          val debounced = SmsCommandStore.lockDebounced(context, code)
+          if (!debounced &&
+            DeviceActions.isOwner(context) &&
             SimSentinelStore.loanOutstanding(context) &&
             SyncStateStore.getLockMode(context) == "lock"
           ) {
             DeviceActions.hardLock(context)
           }
-          EmidostCommandService.kick()
+          if (!debounced) EmidostCommandService.kick()
         }
         "UNLOCK" -> {
           // Unlock always wins and stays available after release. The body

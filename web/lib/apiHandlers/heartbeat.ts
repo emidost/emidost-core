@@ -121,6 +121,24 @@ export async function POST(req: NextRequest) {
       .in('id', toMark).eq('status', 'PENDING');
   }
 
+  // Device-reported enforcedLocked readback → portal lock indicator. Report
+  // true → is_locked=true. Report false → clear ONLY when no LOCK/DEVICE_ACTION
+  // is still PENDING/RECEIVED (a queued lock may not have executed on the
+  // phone yet; clearing early would show a false "unlocked"). Settled loans
+  // are skipped: their device may hold the documented 5-day watchdog lock
+  // while offline, and a paid-off phone must never read "Locked" server-side.
+  const settledLoan = customers?.status === 'COMPLETE' || customers?.status === 'SETTLED';
+  if (!settledLoan && typeof body?.locked === 'boolean') {
+    const hasPendingRestrictive = pendingRows.some(
+      (c) => c.command_type === 'LOCK' || c.command_type === 'DEVICE_ACTION',
+    );
+    if (body.locked === true) {
+      await svc.from('devices').update({ is_locked: true }).eq('id', device.id);
+    } else if (body.locked === false && !hasPendingRestrictive) {
+      await svc.from('devices').update({ is_locked: false }).eq('id', device.id);
+    }
+  }
+
   const frpAccounts = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
     .split(',').map((s: string) => s.trim()).filter(Boolean);
 

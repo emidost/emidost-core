@@ -92,9 +92,27 @@ class EmidostAccessibilityService : AccessibilityService() {
     collectText(e.source, text)
     val content = text.toString()
     val pair = Regex("""(\d{1,3}(?:\.\d{1,3}){3}):(\d{4,5})""").find(content)
-    val code = Regex("""(?:^|\D)(\d{6})(?:\D|$)""").find(content)
-    if (pair != null || code != null) {
-      EmidostAdbBridge.onPairingRead(pair?.groupValues?.get(1), pair?.groupValues?.get(2), code?.groupValues?.get(1))
+    // The 6-digit pairing code may render with spaces or dashes between
+    // digits ("123 456"); strip non-digits and require exactly 6.
+    val codeRaw = Regex("""(?:\D|^)(\d[\d\s\-]{4,}\d)(?:\D|$)""").find(content)?.groupValues?.get(1)
+    val code = codeRaw?.replace(Regex("""[^\d]"""), "")?.takeIf { it.length == 6 }
+    if (pair != null && code != null) {
+      EmidostAdbBridge.onPairingRead(pair.groupValues[1], pair.groupValues[2], code)
+    }
+    // Main wireless-debugging screen: the CONNECT address follows the
+    // "IP address & Port" label and has NO pairing code in the same snapshot.
+    // The pairing dialog also carries that label, so a reading is only stored
+    // as the connect address when its port differs from the pairing port.
+    val connectMatch = Regex(
+      """IP\s*address(?:\s*&\s*port)?[^0-9]{0,60}(\d{1,3}(?:\.\d{1,3}){3}):(\d{4,5})""",
+      RegexOption.IGNORE_CASE,
+    ).find(content)
+    if (connectMatch != null && code == null) {
+      val connectPort = connectMatch.groupValues[2]
+      val pairPort = EmidostAdbBridge.pairingInfo()["port"] as? String ?: ""
+      if (pairPort.isEmpty() || connectPort != pairPort) {
+        EmidostAdbBridge.onConnectAddressRead(connectMatch.groupValues[1], connectPort)
+      }
     }
   }
 

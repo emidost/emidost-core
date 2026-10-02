@@ -4,6 +4,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.telephony.TelephonyManager
@@ -41,6 +42,10 @@ class EmidostDeviceManagementModule : Module() {
         "lastUnlockBoot" to LockStateStore.getLastUnlockBoot(context),
         "bootCount" to LockStateStore.currentBootCount(context),
         "elapsedRealtime" to android.os.SystemClock.elapsedRealtime(),
+        // Honest reporting: a SIM baseline exists only when IMSI or ICCID was
+        // readable at baseline time (some devices return null — documented).
+        "simBaselinePresent" to (SimSentinelStore.baselineImsi(context) != null ||
+          SimSentinelStore.baselineIccid(context) != null),
       )
     }
 
@@ -218,7 +223,53 @@ class EmidostDeviceManagementModule : Module() {
       true
     }
 
-    Function("getAdbBridgeStatus") { EmidostAdbBridge.status() }
+    // Pairing walkthrough helpers (customer app, pre-bind).
+    Function("canDrawOverlays") { Settings.canDrawOverlays(context) }
+    Function("openOverlaySettings") {
+      try {
+        val i = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(i)
+        true
+      } catch (_: Exception) { false }
+    }
+    Function("openAccessibilitySettings") {
+      try {
+        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+      } catch (_: Exception) { false }
+    }
+    Function("openDevelopmentSettings") {
+      try {
+        context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+      } catch (_: Exception) { false }
+    }
+
+    // Transient pairing-dialog readback (10-min expiry, cleared after consume).
+    Function("getPairingInfo") { EmidostAdbBridge.pairingInfo() }
+    Function("clearPairingInfo") { EmidostAdbBridge.clear(); true }
+
+    Function("getAdbBridgeStatus") { EmidostAdbBridge.status(context) }
+
+    // Bundled-adb self-pair steps (run off the JS thread; 20 s timeout each).
+    AsyncFunction("adbPrepare") { EmidostAdbBridge.prepare(context) }
+    AsyncFunction("adbPair") { host: String, port: String, code: String ->
+      EmidostAdbBridge.pair(context, host, port, code)
+    }
+    AsyncFunction("adbConnect") { host: String, port: String ->
+      EmidostAdbBridge.connect(context, host, port)
+    }
+    AsyncFunction("adbGrantRuntimePermissions") { pkg: String ->
+      EmidostAdbBridge.grantRuntimePermissions(context, pkg)
+    }
+    AsyncFunction("adbSetDeviceOwner") { pkg: String, adminComponent: String ->
+      EmidostAdbBridge.setDeviceOwner(context, pkg, adminComponent)
+    }
+    AsyncFunction("adbDisableDebugging") { EmidostAdbBridge.disableDebugging(context) }
+    AsyncFunction("adbDisconnect") { host: String, port: String ->
+      EmidostAdbBridge.disconnect(context, host, port)
+    }
 
     // On-demand location: fetched only when the owner asks (no tracking).
     Function("getLocation") { EmidostLocation.fetch(context) }

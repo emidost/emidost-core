@@ -119,10 +119,24 @@ from `eas credentials`) + `PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION`
 `onProfileProvisioningComplete` finalizes → activation only on the phone's own
 `mode=device_owner` readback → app hides.
 
-(b) Wireless-debugging self-pair: SKELETON ONLY (SPAKE2 is the Stage-1 spike;
-`EmidostAdbBridge` reports implemented=false honestly). Plumbing exists
-(accessibility reads the pairing dialog, settings package only, 10-min session,
-RAM cleared). Until the spike passes, use (a).
+(b) Wireless-debugging self-pair (no PC; retailer phone = controller, customer
+phone = target): the target app walks the customer through one overlay grant +
+one accessibility toggle; the accessibility service auto-walks developer
+options, enables wireless debugging (per-OEM matrix) and reads BOTH the
+pairing dialog (pairing ip:port + 6-digit code) and the main screen's connect
+ip:port — the pairing port and the connect port are DIFFERENT numbers on stock
+Android (settings package only, 10-min expiry, cleared after). Staff type the
+four values (ip, pairing port, code, connect port) into the retailer app's
+"Wireless enrol" flow, which drives a bundled AOSP adb client (Termux
+android-tools, Apache-2.0, source URL + sha256 + NOTICE recorded — the pairing
+crypto is that vendored binary, honestly NOT a from-scratch Kotlin SPAKE2):
+`adb pair` → `adb connect` → `pm grant` list → `appops SYSTEM_ALERT_WINDOW` →
+`dpm set-device-owner` → `dpm list device-owners` readback (must contain the
+component) → debug-off cleanup → disconnect. Each step reports
+{ok, output, readback} honestly and stops on failure. The target then
+continues the normal bind/activation (heartbeat, mode=device_owner readback,
+hideSelf). Until the first device passes the walk, (a) stays the recommended
+path.
 
 OEM matrix (verified research, in `packages/shared/src/oemMatrix.ts` + Kotlin
 `OemFingerprint.kt`): Samsung Auto Blocker off first · ColorOS/Transsion
@@ -172,13 +186,17 @@ Global EAS env (Expo dashboard → environment variables → global):
 - `npx tsc --noEmit -p apps/customer/tsconfig.json`
 - `npx tsc --noEmit -p apps/retailer/tsconfig.json`
 - `npx tsc --noEmit -p apps/owner/tsconfig.json`
-- `node --test packages/shared/src/stale.test.mjs` (6/6)
+- `node --test packages/shared/src/*.test.mjs` (13/13: stale 9 + totp 4)
 - Kotlin compiles only in EAS Gradle builds (no local JDK/SDK); a queued build
   is not a pass.
 
 ## 9. Honest gaps (do not claim these work)
 
-- SPAKE2 self-pair: skeleton only; QR provisioning is the working path.
+- Wireless self-pair: implemented end-to-end in code via the bundled AOSP adb
+  client (RUNPATH-patched Termux android-tools 37 + 56-lib closure, sha256
+  recorded) — but NO physical device has run the walk yet, so the QR
+  provisioning path stays the recommended path until per-OEM acceptance.
+  The pairing crypto is the vendored binary, not a from-scratch Kotlin SPAKE2.
 - Consent: direct at the counter (user decision); no blocking record; optional
   audit row only (consent API exists; no dedicated consent screen in the apps).
 - Payments UI: web console customer page records payments + shows history and
