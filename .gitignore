@@ -11,3 +11,6 @@ apps/*/android/
 apps/*/ios/
 !.env.example
 .DS_Store
+
+# Firebase config: committed to EAS as a secret instead (SETUP.md)
+apps/customer/google-services.json

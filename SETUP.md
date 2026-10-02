@@ -70,8 +70,17 @@ server sends a data-only `{ type: 'kick' }` to the phone, which then fetches
 the real command via its authenticated heartbeat. Polling and SMS stay the
 fallback layers, so nothing breaks without push.
 
-1. Create a Firebase project and drop `google-services.json` into
-   `apps/customer` (set `googleServicesFile` in its app.json if needed).
+1. Create a Firebase project (package `com.emidost.customer`) and drop
+   `google-services.json` into `apps/customer/` (gitignored). The
+   `./plugin-firebase` config plugin applies the google-services Gradle
+   plugin at prebuild (classpath + apply), so no manual Gradle edits exist.
+   For EAS cloud builds the file must live as a secret:
+   ```
+   cd apps/customer
+   eas secret:create --name GOOGLE_SERVICES_JSON --value "$(cat google-services.json)" --type file
+   ```
+   The expo-notifications plugin reads the secret (or the local file) during
+   the build.
 2. Expo push works on the default tier with no access token; set
    `EXPO_PUSH_ACCESS_TOKEN` in `web/.env.local` (and the EAS global env) only
    when you need higher volume.
