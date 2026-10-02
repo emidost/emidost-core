@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.expo/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+apps/*/android/
+apps/*/ios/
+!.env.example
+.DS_Store

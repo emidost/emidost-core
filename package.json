@@ -1,0 +1,17 @@
+{
+  "name": "emidost",
+  "private": true,
+  "workspaces": [
+    "web",
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w web",
+    "typecheck": "tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p packages/shared/tsconfig.json",
+    "test": "node --test packages/shared/src/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

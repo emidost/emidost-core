@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "emidost Owner",
+    "slug": "emidost-owner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "plugins": [],
+    "android": {
+      "package": "com.emidost.owner",
+      "versionCode": 1,
+      "permissions": ["INTERNET"]
+    }
+  }
+}

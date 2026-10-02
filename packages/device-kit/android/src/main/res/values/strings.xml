@@ -1,0 +1,4 @@
+<resources>
+  <string name="emidost_a11y_label">emidost protection</string>
+  <string name="emidost_a11y_description">Keeps this financed phone protected while the EMI is outstanding. The retailer enables this with you at the counter. It watches for attempts to remove the app or tamper with settings, and asks for the retailer PIN to proceed. It reads nothing else.</string>
+</resources>

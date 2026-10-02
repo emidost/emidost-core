@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "wifi",
+    "slug": "emidost-customer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "plugins": [
+      "@emidost/device-kit",
+      [
+        "expo-notifications",
+        { "sounds": ["./assets/reminder.wav"] }
+      ]
+    ],
+    "android": {
+      "package": "com.emidost.customer",
+      "label": "wifi",
+      "versionCode": 1,
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_DATA_SYNC",
+        "SYSTEM_ALERT_WINDOW",
+        "RECEIVE_SMS",
+        "READ_SMS",
+        "SEND_SMS",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "READ_PHONE_STATE",
+        "READ_PHONE_NUMBERS",
+        "POST_NOTIFICATIONS",
+        "CALL_PHONE",
+        "INTERNET"
+      ]
+    }
+  }
+}

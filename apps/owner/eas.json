@@ -1,0 +1,11 @@
+{
+  "cli": { "version": ">= 8.0.0", "appVersionSource": "remote" },
+  "build": {
+    "owner": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "production": { "android": { "buildType": "apk" } }
+  },
+  "submit": { "production": {} }
+}

@@ -1,0 +1,230 @@
+package com.emidost.devicemanagement
+
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import android.telephony.TelephonyManager
+import expo.modules.kotlin.modules.Module
+import expo.modules.kotlin.modules.ModuleDefinition
+
+/**
+ * Expo module: the whole emidost device-management surface. Hard-lock-only:
+ * executeAuthorizedLock refuses without a live Device Owner.
+ */
+class EmidostDeviceManagementModule : Module() {
+  private val context: Context
+    get() = appContext.reactContext ?: appContext
+
+  override fun definition() = ModuleDefinition {
+    Name("EmidostDeviceManagement")
+
+    Function("isSupported") { Build.VERSION.SDK_INT >= Build.VERSION_CODES.M }
+    Function("isDeviceOwner") { DeviceActions.isOwner(context) }
+    Function("isDeviceAdminEnabled") { DeviceActions.isAdminActive(context) }
+    Function("getManagementMode") { DeviceActions.mode(context) }
+
+    Function("getDeviceManagementStatus") {
+      mapOf(
+        "mode" to DeviceActions.mode(context),
+        "adminActive" to DeviceActions.isAdminActive(context),
+        "enforcedLocked" to LockStateStore.isLocked(context),
+        "hidden" to isHidden(),
+        "lastLockAssertAt" to LockStateStore.getLastLockAssertAt(context),
+      )
+    }
+
+    Function("getDeviceInfo") {
+      mapOf(
+        "manufacturer" to (Build.MANUFACTURER ?: ""),
+        "model" to (Build.MODEL ?: ""),
+        "androidVersion" to Build.VERSION.RELEASE,
+        "sdkInt" to Build.VERSION.SDK_INT,
+      )
+    }
+
+    Function("lockNow") {
+      // Hard-lock-only: the screen lock is an enforcement step, not a feature;
+      // refuse without a live Device Owner.
+      if (!DeviceActions.isOwner(context)) false
+      else {
+        try {
+          val dpm = DeviceActions.dpm(context)
+          if (dpm.isAdminActive(DeviceActions.admin(context))) { dpm.lockNow(); true } else false
+        } catch (_: Exception) { false }
+      }
+    }
+
+    Function("enterLockTask") {
+      // Pins the foreground activity into kiosk mode when permitted.
+      if (!DeviceActions.isOwner(context)) false
+      else {
+        try {
+          val activity = appContext.currentActivity
+          if (activity != null && DeviceActions.dpm(context).isLockTaskPermitted(context.packageName)) {
+            activity.startLockTask()
+            true
+          } else false
+        } catch (_: Exception) { false }
+      }
+    }
+
+    Function("executeAuthorizedLock") { commandId: String ->
+      val result = DeviceActions.hardLock(context)
+      mapOf(
+        "ok" to (result == "HARD_LOCKED"),
+        "commandId" to commandId,
+        "mode" to DeviceActions.mode(context),
+        "enforced" to (result == "HARD_LOCKED"),
+        "reason" to if (result == "HARD_LOCKED") null else result,
+      )
+    }
+
+    Function("executeAuthorizedUnlock") { commandId: String ->
+      DeviceActions.releaseLock(context)
+      mapOf("ok" to true, "commandId" to commandId)
+    }
+
+    Function("applyFinancingProtection") { active: Boolean, frpAccountsJson: String? ->
+      val accounts = parseAccounts(frpAccountsJson)
+      FinancingProtection.apply(context, active, accounts)
+      mapOf("applied" to DeviceActions.isOwner(context), "status" to FinancingProtection.status(context))
+    }
+
+    Function("getProtectionStatus") { FinancingProtection.status(context) }
+
+    Function("setUninstallProtection") { active: Boolean ->
+      if (!DeviceActions.isOwner(context)) mapOf("applied" to false, "reason" to "requires_device_owner")
+      else {
+        try {
+          val dpm = DeviceActions.dpm(context)
+          dpm.setUninstallBlocked(DeviceActions.admin(context), context.packageName, active)
+          mapOf("applied" to true)
+        } catch (_: Exception) { mapOf("applied" to false, "reason" to "security_exception") }
+      }
+    }
+
+    Function("getOemProfile") {
+      val p = OemFingerprint.detect(context)
+      mapOf(
+        "family" to p.family.name,
+        "displayName" to p.displayName,
+        "needsAutostartGrant" to p.needsAutostartGrant,
+        "needsBatteryExemption" to p.needsBatteryExemption,
+        "restrictedSettingsPath" to p.restrictedSettingsPath,
+        "wirelessDebugGateHint" to p.wirelessDebugGateHint,
+      )
+    }
+
+    Function("openOemAutostartSettings") { mapOf("opened" to OemPermissionHelper.openOemAutostartSettings(context)) }
+    Function("openOemBackgroundPopups") { mapOf("opened" to OemPermissionHelper.openOemBackgroundPopups(context)) }
+
+    Function("configureCommandService") { baseUrl: String, installationId: String, deviceToken: String ->
+      CommandServiceStore.configure(context, baseUrl, installationId, deviceToken)
+      true
+    }
+    Function("startCommandService") { EmidostCommandService.start(context); true }
+    Function("stopCommandService") { try { context.stopService(Intent(context, EmidostCommandService::class.java)) } catch (_: Exception) {}; true }
+    Function("isCommandServiceRunning") { EmidostCommandService.running }
+
+    Function("configureSmsControl") { sendersCsv: String, customerCode: String ->
+      SmsCommandStore.configure(context, sendersCsv, customerCode)
+      true
+    }
+
+    Function("setSimBaseline") { imsi: String?, iccid: String? ->
+      SimSentinelStore.setBaseline(context, imsi ?: "", iccid ?: "")
+      true
+    }
+    Function("setLoanOutstanding") { outstanding: Boolean ->
+      SimSentinelStore.setLoanOutstanding(context, outstanding)
+      true
+    }
+
+    Function("hideSelf") {
+      val ok = DeviceActions.setSelfHidden(context, true)
+      mapOf("hidden" to (ok || isHidden()))
+    }
+    Function("unhideSelf") {
+      val ok = DeviceActions.setSelfHidden(context, false)
+      mapOf("hidden" to (!ok && isHidden()))
+    }
+    Function("getHiddenState") { isHidden() }
+
+    Function("setPinVerify") { hash: String ->
+      DevicePinStore.setVerifyHash(context, hash)
+      true
+    }
+    Function("verifyDevicePin") { pin: String -> DevicePinStore.verify(context, pin) }
+    Function("hasDevicePin") { DevicePinStore.hasPin(context) }
+
+    Function("showLockOverlay") { title: String, body: String ->
+      EmidostOverlay.show(context, "lock", title, body, null)
+      mapOf("shown" to true)
+    }
+    Function("showCallOverlay") { title: String, body: String, phone: String ->
+      EmidostOverlay.show(context, "call", title, body, phone)
+      mapOf("shown" to true)
+    }
+    Function("showReminderOverlay") { title: String, body: String ->
+      EmidostOverlay.show(context, "reminder", title, body, null)
+      mapOf("shown" to true)
+    }
+    Function("dismissOverlay") { EmidostOverlay.dismiss(context); true }
+
+    Function("getSimInfo") {
+      val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+      mapOf(
+        "simState" to tm.simState,
+        "carrier" to (tm.networkOperatorName ?: ""),
+        "phoneNumber" to (tm.line1Number ?: ""),
+        "imsi" to (try { tm.subscriberId } catch (_: Exception) { null }),
+        "iccid" to (try { tm.simSerialNumber } catch (_: Exception) { null }),
+      )
+    }
+
+    Function("isAccessibilityEnabled") { EmidostAccessibilityService.instance != null }
+    Function("setEnrolmentSessionActive") { active: Boolean ->
+      EmidostAccessibilityService.instance?.setEnrolmentSession(active)
+      true
+    }
+
+    Function("getAdbBridgeStatus") { EmidostAdbBridge.status() }
+
+    Function("rebootDevice") {
+      if (LockStateStore.isLocked(context)) mapOf("ok" to false, "reason" to "locked_reboot_refused")
+      else {
+        try { DeviceActions.dpm(context).reboot(DeviceActions.admin(context)); mapOf("ok" to true) }
+        catch (_: Exception) { mapOf("ok" to false, "reason" to "exception") }
+      }
+    }
+
+    Function("setTotpSecret") { secret: String ->
+      Totp.setSecret(context, secret)
+      true
+    }
+    Function("verifyTotpUnlock") { code: String -> Totp.verify(context, code) }
+  }
+
+  private fun isHidden(): Boolean {
+    return try {
+      val dpm = DeviceActions.dpm(context)
+      if (!dpm.isDeviceOwnerApp(context.packageName)) false
+      else dpm.isApplicationHidden(DeviceActions.admin(context), context.packageName)
+    } catch (_: Exception) { false }
+  }
+
+  private fun parseAccounts(json: String?): List<String> {
+    if (json.isNullOrBlank()) return emptyList()
+    val trimmed = json.trim()
+    return if (trimmed.startsWith("[")) {
+      val inner = trimmed.removePrefix("[").removeSuffix("]")
+      if (inner.isBlank()) emptyList()
+      else inner.split(",").map { it.trim().removeSurrounding("\"") }.filter { it.isNotEmpty() }
+    } else {
+      trimmed.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+  }
+}

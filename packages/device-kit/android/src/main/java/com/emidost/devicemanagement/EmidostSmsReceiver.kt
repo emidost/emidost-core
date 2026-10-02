@@ -1,0 +1,49 @@
+package com.emidost.devicemanagement
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.telephony.SmsMessage
+
+/**
+ * Offline SMS commands. Retailer-number allowlist + customer code + DO gate.
+ */
+class EmidostSmsReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    if (intent.action != "android.provider.Telephony.SMS_RECEIVED") return
+    if (!SmsCommandStore.isConfigured(context)) return
+
+    val messages = messagesFrom(intent.extras) ?: return
+    for (msg in messages) {
+      if (!SmsCommandStore.senderAllowed(context, msg.originatingAddress ?: continue)) continue
+      val body = msg.messageBody?.trim() ?: continue
+      val parts = body.split(Regex("\\s+"))
+      if (parts.size < 2) continue
+      val command = parts[0].uppercase()
+      val code = parts[1].uppercase()
+      if (!SmsCommandStore.codeMatches(context, code)) continue
+
+      when (command) {
+        "LOCK" -> {
+          // Hard-lock-only, and never after settlement/release.
+          if (DeviceActions.isOwner(context) && SimSentinelStore.loanOutstanding(context)) {
+            DeviceActions.hardLock(context)
+          }
+        }
+        "UNLOCK" -> {
+          // Unlock always wins and stays available after release.
+          DeviceActions.releaseLock(context)
+        }
+      }
+    }
+  }
+
+  private fun messagesFrom(extras: Bundle?): List<SmsMessage>? {
+    if (extras == null) return null
+    val pdus = extras["pdus"] as? Array<*> ?: return null
+    return pdus.mapNotNull { p ->
+      try { SmsMessage.createFromPdu(p as ByteArray) } catch (_: Exception) { null }
+    }
+  }
+}
