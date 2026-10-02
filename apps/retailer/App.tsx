@@ -145,7 +145,7 @@ function Customers() {
           <View style={s.chipRow}>
             <Chip
               tone={c.status === 'NPA' ? colors.danger : c.status === 'RUNNING' ? colors.accentTeal : colors.textMid}
-              label={c.status}
+              label={c.status === 'NPA' ? 'Missed payment' : c.status === 'RUNNING' ? 'On time' : c.status === 'COMPLETE' ? 'Paid' : c.status === 'SETTLED' ? 'Settled' : c.status}
             />
           </View>
           <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
@@ -281,7 +281,7 @@ function Devices() {
         <View key={d.id} style={s.card}>
           <Text style={s.cardTitle}>{d.manufacturer} {d.model}</Text>
           <View style={s.chipRow}>
-            <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode} />
+            <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode === 'device_owner' ? 'Device owner' : d.mode === 'device_admin' ? 'Device admin' : 'Not enrolled'} />
             <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
           </View>
           <TouchableOpacity style={[s.button, { marginTop: 8 }]} onPress={() => toggle(d)}>

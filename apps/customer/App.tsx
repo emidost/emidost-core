@@ -261,7 +261,11 @@ function LockedScreen(props: {
 
       <Text style={s.lockMessage}>{message}</Text>
 
-      <TouchableOpacity style={s.payBtn} onPress={speak} accessibilityRole="button">
+      <TouchableOpacity
+        style={s.payBtn}
+        onPress={() => { if (props.retailerPhone) void DeviceMgmt.showCallOverlay('Call to pay', props.retailerPhone, props.retailerPhone); }}
+        accessibilityRole="button"
+      >
         <Text style={s.payBtnText}>{copy.actions.payNow}</Text>
       </TouchableOpacity>
 
