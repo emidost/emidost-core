@@ -4,6 +4,20 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 EAS build root cause: expo-speech was the SDK 50 version
+
+- Three customer builds failed with the same Gradle pair (expo-speech
+  "compileSdkVersion is not specified" + :expo "unknown property 'release'").
+  expo-build-properties (compileSdk 34) did NOT fix it: the real cause was
+  `expo-speech@11.7.0` = the SDK 50 module, which cannot configure its Gradle
+  project under SDK 51. Fix: `npx expo install expo-speech` -> 12.0.2
+  (push 2d88d98). Every other Expo dep was verified SDK-51 correct
+  (notifications 0.28, image-picker 15.0.7, clipboard 6.0.3, secure-store
+  13.0.1, file-system 17.0.1, task-manager 11.8.2, constants 16.0.2,
+  build-properties 0.12.5).
+- Rebuild queued: 8b729d3d-535b-4ff2-8808-c61e82a7bcbd (also carries the
+  4.0.2 version bump). Kotlin compile outcome pends on this build.
+
 ## 2026-10-03 A+B pre-launch acceptance test — one CRITICAL bug found and fixed
 
 - New `scripts/acceptance_ab.mjs`: full server-side acceptance of the A (QR
