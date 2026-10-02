@@ -114,6 +114,7 @@ function Login({ onDone }: { onDone: () => void }) {
 function Retailers() {
   const [rows, setRows] = useState<Retailer[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [topupFor, setTopupFor] = useState<string | null>(null);
   const [topupValue, setTopupValue] = useState('');
   const [allowFor, setAllowFor] = useState<string | null>(null);
@@ -130,19 +131,29 @@ function Retailers() {
   }
 
   async function giveCredits(r: Retailer) {
+    if (busy) return;
+    const delta = parseInt(topupValue, 10);
+    if (!Number.isFinite(delta)) { setErr('Enter a number of credits'); return; }
+    setBusy(true); setErr(null);
     try {
-      await api.allocateCredits(r.id, { delta: parseInt(topupValue, 10), kind: 'topup' });
+      await api.allocateCredits(r.id, { delta, kind: 'topup' });
       setTopupFor(null); setTopupValue('');
       setRows(await api.listRetailers());
     } catch (e) { setErr(e instanceof Error ? e.message : 'Credit update failed'); }
+    finally { setBusy(false); }
   }
 
   async function setAllowances(r: Retailer) {
+    if (busy) return;
+    const n = parseInt(allowValue, 10);
+    if (!Number.isFinite(n) || n < 0) { setErr('Enter a non-negative number of locks'); return; }
+    setBusy(true); setErr(null);
     try {
-      await api.setLockAllowances(r.id, parseInt(allowValue, 10));
+      await api.setLockAllowances(r.id, n);
       setAllowFor(null); setAllowValue('');
       setRows(await api.listRetailers());
     } catch (e) { setErr(e instanceof Error ? e.message : 'Allowance update failed'); }
+    finally { setBusy(false); }
   }
 
   return (

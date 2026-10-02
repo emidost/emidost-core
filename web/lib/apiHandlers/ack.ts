@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices')
-    .select('id, device_token_hash, is_locked, customer_id, customers(status)')
+    .select('id, retailer_id, device_token_hash, is_locked, customer_id, customers(status)')
     .eq('installation_id', installationId).maybeSingle();
   if (!device || !device.device_token_hash) return Response.json({ error: 'unknown device' }, { status: 401 });
   if (createHash('sha256').update(deviceToken).digest('hex') !== device.device_token_hash) {
@@ -48,10 +48,28 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: false, reason: 'settled_loan' });
   }
 
+  // Atomic compare-and-set: only PENDING/RECEIVED commands can transition.
+  // Terminal states are immutable; a late ack cannot resurrect a cancelled,
+  // expired, or failed command.
   const update: Record<string, unknown> = { status: ackStatus, acked_at: new Date().toISOString() };
   if (ackStatus === 'EXECUTED') update.executed_at = new Date().toISOString();
-  const { error: updErr } = await svc.from('device_commands').update(update).eq('id', command.id);
+  const { data: transitioned, error: updErr } = await svc.from('device_commands')
+    .update(update).eq('id', command.id).in('status', ['PENDING', 'RECEIVED']).select('id').maybeSingle();
   if (updErr) return Response.json({ error: 'ack failed' }, { status: 500 });
+  if (!transitioned) return Response.json({ ok: true, already: 'terminal' });
+
+  // Terminal LOCK failures refund the allowance (debited at queue time).
+  if (command.command_type === 'LOCK' && (ackStatus === 'FAILED' || ackStatus === 'EXPIRED')) {
+    const rid = device.retailer_id;
+    if (rid) {
+      const { data: refunded } = await svc.rpc('increment_allowance', { rid });
+      if (refunded != null) {
+        await svc.from('credit_ledger').insert({
+          retailer_id: rid, kind: 'slot_refund', delta: 1, balance_after: Number(refunded),
+        });
+      }
+    }
+  }
 
   if (ackStatus === 'EXECUTED' && command.command_type === 'LOCK') {
     await svc.from('devices').update({ is_locked: true }).eq('id', device.id);
@@ -61,6 +79,21 @@ export async function POST(req: NextRequest) {
   }
   if (ackStatus === 'EXECUTED' && command.command_type === 'RELEASE') {
     await svc.from('devices').update({ is_locked: false, hidden_state: 'visible' }).eq('id', device.id);
+    // Release refunds the device credit exactly once (release_events is unique per customer).
+    const { data: rel } = await svc.from('release_events')
+      .insert({ customer_id: device.customer_id, triggered_by: 'command_release' })
+      .select('id').maybeSingle();
+    if (rel) {
+      const rid = device.retailer_id;
+      if (rid) {
+        const { data: refunded } = await svc.rpc('refund_device_credit', { rid });
+        if (refunded != null) {
+          await svc.from('credit_ledger').insert({
+            retailer_id: rid, kind: 'slot_freed', delta: 1, balance_after: Number(refunded),
+          });
+        }
+      }
+    }
   }
 
   // Location is stored only when a LOCATION request was fetched and answered.

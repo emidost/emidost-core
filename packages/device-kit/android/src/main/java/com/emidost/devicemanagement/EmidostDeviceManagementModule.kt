@@ -33,6 +33,7 @@ class EmidostDeviceManagementModule : Module() {
         "enforcedLocked" to LockStateStore.isLocked(context),
         "hidden" to isHidden(),
         "lastLockAssertAt" to LockStateStore.getLastLockAssertAt(context),
+        "kioskActive" to LockPolicies.kioskActive(context),
       )
     }
 

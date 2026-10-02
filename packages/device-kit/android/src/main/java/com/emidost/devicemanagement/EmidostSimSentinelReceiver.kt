@@ -1,4 +1,4 @@
-﻿package com.emidost.devicemanagement
+package com.emidost.devicemanagement
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -79,9 +79,15 @@ class EmidostSimSentinelReceiver : BroadcastReceiver() {
     if (state == TelephonyManager.SIM_STATE_ABSENT) {
       pending?.let { handler.removeCallbacks(it) }
       pending = Runnable {
-        // Re-check the loan state at fire time: a settlement that landed during
-        // the debounce must cancel the lock.
-        if (DeviceActions.isOwner(context) && SimSentinelStore.loanOutstanding(context)) {
+        // Re-read the live SIM state at fire time: if a SIM came back during
+        // the debounce, do not lock. Also re-check loan + DO state so a
+        // settlement that landed meanwhile cancels the lock.
+        val nowState = try {
+          (context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager).simState
+        } catch (_: Exception) { TelephonyManager.SIM_STATE_UNKNOWN }
+        if (nowState == TelephonyManager.SIM_STATE_ABSENT &&
+          DeviceActions.isOwner(context) && SimSentinelStore.loanOutstanding(context)
+        ) {
           DeviceActions.hardLock(context)
         }
       }

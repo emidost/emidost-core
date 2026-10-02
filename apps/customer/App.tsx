@@ -21,6 +21,8 @@ export default function App() {
   const [phase, setPhase] = useState<'loading' | 'bind' | 'active'>('loading');
   const [locked, setLocked] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [debugTaps, setDebugTaps] = useState(0);
   const [due, setDue] = useState<{ due_date: string; amount_due: number } | null>(null);
   const [overdueDays, setOverdueDays] = useState(0);
   const [retailerPhone, setRetailerPhone] = useState<string | null>(null);
@@ -118,8 +120,18 @@ export default function App() {
         <PhoneCall color={ACCENT} size={20} />
         <Text style={s.rowText}>{retailerPhone ? `Call your retailer ${retailerPhone}` : 'Retailer contact'}</Text>
       </TouchableOpacity>
-      <Diagnostics hidden={hidden} />
-      <Text style={s.muted}>Launcher name: wifi{hidden ? ' (hidden from the app list after setup)' : ''}</Text>
+      {/* Diagnostics are store/owner tooling: hidden behind three taps. */}
+      <TouchableOpacity
+        onPress={() => {
+          setDebugTaps((n) => {
+            if (n + 1 >= 3) setShowDebug((v) => !v);
+            return n + 1 >= 3 ? 0 : n + 1;
+          });
+        }}
+      >
+        <Text style={s.muted}>Tap the version three times for device details</Text>
+      </TouchableOpacity>
+      {showDebug && <Diagnostics hidden={hidden} />}
     </ScrollView>
   );
 }

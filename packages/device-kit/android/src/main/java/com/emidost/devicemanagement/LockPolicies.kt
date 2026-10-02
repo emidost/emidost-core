@@ -77,4 +77,12 @@ object LockPolicies {
       if (launch != null) c.startActivity(launch)
     } catch (_: Exception) {}
   }
+
+  /** Live OS readback: is lock-task actually active right now? */
+  fun kioskActive(c: Context): Boolean {
+    val dpm = c.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    return try {
+      dpm.lockTaskModeState == DevicePolicyManager.LOCK_TASK_MODE_LOCKED
+    } catch (_: Exception) { false }
+  }
 }

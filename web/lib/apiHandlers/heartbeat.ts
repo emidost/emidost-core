@@ -45,10 +45,23 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (openSession) {
       await svc.from('devices').update({ mode: 'device_owner' }).eq('id', device.id);
-      await svc.from('enrollment_sessions')
+      const { data: activated } = await svc.from('enrollment_sessions')
         .update({ state: 'active' })
         .eq('customer_id', device.customer_id)
-        .in('state', ['installed', 'connected', 'finalizing']);
+        .in('state', ['installed', 'connected', 'finalizing'])
+        .select('id').maybeSingle();
+      // A real activation consumes one device credit, exactly once (CAS above).
+      if (activated) {
+        const rid = device.retailer_id;
+        if (rid) {
+          const { data: balance } = await svc.rpc('consume_device_credit', { rid });
+          if (balance != null) {
+            await svc.from('credit_ledger').insert({
+              retailer_id: rid, kind: 'slot_consumed', delta: -1, balance_after: Number(balance),
+            });
+          }
+        }
+      }
     }
   }
 
