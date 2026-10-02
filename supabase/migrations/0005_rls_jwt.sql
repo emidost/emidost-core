@@ -13,6 +13,22 @@
 -- immediately instead of waiting for JWT expiry. Owner + service paths are
 -- unchanged. The apiKey-role branch: none (devices never get a PostgREST JWT).
 
+-- 0. POLICY RESET (2026-10-03): a partially migrated database can still carry
+-- a legacy recursive policy (for example the original `*_access` policies that
+-- called actor_role(), or an older profiles policy). Postgres ORs permissive
+-- policies together, so ONE surviving recursive policy keeps breaking every
+-- authenticated read with "stack depth limit exceeded" no matter how correct
+-- the new ones are. Drop every policy on the public tables first, then create
+-- exactly the set below. Idempotent and safe to re-run.
+do $$
+declare r record;
+begin
+  for r in select policyname, schemaname, tablename from pg_policies where schemaname = 'public'
+  loop
+    execute format('drop policy if exists %I on %I.%I', r.policyname, r.schemaname, r.tablename);
+  end loop;
+end $$;
+
 -- profiles: self read only; owner read via JWT claim.
 drop policy if exists profiles_self on public.profiles;
 create policy profiles_self on public.profiles for select using (id = auth.uid());

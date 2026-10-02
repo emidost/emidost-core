@@ -486,6 +486,20 @@ alter type public.command_type add value if not exists 'LOCATION';
 -- immediately instead of waiting for JWT expiry. Owner + service paths are
 -- unchanged.
 
+-- POLICY RESET (2026-10-03): remove EVERY policy on the public tables before
+-- recreating the set below. A partially migrated database can otherwise keep a
+-- legacy recursive policy alive; Postgres ORs permissive policies, so one
+-- survivor keeps breaking authenticated reads with "stack depth limit
+-- exceeded". Idempotent.
+do $$
+declare r record;
+begin
+  for r in select policyname, schemaname, tablename from pg_policies where schemaname = 'public'
+  loop
+    execute format('drop policy if exists %I on %I.%I', r.policyname, r.schemaname, r.tablename);
+  end loop;
+end $$;
+
 -- profiles: self read only; owner read via JWT claim.
 drop policy if exists profiles_self on public.profiles;
 create policy profiles_self on public.profiles for select using (id = auth.uid());
