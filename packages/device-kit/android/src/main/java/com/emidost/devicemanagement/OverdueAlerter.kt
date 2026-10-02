@@ -42,6 +42,8 @@ object OverdueAlerter {
 
   private const val BN_LINE = "আপনার EMI বকেয়া আছে"
   private const val HI_LINE = "आपकी EMI बकाया है"
+  private const val BN_REMIND = "আপনার EMI কিস্তি বাকি আছে"
+  private const val HI_REMIND = "आपकी EMI किस्त बाकी है"
 
   @Volatile private var tts: TextToSpeech? = null
   @Volatile private var pendingSpeech: ((TextToSpeech) -> Unit)? = null
@@ -76,12 +78,25 @@ object OverdueAlerter {
     }
   }
 
-  /** ALERT command: one notification + the bn/hi pair ONCE. No volume change. */
+  /** ALERT command: one notification + the overdue bn/hi pair ONCE. No volume change. */
   fun alertOnce(c: Context): Boolean {
     return try {
       Handler(Looper.getMainLooper()).post {
-        postNotification(c)
-        speakPair(c, 1)
+        postNotification(c, "EMI overdue", "Call your retailer to pay.")
+        speakPair(c, 1, BN_LINE, HI_LINE, interrupt = true)
+      }
+      true
+    } catch (_: Exception) {
+      false
+    }
+  }
+
+  /** REMIND command / SMS: one notification + the FRIENDLY bn/hi pair ONCE. */
+  fun reminderOnce(c: Context): Boolean {
+    return try {
+      Handler(Looper.getMainLooper()).post {
+        postNotification(c, "EMI reminder", "Your EMI instalment is due.")
+        speakPair(c, 1, BN_REMIND, HI_REMIND, interrupt = true)
       }
       true
     } catch (_: Exception) {
@@ -93,12 +108,12 @@ object OverdueAlerter {
 
   private fun fireAlert(c: Context) {
     Handler(Looper.getMainLooper()).post {
-      postNotification(c)
-      speakPair(c, 3)
+      postNotification(c, "EMI overdue", "Call your retailer to pay.")
+      speakPair(c, 3, BN_LINE, HI_LINE, interrupt = false)
     }
   }
 
-  private fun postNotification(c: Context) {
+  private fun postNotification(c: Context, title: String, text: String) {
     try {
       val nm = c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -113,8 +128,8 @@ object OverdueAlerter {
         Notification.Builder(c)
       }
       val n = builder
-        .setContentTitle("EMI overdue")
-        .setContentText("Call your retailer to pay.")
+        .setContentTitle(title)
+        .setContentText(text)
         .setSmallIcon(android.R.drawable.ic_lock_lock)
         .build()
       nm.notify(NOTIF_ID, n)
@@ -123,17 +138,21 @@ object OverdueAlerter {
 
   /**
    * TTS setup (main thread only): bn then hi, QUEUE_ADD, the pair repeated
-   * `times` times. The engine initializes asynchronously; speech requested
-   * before init completes is queued and played from onInit. If the language
-   * pack is missing on a device, TTS skips the utterance silently (honest
-   * device-dependent limit).
+   * `times` times. Deliberate retailer actions (REMIND/ALERT) interrupt the
+   * queue first; the automatic escalation appends. The engine initializes
+   * asynchronously; speech requested before init completes is queued and
+   * played from onInit. If the language pack is missing on a device, TTS skips
+   * the utterance silently (honest device-dependent limit).
    */
-  private fun speakPair(c: Context, times: Int) {
+  private fun speakPair(c: Context, times: Int, bnLine: String, hiLine: String, interrupt: Boolean) {
     val engine = ensureTts(c)
     if (engine != null) {
-      doSpeak(engine, times)
+      if (interrupt) {
+        try { engine.stop() } catch (_: Exception) {}
+      }
+      doSpeak(engine, times, bnLine, hiLine)
     } else {
-      pendingSpeech = { doSpeak(it, times) }
+      pendingSpeech = { doSpeak(it, times, bnLine, hiLine) }
     }
   }
 
@@ -159,13 +178,13 @@ object OverdueAlerter {
     return null
   }
 
-  private fun doSpeak(engine: TextToSpeech, times: Int) {
+  private fun doSpeak(engine: TextToSpeech, times: Int, bnLine: String, hiLine: String) {
     try {
       for (i in 0 until times) {
         engine.language = Locale("bn", "IN")
-        engine.speak(BN_LINE, TextToSpeech.QUEUE_ADD, null, "emidost-bn-$i")
+        engine.speak(bnLine, TextToSpeech.QUEUE_ADD, null, "emidost-bn-$i")
         engine.language = Locale("hi", "IN")
-        engine.speak(HI_LINE, TextToSpeech.QUEUE_ADD, null, "emidost-hi-$i")
+        engine.speak(hiLine, TextToSpeech.QUEUE_ADD, null, "emidost-hi-$i")
       }
     } catch (_: Exception) {}
   }

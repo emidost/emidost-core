@@ -103,7 +103,10 @@ github.com/emidost/emidost).
   single source of truth — a forged push can at most trigger one poll, and a
   phone with no push token just rides the poll.
 - Overdue escalation (K section): due day = 3 notifications at 10:00, 14:00,
-  20:00 local (surrounding days keep the 09:00 −3/−1/+1/+3 reminders); overdue
+  20:00 local (AUTOMATIC; the old −3/−1/+1/+3 automatic schedule is REMOVED —
+  pre-due reminders are retailer-triggered only: the online REMIND command or
+  the offline SMS `REMIND <code>`, a friendly bn/hi payment-reminder voice +
+  notification, no allowance, refused on settled loans); overdue
   days 1–5 = every 30 min one notification + "EMI is overdue" spoken in
   Bengali then Hindi, 3 times per trigger, via app-level TTS (plays muted/DND;
   media volume maxed while overdue + DISALLOW_ADJUST_VOLUME, cleared on
@@ -113,9 +116,12 @@ github.com/emidost/emidost).
   with a Google Maps link (https://maps.google.com/?q=lat,lng) — uses the
   customer's SMS balance, documented; applies to notify_only plans too.
   Kill-switch: `customers.overdue_escalation_enabled` (default true, audited
-  toggle in the retailer console) stops the voice escalation AND the location
-  SMS. Retailer ALERT command: one-shot bn+hi voice, no allowance, refused on
-  settled loans. Offline + overdue 4 days (no server contact for 4 days while
+  toggle in the retailer console) stops the AUTOMATIC voice escalation AND the
+  location SMS; a deliberate retailer action (REMIND/ALERT/LOCATION online or
+  by SMS) still works with the switch off — retailer action beats the
+  anti-harassment toggle, automatic escalation respects it. Retailer ALERT
+  command: one-shot urgent bn+hi voice, no allowance, refused on settled
+  loans. Offline + overdue 4 days (no server contact for 4 days while
   overdue, cached or computed from the IST due date) → the phone hard-locks
   itself locally ('overdue-offline-watchdog-4d'), lock plans only, NOT gated
   by the kill-switch (that toggle never disables locks); the 5-day
@@ -251,9 +257,11 @@ Global EAS env (Expo dashboard → environment variables → global):
 - Payments UI: web console customer page records payments + shows history and
   the schedule; the retailer app has an inline Record-payment row; the customer
   app has no payments screen (it does not pay in-app).
-- Reminder scheduling (expo-notifications): wired — channel + −3/−1/0/+1/+3
-  day dates from the heartbeat `next_due`, replaced each poll, cancelled on
-  COMPLETE/SETTLED.
+- Reminder scheduling (expo-notifications): the OLD automatic −3/−1/+1/+3
+  day schedule is REMOVED (reminder control shift). What ships: automatic due
+  day 3x (10:00/14:00/20:00) + the overdue escalation; pre-due reminders are
+  retailer-triggered only (online REMIND command or SMS `REMIND <code>`,
+  friendly bn/hi voice + notification).
 - TOTP at-rest encryption: DONE — AES-256-GCM in `web/lib/totpCrypto.ts`
   (key from TOTP_ENC_KEY or the service key); the heartbeat decrypts
   server-side and delivers over TLS.

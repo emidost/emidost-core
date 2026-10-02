@@ -42,17 +42,26 @@ Copy each `.env.example` next to its app as `.env` (Expo reads `.env`) and `.env
 - `web/.env.example` — portal
 - `apps/owner/.env.example`, `apps/retailer/.env.example`, `apps/customer/.env.example` — Expo apps (EXPO_PUBLIC_* only; never the service role)
 
-## 5. SMS commands (retailer offline lock/unlock)
+## 5. SMS commands (retailer offline lock/unlock/remind)
 
-The retailer's registered phone number is the SMS sender allowlist. Commands:
-`LOCK <customer-code>` and `UNLOCK <customer-code> <totp>` — an 8-digit TOTP
-issued by the owner for that device is required to unlock by SMS. The retailer
-app can also generate the offline unlock code itself (Authenticator style,
-cached after one online fetch); SMS UNLOCK needs the same TOTP. SMS is not
-cryptographically authenticated: the customer code and the device PIN/TOTP
-paths are the authenticated factors. An SMS gateway/aggregator is not
-included; choose one and keep costs in mind. Android 14+ delivery restrictions
-must be verified per device family.
+The retailer's registered phone number is the SMS sender allowlist. Commands
+(all customer-code gated; LOCK needs live Device Owner + an outstanding loan
+on a lock plan; UNLOCK needs the owner-issued 8-digit TOTP):
+
+- `LOCK <customer-code>` — lock the phone
+- `UNLOCK <customer-code> <totp>` — unlock (8-digit TOTP required)
+- `REMIND <customer-code>` — friendly payment-reminder voice + notification
+- `ALERT <customer-code>` — urgent overdue voice + notification
+- `LOCATION <customer-code>` — the phone replies by SMS with its Google Maps link
+
+REMIND/ALERT/LOCATION work even when the escalation kill-switch is off (a
+deliberate retailer action beats the anti-harassment toggle; automatic
+escalation still respects it). The retailer app can also generate the offline
+unlock code itself (Authenticator style, cached after one online fetch); SMS
+UNLOCK needs the same TOTP. SMS is not cryptographically authenticated: the
+customer code and the device PIN/TOTP paths are the authenticated factors. An
+SMS gateway/aggregator is not included; choose one and keep costs in mind.
+Android 14+ delivery restrictions must be verified per device family.
 
 ## 6. Push (optional)
 

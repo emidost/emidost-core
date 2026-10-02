@@ -294,6 +294,8 @@ class EmidostDeviceManagementModule : Module() {
 
     // ALERT command: one notification + the bn/hi voice pair once.
     Function("speakAlertOnce") { OverdueAlerter.alertOnce(context) }
+    // REMIND command: one notification + the friendly bn/hi reminder pair once.
+    Function("speakReminderOnce") { OverdueAlerter.reminderOnce(context) }
   }
 
   private fun isHidden(): Boolean {

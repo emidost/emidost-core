@@ -44,6 +44,15 @@ export function overdueVoiceCopy(): { bn: string; hi: string; en: string } {
   };
 }
 
+/** Friendly retailer-triggered reminder voice (REMIND command + SMS), distinct from the urgent overdue tone. */
+export function reminderVoiceCopy(): { bn: string; hi: string; en: string } {
+  return {
+    en: 'Your EMI instalment is due.',
+    bn: 'আপনার EMI কিস্তি বাকি আছে',
+    hi: 'आपकी EMI किस्त बाकी है',
+  };
+}
+
 export type CopyLang = 'en' | 'bn' | 'hi';
 
 export interface LockCopyParams {

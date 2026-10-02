@@ -240,6 +240,10 @@ class EmidostCommandService : Service() {
           // One notification + the bn/hi voice pair once (no volume change).
           if (!OverdueAlerter.alertOnce(this)) ackStatus = "FAILED"
         }
+        "REMIND" -> {
+          // One notification + the friendly bn/hi reminder pair once.
+          if (!OverdueAlerter.reminderOnce(this)) ackStatus = "FAILED"
+        }
         "LOCATION" -> {
           // Fetched only when asked; nothing is tracked in the background.
           val loc = EmidostLocation.fetch(this)

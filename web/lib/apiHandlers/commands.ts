@@ -19,8 +19,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}));
   const commandType: string | undefined = body?.command_type;
-  if (commandType !== 'LOCK' && commandType !== 'UNLOCK' && commandType !== 'LOCATION' && commandType !== 'ALERT') {
-    return bad('command_type must be LOCK, UNLOCK, LOCATION or ALERT');
+  if (commandType !== 'LOCK' && commandType !== 'UNLOCK' && commandType !== 'LOCATION' && commandType !== 'ALERT' && commandType !== 'REMIND') {
+    return bad('command_type must be LOCK, UNLOCK, LOCATION, ALERT or REMIND');
   }
 
   const svc = serviceClient();
@@ -30,13 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!device || device.retailer_id !== profile.retailer_id) return bad('Device not found');
   if (!device.customer_id) return bad('Device is not bound to a customer');
 
-  // Paid loans can never be locked or alerted again; UNLOCK/RELEASE stay
-  // available. ALERT consumes no allowance (it is the retailer's one-shot
-  // bn+hi voice reminder, not a lock).
+  // Paid loans can never be locked, alerted or reminded again; UNLOCK/RELEASE
+  // stay available. ALERT and REMIND consume no allowance (retailer-triggered
+  // voices: ALERT = urgent overdue voice, REMIND = friendly payment reminder).
   const customer = device.customers as unknown as { status: string } | null;
   const settled = customer && (customer.status === 'COMPLETE' || customer.status === 'SETTLED');
-  if ((commandType === 'LOCK' || commandType === 'ALERT') && settled) {
-    return bad('This loan is settled. Locking and alerts are disabled.');
+  if ((commandType === 'LOCK' || commandType === 'ALERT' || commandType === 'REMIND') && settled) {
+    return bad('This loan is settled. Locking, alerts and reminders are disabled.');
   }
 
   // Insert the command first; the allowance debit follows only on success.

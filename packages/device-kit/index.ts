@@ -265,3 +265,7 @@ export function verifyTotpUnlock(code: string): Promise<boolean> {
 export function speakAlertOnce(): Promise<boolean> {
   return native.speakAlertOnce();
 }
+/** REMIND command: one notification + the friendly bn/hi reminder voice pair once. */
+export function speakReminderOnce(): Promise<boolean> {
+  return native.speakReminderOnce();
+}

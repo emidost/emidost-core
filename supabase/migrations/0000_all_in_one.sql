@@ -1,6 +1,6 @@
 -- ============================================================================
 -- emidost ALL-IN-ONE (single file). Open a NEW query tab and run this whole file.
--- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012), FCM wake tokens (0013), customer photos (0014), overdue escalation (0015).
+-- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012), FCM wake tokens (0013), customer photos (0014), overdue escalation (0015), REMIND command (0016).
 -- Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
 -- Idempotent: safe to re-run.
 -- ============================================================================
@@ -926,3 +926,17 @@ do $$ begin
 exception when duplicate_column then null; end $$;
 
 alter type public.command_type add value if not exists 'ALERT';
+
+-- emidost 0016 - REMIND command type (reminder control shift).
+-- Automatic pre-due AND post-due scheduled reminders (−3/−1/+1/+3) are
+-- removed: the due-day 3x and the overdue escalation stay automatic, and
+-- everything before the due day is RETAILER-TRIGGERED — the online REMIND
+-- command (friendly bn/hi payment-reminder voice + notification) or the
+-- offline SMS REMIND <code>. REMIND consumes NO allowance and is refused on
+-- settled loans, exactly like ALERT. Retailer-triggered REMIND/ALERT/LOCATION
+-- work even when the escalation kill-switch is off (a deliberate retailer
+-- action beats the anti-harassment toggle; automatic escalation still
+-- respects it).
+-- Idempotent: ADD VALUE IF NOT EXISTS is safe to re-run.
+
+alter type public.command_type add value if not exists 'REMIND';

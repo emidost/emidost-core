@@ -383,6 +383,11 @@ export async function pollOnce(): Promise<PollUiState | null> {
       const ok = await DeviceMgmt.speakAlertOnce();
       if (ok) await ack(cmd.id, 'EXECUTED');
       else await ack(cmd.id, 'FAILED', 'alert_failed');
+    } else if (cmd.command_type === 'REMIND') {
+      // One notification + the friendly bn/hi reminder voice pair once.
+      const ok = await DeviceMgmt.speakReminderOnce();
+      if (ok) await ack(cmd.id, 'EXECUTED');
+      else await ack(cmd.id, 'FAILED', 'remind_failed');
     } else if (cmd.command_type === 'LOCATION') {
       // Fetched only when asked; never tracked in the background.
       const loc = await DeviceMgmt.getLocation();
@@ -440,10 +445,11 @@ async function ensureReminderChannel(): Promise<void> {
 }
 
 /**
- * Schedule the −3/−1/0/+1/+3 reminder set from the next due date. The due day
- * itself fires THREE times (10:00, 14:00, 20:00 local); the surrounding days
- * stay at 09:00. Previous scheduled reminders are replaced, so the set always
- * matches the DB.
+ * Scheduled reminders are now due-day ONLY: 10:00, 14:00, 20:00 local on the
+ * due date. Pre-due and post-due reminders are retailer-triggered (REMIND /
+ * ALERT commands or SMS) per the reminder-control-shift decision. The rebuild
+ * first cancels every previously scheduled notification, so devices that
+ * shipped with the old −3/−1/+1/+3 set drop it on the next poll.
  */
 export async function scheduleReminders(nextDue: HeartbeatNextDue | null): Promise<void> {
   await ensureReminderChannel();
@@ -451,18 +457,14 @@ export async function scheduleReminders(nextDue: HeartbeatNextDue | null): Promi
   if (!nextDue) return;
   const amount = `Rs ${Number(nextDue.amount_due ?? 0).toFixed(0)}`;
   const dueDay = new Date(`${nextDue.due_date}T00:00:00`);
-  const offsets = [-3, -1, 0, 1, 3];
-  for (const off of offsets) {
-    const hours = off === 0 ? [10, 14, 20] : [9];
-    for (const h of hours) {
-      const at = new Date(dueDay.getTime() + off * 86_400_000 + h * 3_600_000);
-      if (at.getTime() < Date.now()) continue;
-      const copy = dueReminderCopy(nextDue.due_date, amount, Math.max(0, off));
-      await Notifications.scheduleNotificationAsync({
-        content: { title: 'EMI reminder', body: copy.en, sound: 'default' },
-        trigger: { date: at, channelId: 'emidost-reminders' },
-      });
-    }
+  for (const h of [10, 14, 20]) {
+    const at = new Date(dueDay.getTime() + h * 3_600_000);
+    if (at.getTime() < Date.now()) continue;
+    const copy = dueReminderCopy(nextDue.due_date, amount, 0);
+    await Notifications.scheduleNotificationAsync({
+      content: { title: 'EMI reminder', body: copy.en, sound: 'default' },
+      trigger: { date: at, channelId: 'emidost-reminders' },
+    });
   }
 }
 

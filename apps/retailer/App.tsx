@@ -15,7 +15,7 @@ import {
   type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
-  ArrowLeft, Banknote, BellRing, CalendarDays, Camera, CheckCircle2, Coins, Copy, Hash, ImagePlus, IndianRupee, KeyRound, Lock, LockOpen, LogIn, Play, QrCode,
+  ArrowLeft, Banknote, BellRing, CalendarDays, Camera, CheckCircle2, Coins, Copy, Hash, ImagePlus, IndianRupee, KeyRound, Lock, LockOpen, LogIn, MessageSquareText, Play, QrCode,
   Settings2, Smartphone, UserPlus, Wallet,
 } from 'lucide-react-native';
 
@@ -524,6 +524,19 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
     }
   }
 
+  async function remind(d: Device) {
+    if (busyId) return;
+    setBusyId(d.id);
+    setErr(null);
+    try {
+      await api.sendCommand(d.id, 'REMIND');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Remind failed');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <View style={s.page}>
       <View style={s.band}><Text style={s.title}>Devices</Text></View>
@@ -564,6 +577,18 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
               >
                 <KeyRound size={14} color={ACCENT} />
                 <Text style={s.outlineBtnText} numberOfLines={1} adjustsFontSizeToFit>Offline code</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[s.quickRow, { marginTop: 8 }]}>
+              <TouchableOpacity
+                style={[s.outlineBtn, { marginTop: 0, flex: 1 }]}
+                onPress={() => remind(d)}
+                disabled={busyId === d.id}
+                accessibilityRole="button"
+                accessibilityLabel="Remind the phone"
+              >
+                <MessageSquareText size={14} color={ACCENT} />
+                <Text style={s.outlineBtnText}>{busyId === d.id ? 'Sending…' : 'Remind'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.outlineBtn, { marginTop: 0, flex: 1 }]}

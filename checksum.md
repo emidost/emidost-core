@@ -4,6 +4,35 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 reminder control shift — server + SQL half
+
+- Plan: `.review/reminder-shift-plan.md` (lead decision). User rule: BEFORE the
+  due day the phone reminds ONLY when the retailer triggers it. The automatic
+  −3/−1/+1/+3 scheduled reminders are REMOVED; the due-day 3x (10:00/14:00/
+  20:00) and the overdue escalation stay automatic. Pre-due becomes
+  retailer-driven: online REMIND command or offline SMS `REMIND <code>`.
+- **SQL (claude):** `0016_remind_command.sql` adds the REMIND command_type
+  enum value. All-in-one regenerated (header + 0016).
+- **Web (claude):** commands.ts accepts REMIND with the SAME gates as ALERT
+  (staff + suspension + tenant; settled-loan refusal; NO allowance debit;
+  audited with push_kick detail). The web console devices page is unchanged —
+  the Remind button lives in the retailer APP (codex).
+- **Docs:** CONTEXT.md §4 escalation block + §9 reminder line rewritten
+  (automatic = due-day + escalation only; pre-due = retailer-triggered;
+  REMIND/ALERT/LOCATION beat the kill-switch, automatic escalation respects
+  it); SETUP.md §5 now documents the five-command SMS set (LOCK / UNLOCK
+  <totp> / REMIND / ALERT / LOCATION); checklist K1 + K3 updated;
+  FUNCTION_REPORT commands row gains REMIND, reminders row rewritten to the
+  shift, SMS receiver row gains the three new commands; this entry.
+- Checks: web tsc 0 · workers tsc 0 · `next build` exit 0.
+- Native/app half (codex, next): shared types + copy, SMS receiver + native
+  service + JS dispatch for REMIND/ALERT/LOCATION, retailer app "Remind"
+  quick action beside "Alert", and removal of the old automatic reminder
+  schedule.
+- Edge (honest): REMIND shares the settled-loan refusal with LOCK/ALERT, and
+  it is tenant-gated like every other retailer command; the kill-switch does
+  not apply to retailer-triggered commands (documented in SETUP + K3).
+
 ## 2026-10-03 design pass 2 (all installed skills; claude portal + codex apps)
 
 - Skills: taste-skill v2 + redesign-skill + emilkowalski design-eng + no-ai-slop

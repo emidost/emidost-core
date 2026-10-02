@@ -45,19 +45,24 @@ object SmsCommandStore {
     phone.replace(Regex("[^0-9]"), "").takeLast(10)
 
   /**
-   * SMS LOCK DoS debounce: an identical LOCK for the same customer code within
-   * 60 s is ignored (spoofed-SMS LOCK floods can otherwise spam the lock
-   * overlay). UNLOCK is untouched. Returns true when the command is debounced.
+   * SMS DoS debounce: an identical <command> for the same customer code within
+   * 60 s is ignored (spoofed-SMS floods can otherwise spam the lock overlay or
+   * the voice). Returns true when the command is debounced.
    */
-  fun lockDebounced(c: Context, customerCode: String): Boolean {
+  fun debounced(c: Context, command: String, customerCode: String): Boolean {
     val p = prefs(c)
-    val lastCode = p.getString("last_lock_code", "")
-    val lastAt = p.getLong("last_lock_at", 0L)
+    val lastKey = p.getString("last_cmd_key", "")
+    val lastAt = p.getLong("last_cmd_at", 0L)
     val now = System.currentTimeMillis()
-    if (lastCode == customerCode && now - lastAt < 60_000L) return true
-    p.edit().putString("last_lock_code", customerCode).putLong("last_lock_at", now).apply()
+    val key = "$command:$customerCode"
+    if (lastKey == key && now - lastAt < 60_000L) return true
+    p.edit().putString("last_cmd_key", key).putLong("last_cmd_at", now).apply()
     return false
   }
+
+  /** LOCK keeps its own debounce name for the receiver call site. */
+  fun lockDebounced(c: Context, customerCode: String): Boolean =
+    debounced(c, "LOCK", customerCode)
 
   private fun prefs(c: Context): SharedPreferences =
     DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
