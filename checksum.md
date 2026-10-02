@@ -4,6 +4,30 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 A+B pre-launch acceptance test — one CRITICAL bug found and fixed
+
+- New `scripts/acceptance_ab.mjs`: full server-side acceptance of the A (QR
+  token enrolment) and B (wireless self-pair) chains without a phone:
+  sign-in, customer, enrolment token, device register, one-shot replay
+  refusal, heartbeat activation, fcm_token storage + anon revocation, device
+  list hygiene, LOCK queue -> FAILED ack -> allowance refund, terminal-ack
+  no-op + DB state check, REMIND/ALERT/LOCATION, owner TOTP -> retailer
+  unlock-key, escalation kill-switch round trip, payment + schedule,
+  overpayment 400, unauthenticated refusal. Result: **34/34 PASS** against a
+  local portal (and it exposed the two bugs below).
+- BUG 1 (critical, fixed in `web/lib/auth.ts`): the bearer branch verified the
+  token with `getUser(bearer)` but then read `profiles` with an ANON client, so
+  RLS returned no row and EVERY app/worker-style request returned 401. The
+  Web only worked because the portal uses the cookie branch. Fixed by attaching
+  the bearer token to all client requests (same pattern as the Worker
+  adapter). No app API call would have worked in the field.
+- BUG 2 (deployment): the live owner portal (https://emidost-pd8s.vercel.app)
+  runs STALE code — the phase-10 escalation route 404s there. The portal must
+  be redeployed before launch; the Worker (500, error 1101) needs `wrangler
+  deploy` + its secrets.
+- Versions: all three apps bumped 1.0.0 -> **4.0.2** (app.json + package.json).
+- Checks: all 7 tsc surfaces 0 · tests 13/13 · next build 14 routes.
+
 ## 2026-10-03 first EAS build: Gradle failure found + fixed, compression wave
 
 - First customer EAS build (f9b4bbf4) ERRORED: expo-speech

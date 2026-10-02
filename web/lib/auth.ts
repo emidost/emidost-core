@@ -16,8 +16,12 @@ export async function requireActor(req: NextRequest) {
   const bearer = authz.startsWith('Bearer ') ? authz.slice(7) : '';
   if (bearer) {
     // App / Worker-style auth: verify the access token, read the profile live.
+    // The bearer token is attached to EVERY request on this client (same as the
+    // Worker adapter): without it the profile read runs as anon and RLS returns
+    // no row, which made every app request 401.
     const client = createClient(url, anon, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${bearer}` } },
     });
     const { data, error } = await client.auth.getUser(bearer);
     if (error || !data.user) return { profile: null, user: null, client };
