@@ -218,29 +218,16 @@ create table if not exists public.audit_log (
   created_at timestamptz not null default now()
 );
 
--- ── role mirror → app_metadata (SECURITY DEFINER; never trust stale JWT) ──────
-create or replace function public.sync_role_claim()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare
-  meta jsonb;
-begin
-  select coalesce(app_metadata, '{}'::jsonb) into meta from auth.users where id = new.id;
-  meta := jsonb_set(meta, '{role}', to_jsonb(new.role::text));
-  if new.retailer_id is not null then
-    meta := jsonb_set(meta, '{retailer_id}', to_jsonb(new.retailer_id::text));
-  end if;
-  update auth.users set app_metadata = meta where id = new.id;
-  return new;
-end $$;
-
-drop trigger if exists profiles_role_claim on public.profiles;
-create trigger profiles_role_claim
-  after insert or update of role, retailer_id on public.profiles
-  for each row execute function public.sync_role_claim();
-
--- ── helpers ───────────────────────────────────────────────────────────────────
+-- ── actor helpers (read the LIVE profiles row; no auth.users access) ─────────
+-- Newer Supabase auth schemas have no app_metadata column on auth.users, so
+-- RLS resolves the role straight from public.profiles on every request. This
+-- also makes suspension and role changes apply instantly, never via a stale JWT.
 create or replace function public.actor_role() returns text language sql stable as $$
-  select coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none');
+  select coalesce((select role::text from public.profiles where id = auth.uid()), 'none');
+$$;
+
+create or replace function public.actor_retailer() returns uuid language sql stable as $$
+  select retailer_id from public.profiles where id = auth.uid();
 $$;
 
 -- Atomic lock-allowance debit: returns the new balance, or NULL when zero/none.
@@ -249,10 +236,6 @@ returns int language sql volatile as $$
   update public.retailers set lock_allowances = lock_allowances - 1
    where id = rid and lock_allowances > 0
   returning lock_allowances;
-$$;
-
-create or replace function public.actor_retailer() returns uuid language sql stable as $$
-  select (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid;
 $$;
 
 -- ── RLS ───────────────────────────────────────────────────────────────────────

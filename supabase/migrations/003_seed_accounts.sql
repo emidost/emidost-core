@@ -1,14 +1,14 @@
 -- emidost 003 — seed accounts (owner, sample retailer, sample customer).
 -- Run AFTER 0001 + 0002. Change emails and passwords before running.
 -- Passwords are bcrypt-hashed via crypt(); plaintext never stored.
--- The profiles trigger mirrors role + retailer_id into app_metadata.
+-- Roles are read live from public.profiles by RLS (no auth.users metadata).
 
 -- 1. OWNER
 insert into auth.users
-  (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  (id, aud, role, email, encrypted_password, email_confirmed_at,
    raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_super_admin)
 values
-  ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
+  (gen_random_uuid(), 'authenticated', 'authenticated',
    'owner@emidost.in', crypt('Owner@Pass123', gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{"name":"Owner"}', now(), now(), false);
 
@@ -25,10 +25,10 @@ with r as (
   returning id
 ), u as (
   insert into auth.users
-    (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    (id, aud, role, email, encrypted_password, email_confirmed_at,
      raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_super_admin)
   values
-    ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
+    (gen_random_uuid(), 'authenticated', 'authenticated',
      'retailer@emidost.in', crypt('Retailer@Pass123', gen_salt('bf')), now(),
      '{"provider":"email","providers":["email"]}', '{"name":"Demo Retailer"}', now(), now(), false)
   returning id
@@ -42,10 +42,10 @@ with r as (
   select id from public.retailers where name = 'Demo Phone House' limit 1
 ), u as (
   insert into auth.users
-    (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    (id, aud, role, email, encrypted_password, email_confirmed_at,
      raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_super_admin)
   values
-    ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
+    (gen_random_uuid(), 'authenticated', 'authenticated',
      'customer@emidost.in', crypt('Customer@Pass123', gen_salt('bf')), now(),
      '{"provider":"email","providers":["email"]}', '{"name":"Demo Customer"}', now(), now(), false)
   returning id
