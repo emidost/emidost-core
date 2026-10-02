@@ -1,4 +1,4 @@
-// emidost account creator — replaces the SQL seed (the SQL editor cannot
+// emidost account creator â€” replaces the SQL seed (the SQL editor cannot
 // write auth.users). Run AFTER the schema SQL succeeded:
 //   node scripts/create_accounts.mjs
 // Reads the keys from web/.env.local. Creates owner, retailer, and customer
@@ -70,7 +70,7 @@ async function main() {
     method: 'POST',
     body: JSON.stringify({
       email: ACCOUNTS[0].email, password: ACCOUNTS[0].password, email_confirm: true,
-      app_metadata: { provider: 'email', providers: ['email'] },
+      app_metadata: { role: 'owner', provider: 'email', providers: ['email'] },
       user_metadata: { name: ACCOUNTS[0].name },
     }),
   });
@@ -96,6 +96,10 @@ async function main() {
   await rest('profiles', 'POST', {
     id: staffUser.id, role: 'retailer_staff', retailer_id: retailerId,
     full_name: ACCOUNTS[1].name, phone: ACCOUNTS[1].phone, is_suspended: false,
+  });
+  await admin(`/users/${staffUser.id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ app_metadata: { role: 'retailer_staff', retailer_id: retailerId } }),
   });
   console.log('retailer:', staffUser.email, retailerId);
 

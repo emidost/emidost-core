@@ -1,0 +1,5 @@
+# Managed by Biswodip Goj Unified Engineering
+upstream/
+cache/
+evidence/strix_runs/
+*.tmp-*
