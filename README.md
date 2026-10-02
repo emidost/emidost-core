@@ -20,6 +20,8 @@ Financed-phone EMI lock system. Three roles, one backend:
 
 Read `SETUP.md`. Everything credential-dependent (Supabase project, EAS account, FRP Google account ID, SMS provider) is described there; nothing in this repo contains a real secret.
 
+For the admin portal login ID/password setup (create the owner account, log in, create retailer logins, reset passwords, troubleshoot), read `docs/ADMIN_LOGIN_GUIDE.md`.
+
 ## Honest limits
 
 Locking requires Device Owner enrolment. Device-owner features are marked untested until a physical device passes the per-family acceptance walk (see `packages/shared/src/oemMatrix.ts` and SETUP.md). `resetPassword()` is unavailable to Device Owner apps on Android 11+, so the screen PIN feature is a force-PIN-change policy, not a remote PIN set.
