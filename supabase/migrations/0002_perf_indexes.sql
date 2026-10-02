@@ -1,4 +1,4 @@
--- emidost 0002 — performance indexes for hot query paths.
+﻿-- emidost 0002 â€" performance indexes for hot query paths.
 -- On a populated DB run each statement individually (CREATE INDEX CONCURRENTLY
 -- cannot run inside a transaction). For this fresh project plain statements
 -- are fine. IF NOT EXISTS checks names only; adjust if equivalents exist.

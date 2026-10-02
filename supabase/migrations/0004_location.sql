@@ -1,4 +1,4 @@
--- emidost 0004 — on-demand location + fewer network assumptions.
+﻿-- emidost 0004 â€" on-demand location + fewer network assumptions.
 -- Location is stored only when the device fetches a LOCATION request.
 
 do $$ begin

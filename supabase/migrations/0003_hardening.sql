@@ -1,4 +1,4 @@
--- emidost 0003 — security + consistency hardening (audit wave, Claude + Codex).
+﻿-- emidost 0003 â€" security + consistency hardening (audit wave, Claude + Codex).
 -- Idempotent. Apply after 0001/0002 (or use 0000_all_in_one.sql which includes this).
 
 -- 1. Fix recursive RLS: actor helpers become SECURITY DEFINER so they read

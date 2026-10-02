@@ -1,13 +1,13 @@
--- emidost 0001 — fresh schema for a NEW Supabase project.
+﻿-- emidost 0001 â€" fresh schema for a NEW Supabase project.
 -- Idempotent: safe to re-run (to_regclass guards).
 -- No secrets: PIN hashes only, token hashes only, audit stores no payload secrets.
 
 begin;
 
--- ── extensions ────────────────────────────────────────────────────────────────
+-- â"€â"€ extensions â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create extension if not exists pgcrypto;
 
--- ── roles ─────────────────────────────────────────────────────────────────────
+-- â"€â"€ roles â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 do $$ begin
   create type public.user_role as enum ('owner', 'retailer_staff', 'customer');
 exception when duplicate_object then null; end $$;
@@ -35,7 +35,7 @@ do $$ begin
   create type public.ledger_kind as enum ('topup', 'slot_consumed', 'slot_freed', 'lock_consumed', 'adjust');
 exception when duplicate_object then null; end $$;
 
--- ── profiles ──────────────────────────────────────────────────────────────────
+-- â"€â"€ profiles â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   role public.user_role not null default 'retailer_staff',
@@ -47,7 +47,7 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
--- ── retailers ─────────────────────────────────────────────────────────────────
+-- â"€â"€ retailers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.retailers (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles(id),
@@ -69,7 +69,7 @@ do $$ begin
   end if;
 end $$;
 
--- ── credit / lock-allowance ledger ────────────────────────────────────────────
+-- â"€â"€ credit / lock-allowance ledger â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.credit_ledger (
   id uuid primary key default gen_random_uuid(),
   retailer_id uuid not null references public.retailers(id),
@@ -81,7 +81,7 @@ create table if not exists public.credit_ledger (
   created_at timestamptz not null default now()
 );
 
--- ── customers / devices ───────────────────────────────────────────────────────
+-- â"€â"€ customers / devices â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
   retailer_id uuid not null references public.retailers(id),
@@ -141,7 +141,7 @@ create table if not exists public.emi_schedules (
   created_at timestamptz not null default now()
 );
 
--- ── device commands ───────────────────────────────────────────────────────────
+-- â"€â"€ device commands â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.device_commands (
   id uuid primary key default gen_random_uuid(),
   device_id uuid not null references public.devices(id) on delete cascade,
@@ -164,7 +164,7 @@ create table if not exists public.device_command_acks (
   received_at timestamptz not null default now()
 );
 
--- ── enrolment sessions (consent is a precondition) ────────────────────────────
+-- â"€â"€ enrolment sessions (consent is a precondition) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.consent_records (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid references public.customers(id) on delete cascade,
@@ -192,7 +192,7 @@ create table if not exists public.enrollment_sessions (
   updated_at timestamptz not null default now()
 );
 
--- ── secrets + release ─────────────────────────────────────────────────────────
+-- â"€â"€ secrets + release â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.totp_secrets (
   device_id uuid primary key references public.devices(id) on delete cascade,
   secret_enc text not null,             -- encrypted at rest; service-role only
@@ -208,7 +208,7 @@ create table if not exists public.release_events (
   released_at timestamptz not null default now()
 );
 
--- ── audit log (secrets banned: never log pin/code/token values) ───────────────
+-- â"€â"€ audit log (secrets banned: never log pin/code/token values) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 create table if not exists public.audit_log (
   id uuid primary key default gen_random_uuid(),
   actor_id uuid references public.profiles(id),
@@ -218,7 +218,7 @@ create table if not exists public.audit_log (
   created_at timestamptz not null default now()
 );
 
--- ── actor helpers (read the LIVE profiles row; no auth.users access) ─────────
+-- â"€â"€ actor helpers (read the LIVE profiles row; no auth.users access) â"€â"€â"€â"€â"€â"€â"€â"€â"€
 -- Newer Supabase auth schemas have no app_metadata column on auth.users, so
 -- RLS resolves the role straight from public.profiles on every request. This
 -- also makes suspension and role changes apply instantly, never via a stale JWT.
@@ -238,7 +238,7 @@ returns int language sql volatile as $$
   returning lock_allowances;
 $$;
 
--- ── RLS ───────────────────────────────────────────────────────────────────────
+-- â"€â"€ RLS â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 alter table public.profiles enable row level security;
 alter table public.retailers enable row level security;
 alter table public.credit_ledger enable row level security;
