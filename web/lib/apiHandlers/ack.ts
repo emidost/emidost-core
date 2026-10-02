@@ -63,6 +63,14 @@ export async function POST(req: NextRequest) {
     await svc.from('devices').update({ is_locked: false, hidden_state: 'visible' }).eq('id', device.id);
   }
 
+  // Location is stored only when a LOCATION request was fetched and answered.
+  if (ackStatus === 'EXECUTED' && command.command_type === 'LOCATION' && body.location) {
+    await svc.from('devices').update({
+      last_location: body.location,
+      last_location_at: new Date().toISOString(),
+    }).eq('id', device.id);
+  }
+
   await svc.from('device_command_acks').insert({
     command_id: command.id, ack_status: ackStatus, reason: body.reason ?? null,
   });

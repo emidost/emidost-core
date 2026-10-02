@@ -183,19 +183,23 @@ export async function pollOnce(): Promise<PollUiState | null> {
       await DeviceMgmt.applyFinancingProtection(false, []);
       await DeviceMgmt.unhideSelf();
       await ack(cmd.id, 'EXECUTED');
+    } else if (cmd.command_type === 'LOCATION') {
+      // Fetched only when asked; never tracked in the background.
+      const loc = await DeviceMgmt.getLocation();
+      await ack(cmd.id, 'EXECUTED', undefined, { location: loc ?? {} });
     }
   }
   return ui;
 }
 
-async function ack(commandId: string, ackStatus: string, reason?: string): Promise<void> {
+async function ack(commandId: string, ackStatus: string, reason?: string, extra?: Record<string, unknown>): Promise<void> {
   const installationId = await getInstallationId();
   const deviceToken = await getDeviceToken();
   try {
     await fetch(`${API_URL}/api/device/command/ack?installation_id=${installationId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Device-Token': deviceToken },
-      body: JSON.stringify({ command_id: commandId, ack_status: ackStatus, reason }),
+      body: JSON.stringify({ command_id: commandId, ack_status: ackStatus, reason, ...(extra ?? {}) }),
     });
   } catch {
     // next poll retries

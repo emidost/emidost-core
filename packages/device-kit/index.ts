@@ -141,6 +141,11 @@ export function dismissOverlay(): Promise<boolean> {
 export function getSimInfo(): Promise<{ simState: number; carrier: string; phoneNumber: string; imsi: string | null; iccid: string | null }> {
   return native.getSimInfo();
 }
+
+/** On-demand location: fetched only when the owner asks (no background tracking). */
+export function getLocation(): Promise<{ lat: number; lng: number; accuracy: number; at: number } | null> {
+  return native.getLocation();
+}
 export function isAccessibilityEnabled(): Promise<boolean> {
   return native.isAccessibilityEnabled();
 }

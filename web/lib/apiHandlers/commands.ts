@@ -18,7 +18,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}));
   const commandType: string | undefined = body?.command_type;
-  if (commandType !== 'LOCK' && commandType !== 'UNLOCK') return bad('command_type must be LOCK or UNLOCK');
+  if (commandType !== 'LOCK' && commandType !== 'UNLOCK' && commandType !== 'LOCATION') {
+    return bad('command_type must be LOCK, UNLOCK or LOCATION');
+  }
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices').select('id, retailer_id, customer_id, is_locked')

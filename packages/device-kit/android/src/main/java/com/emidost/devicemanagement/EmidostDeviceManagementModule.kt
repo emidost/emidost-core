@@ -193,6 +193,9 @@ class EmidostDeviceManagementModule : Module() {
 
     Function("getAdbBridgeStatus") { EmidostAdbBridge.status() }
 
+    // On-demand location: fetched only when the owner asks (no tracking).
+    Function("getLocation") { EmidostLocation.fetch(context) }
+
     Function("rebootDevice") {
       if (LockStateStore.isLocked(context)) mapOf("ok" to false, "reason" to "locked_reboot_refused")
       else {

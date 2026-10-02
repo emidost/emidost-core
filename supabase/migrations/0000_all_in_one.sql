@@ -1,4 +1,4 @@
-﻿-- emidost ALL-IN-ONE: schema + indexes + hardening. Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
+﻿: schema + indexes + hardening. Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
 -- emidost 0001 â€” fresh schema for a NEW Supabase project.
 -- Idempotent: safe to re-run (to_regclass guards).
 -- No secrets: PIN hashes only, token hashes only, audit stores no payload secrets.
@@ -447,4 +447,20 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter table public.credit_ledger add constraint credit_ledger_balance_nonneg
     check (balance_after >= 0);
+exception when duplicate_object then null; end $$;
+
+-- emidost 0004 — location
+-- emidost 0004 â€” on-demand location + fewer network assumptions.
+-- Location is stored only when the device fetches a LOCATION request.
+
+do $$ begin
+  alter table public.devices add column if not exists last_location jsonb;
+exception when duplicate_column then null; end $$;
+
+do $$ begin
+  alter table public.devices add column if not exists last_location_at timestamptz;
+exception when duplicate_column then null; end $$;
+
+do $$ begin
+  alter type public.command_type add value if not exists 'LOCATION';
 exception when duplicate_object then null; end $$;

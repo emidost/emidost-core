@@ -60,7 +60,9 @@ export default function App() {
       }
     };
     void loop();
-    timer.current = setInterval(loop, 12_000);
+    // UI refresh only. Enforcement is local, commands arrive by SMS instantly,
+    // and the native service polls slowly (5 min) for the online fetch path.
+    timer.current = setInterval(loop, 60_000);
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [phase, due?.amount_due]);
 

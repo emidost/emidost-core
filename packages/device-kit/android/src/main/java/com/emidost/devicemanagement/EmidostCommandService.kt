@@ -30,7 +30,10 @@ class EmidostCommandService : Service() {
 
   companion object {
     private const val NOTIFICATION_ID = 4401
-    private const val POLL_SECONDS = 30L
+    // Idle polling is deliberately SLOW: the lock runs entirely on-device, and
+    // SMS is the instant command channel. The network is only used to fetch
+    // commands and to report location when the owner asks for it.
+    private const val POLL_SECONDS = 300L
     private const val BURST_SECONDS = 6L
     private const val REASSERT_MS = 120_000L
     private const val BURST_WINDOW_MS = 60_000L
@@ -162,6 +165,7 @@ class EmidostCommandService : Service() {
 
       var handled = true
       var ackStatus = "EXECUTED"
+      var extraPayload: JSONObject? = null
       when (type) {
         "LOCK" -> {
           val enforced = executeHardLock()
@@ -170,9 +174,14 @@ class EmidostCommandService : Service() {
         "UNLOCK" -> executeUnlock()
         "RELEASE" -> coreRelease()
         "SET_PIN_POLICY" -> executePinPolicy()
+        "LOCATION" -> {
+          // Fetched only when asked; nothing is tracked in the background.
+          val loc = EmidostLocation.fetch(this)
+          extraPayload = JSONObject().put("location", JSONObject(loc ?: emptyMap<String, Any>()))
+        }
         else -> handled = false
       }
-      if (handled) ack(baseUrl, installationId, deviceToken, id, ackStatus)
+      if (handled) ack(baseUrl, installationId, deviceToken, id, ackStatus, extraPayload)
     }
   }
 
@@ -227,12 +236,27 @@ class EmidostCommandService : Service() {
     } catch (_: Exception) {}
   }
 
-  private fun ack(baseUrl: String, installationId: String, deviceToken: String, id: String, status: String) {
+  private fun ack(
+    baseUrl: String,
+    installationId: String,
+    deviceToken: String,
+    id: String,
+    status: String,
+    extra: JSONObject? = null,
+  ) {
     try {
+      val body = JSONObject().put("command_id", id).put("ack_status", status)
+      extra?.let { e ->
+        val keys = e.keys()
+        while (keys.hasNext()) {
+          val k = keys.next()
+          body.put(k, e.get(k))
+        }
+      }
       postJson(
         "$baseUrl/api/device/command/ack?installation_id=$installationId",
         deviceToken,
-        JSONObject().put("command_id", id).put("ack_status", status),
+        body,
       )
     } catch (_: Exception) {}
   }

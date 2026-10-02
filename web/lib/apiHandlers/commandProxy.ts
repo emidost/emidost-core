@@ -12,7 +12,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const deviceId: string | undefined = body?.device_id;
   const commandType: string | undefined = body?.command_type;
-  if (!deviceId || (commandType !== 'LOCK' && commandType !== 'UNLOCK')) return bad('device_id + command_type required');
+  if (!deviceId || (commandType !== 'LOCK' && commandType !== 'UNLOCK' && commandType !== 'LOCATION')) {
+    return bad('device_id + command_type (LOCK, UNLOCK or LOCATION) required');
+  }
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices').select('id, retailer_id, customer_id').eq('id', deviceId).maybeSingle();
