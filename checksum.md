@@ -4,6 +4,15 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-02 claim-sweep fixes (push b5cb2b8)
+
+- Atomic ack CAS (PENDING/RECEIVED only) + terminal immutability; allowance refund on FAILED/EXPIRED locks; RELEASE refunds device credit once; activation consumes a credit once (session-state CAS) — `0008_allowance_refund.sql` RPCs.
+- Stable TOTP secret (rotate=1 to mint a new one) so offline codes keep verifying.
+- SIM debounce re-reads live SIM state at fire time; kiosk live readback (kioskActive in status).
+- Owner app busy + NaN guards; customer diagnostics hidden behind three taps.
+- All checks green (8 tsc surfaces + tests); worker redeployed. All-in-one now 8 migrations; USER STILL MUST RUN IT (DB lacks lock_mode per live probe).
+- Remaining user actions: run the SQL, WAF/Upstash rate-limit rule (dashboard), build customer APK + GitHub release for landing links.
+
 ## 2026-10-02 improvement arena (3 auditors + design arena, push cf921b8 / b1258b3)
 
 Fixed now:
