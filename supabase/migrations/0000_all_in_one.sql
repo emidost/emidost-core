@@ -1,10 +1,20 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- emidost ALL-IN-ONE: schema + indexes + seed accounts (owner, retailer, customer)
 -- Paste this whole file into the Supabase SQL editor and Run once.
 -- Idempotent and compatible with the NEW Supabase auth schema (no app_metadata).
 -- Change the emails/passwords in the seed section before running if you want.
 -- ============================================================================
--- emidost 0001 â€” fresh schema for a NEW Supabase project.
+
+-- Cleanup: remove the OLD trigger/function from the earlier failed run so it
+-- can never fire again (the new RLS reads roles straight from profiles).
+do $$ begin
+  if to_regclass('public.profiles') is not null then
+    drop trigger if exists profiles_role_claim on public.profiles;
+  end if;
+end $$;
+drop function if exists public.sync_role_claim();
+
+-- emidost 0001 — fresh schema for a NEW Supabase project.
 -- Idempotent: safe to re-run (to_regclass guards).
 -- No secrets: PIN hashes only, token hashes only, audit stores no payload secrets.
 
