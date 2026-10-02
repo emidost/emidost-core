@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { serviceClient } from '@/lib/supabaseServer';
+import { decryptTotpSecret } from '@/lib/totpCrypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     commands: suspended ? [] : pendingRows ?? [],
     device_pin_hash: device.device_pin_hash ?? null,
     pin_verify: device.pin_verify ?? null,
-    totp_secret: totpRow?.data?.secret_enc ?? null,
+    totp_secret: totpRow?.data?.secret_enc ? decryptTotpSecret(totpRow.data.secret_enc) : null,
     frp_accounts: frpAccounts,
     loan_status: customers?.status ?? '',
     customer_code: customers?.customer_code ?? null,

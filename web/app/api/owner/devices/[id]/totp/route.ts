@@ -2,6 +2,7 @@ import { createHmac, randomBytes } from 'crypto';
 import { NextRequest } from 'next/server';
 import { forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
+import { encryptTotpSecret } from '@/lib/totpCrypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,10 +16,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { data: device } = await svc.from('devices').select('id').eq('id', params.id).maybeSingle();
   if (!device) return Response.json({ error: 'not found' }, { status: 404 });
 
-  // TOTP over HMAC-SHA1: 8 digits, 30 s window. The secret is delivered to the
-  // device over the authenticated heartbeat channel (offline verify). HARDENING
-  // TODO: encrypt at rest with a real key before production; the column is
-  // service-role-only in the meantime.
+  // TOTP over HMAC-SHA1: 8 digits, 30 s window. The secret is AES-256-GCM
+  // encrypted at rest and delivered to the device over the authenticated
+  // heartbeat channel (offline verify).
   const secret = randomBytes(20);
   const counter = Math.floor(Date.now() / 30000);
   const counterBuf = Buffer.alloc(8);
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   await svc.from('totp_secrets').upsert({
     device_id: params.id,
-    secret_enc: secret.toString('base64'),
+    secret_enc: encryptTotpSecret(secret),
     counter,
   });
   await svc.from('audit_log').insert({

@@ -8,7 +8,7 @@ import {
   colors, createApi, getOemProfile, type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
-  CalendarDays, Coins, Hash, IndianRupee, Lock, LockOpen, LogIn, QrCode,
+  Banknote, CalendarDays, Coins, Hash, IndianRupee, Lock, LockOpen, LogIn, QrCode,
   Settings2, Smartphone, Store, UserPlus, Wallet,
 } from 'lucide-react-native';
 
@@ -148,10 +148,49 @@ function Customers() {
               label={c.status}
             />
           </View>
+          <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
         </View>
       ))}
       {rows.length === 0 && <Text style={s.muted}>No customers yet.</Text>}
     </ScrollView>
+  );
+}
+
+function PaymentRow({ customerId, onDone }: { customerId: string; onDone: () => void }) {
+  const [amount, setAmount] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function record() {
+    setErr(null);
+    try {
+      await api.recordPayment(customerId, { amount: parseFloat(amount), method: 'cash' });
+      setMsg('Payment recorded');
+      setAmount('');
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Payment failed');
+    }
+  }
+
+  return (
+    <View style={{ marginTop: 8 }}>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+        <TextInput
+          style={[s.input, { flex: 1 }]}
+          placeholder="Payment amount (Rs)"
+          keyboardType="numeric"
+          value={amount}
+          onChangeText={setAmount}
+        />
+        <TouchableOpacity style={[s.button, { marginTop: 0, paddingVertical: 10 }]} onPress={record}>
+          <Banknote size={14} color="#fff" />
+          <Text style={s.buttonText}>Record</Text>
+        </TouchableOpacity>
+      </View>
+      {msg && <Text style={{ color: '#16A34A', fontSize: 12, marginTop: 4 }}>{msg}</Text>}
+      {err && <Text style={s.error}>{err}</Text>}
+    </View>
   );
 }
 

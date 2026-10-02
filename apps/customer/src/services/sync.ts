@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import * as DeviceMgmt from '@emidost/device-kit';
+import * as Notifications from 'expo-notifications';
+import { dueReminderCopy } from '@emidost/shared';
 
 const KEY_INSTALLATION = 'emidost.installation_id';
 const KEY_DEVICE_TOKEN = 'emidost.device_token';
@@ -111,13 +114,19 @@ export async function pollOnce(): Promise<PollUiState | null> {
 
   const loanStatus: string = resp?.loan_status ?? '';
   if (loanStatus === 'COMPLETE' || loanStatus === 'SETTLED') {
-    // Release-first: unlock, stop the sentinel, clear protection, unhide.
+    // Release-first: unlock, stop the sentinel, clear protection, unhide,
+    // and cancel every reminder.
+    await cancelReminders();
     await DeviceMgmt.executeAuthorizedUnlock('settled');
     await DeviceMgmt.setLoanOutstanding(false);
     await DeviceMgmt.applyFinancingProtection(false, []);
     await DeviceMgmt.unhideSelf();
     return ui;
   }
+
+  // Reminders follow the DB truth while the loan is outstanding.
+  if (ui.next_due) await scheduleReminders(ui.next_due);
+  else await cancelReminders();
 
   if (loanStatus === 'RUNNING' || loanStatus === 'NPA') {
     await DeviceMgmt.setLoanOutstanding(true);
@@ -185,4 +194,43 @@ async function ack(commandId: string, ackStatus: string, reason?: string): Promi
   } catch {
     // next poll retries
   }
+}
+
+let reminderChannelReady = false;
+async function ensureReminderChannel(): Promise<void> {
+  if (reminderChannelReady) return;
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('emidost-reminders', {
+      name: 'EMI reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+    });
+  }
+  reminderChannelReady = true;
+}
+
+/**
+ * Schedule the −3/−1/0/+1/+3 reminder set from the next due date. Previous
+ * scheduled reminders are replaced, so the set always matches the DB.
+ */
+export async function scheduleReminders(nextDue: { due_date: string; amount_due: number } | null): Promise<void> {
+  await ensureReminderChannel();
+  await Notifications.cancelAllScheduledNotificationsAsync();
+  if (!nextDue) return;
+  const amount = `Rs ${Number(nextDue.amount_due).toFixed(0)}`;
+  const due = new Date(`${nextDue.due_date}T09:00:00`);
+  const offsets = [-3, -1, 0, 1, 3];
+  for (const off of offsets) {
+    const at = new Date(due.getTime() + off * 86_400_000);
+    if (at.getTime() < Date.now()) continue;
+    const copy = dueReminderCopy(nextDue.due_date, amount, Math.max(0, off));
+    await Notifications.scheduleNotificationAsync({
+      content: { title: 'EMI reminder', body: copy.en, sound: 'default' },
+      trigger: { date: at, channelId: 'emidost-reminders' },
+    });
+  }
+}
+
+export async function cancelReminders(): Promise<void> {
+  await Notifications.cancelAllScheduledNotificationsAsync();
 }
