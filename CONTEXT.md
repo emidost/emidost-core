@@ -60,6 +60,10 @@ github.com/emidost/emidost).
 - Customer/device list with LOCK/UNLOCK (allowance-checked).
 - Offline SMS LOCK/UNLOCK from the retailer's registered phone number (sender
   allowlist + customer code; DO gate; spoofing caveat documented).
+- Offline unlock-code generator (Google Authenticator style): fetches the
+  device's TOTP secret once (`POST /api/retailer/devices/:id/unlock-key`),
+  caches it on the phone, and generates the same 8-digit codes the locked
+  phone verifies — fully offline after the first fetch.
 
 ### Customer (Expo app, accent amber #D97706, launcher name "wifi")
 - No login. Retailer registers the customer; the app binds with the setup code
@@ -93,7 +97,9 @@ github.com/emidost/emidost).
 - Device PIN: owner-set via portal (`/api/owner/devices/:id/pin`), stored as
   `pin_verify = sha256(pin + ":" + installation_id)`, offline-verifiable.
 - Offline TOTP unlock (owner-issued, audited; secret encrypted at rest with
-  AES-256-GCM in `web/lib/totpCrypto.ts`).
+  AES-256-GCM in `web/lib/totpCrypto.ts`). The retailer app can fetch the same
+  secret once (`/api/retailer/devices/:id/unlock-key`) and generate matching
+  codes offline — the Authenticator-style retailer generator path.
 - Screen PIN: `resetPassword()` is dead for Device Owner on Android 11+, so the
   feature is a force-PIN-change policy (quality + min length) only.
 - Settled loans (COMPLETE/SETTLED) never re-lock, anywhere.

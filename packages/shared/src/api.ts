@@ -69,6 +69,12 @@ export function createApi({ baseUrl, getToken }: ApiClientOptions) {
       req<DeviceCommand>(`/api/retailer/devices/${deviceId}/commands`, {
         method: 'POST', body: JSON.stringify({ command_type: commandType, payload }),
       }),
+    /** Offline-unlock TOTP secret (same base64 the device verifies). 409 when the device has no secret yet. */
+    getDeviceUnlockKey: (deviceId: string) =>
+      req<{ secret: string; period: number; digits: number }>(
+        `/api/retailer/devices/${deviceId}/unlock-key`,
+        { method: 'POST' },
+      ),
     recordPayment: (customerId: string, body: { amount: number; method: string; receipt_no?: string }) =>
       req<Payment>(`/api/retailer/customers/${customerId}/payments`, {
         method: 'POST', body: JSON.stringify(body),

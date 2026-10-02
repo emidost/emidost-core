@@ -4,6 +4,27 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 offline unlock — retailer Authenticator-style TOTP generator
+
+- Design contract: `.review/offline-unlock-plan.md`. The phone already verifies
+  RFC 6238 TOTP locally (Totp.kt: HMAC-SHA1, 8 digits, 30 s, ±1 window, base64
+  secret) behind the hidden long-press entry; the secret reaches the phone via
+  the heartbeat (`totp_secrets.secret_enc`, decrypted server-side).
+- **Web (claude):** new `POST /api/retailer/devices/:id/unlock-key`
+  (`web/lib/apiHandlers/retailerUnlockKey.ts`, wired into the catch-all API
+  router). Retailer-staff only (403 otherwise, 403 when suspended), device
+  must belong to the retailer (404 otherwise). Returns the SAME base64 secret
+  the device stores (`{ secret, period: 30, digits: 8 }`). No secret yet → 409
+  `no_unlock_key` (never minted here — a fresh secret could never reach an
+  offline phone). Decrypt failure → 500. Every issue writes
+  `audit_log.TOTP_KEY_ISSUED_RETAILER`.
+- **App side (codex, in progress):** shared `packages/shared/src/totp.ts`
+  mirroring Totp.kt + tests; retailer app fetches once online, caches in
+  expo-secure-store, generates codes offline (countdown ring, copy button);
+  worker dispatch parity line.
+- Docs: CONTEXT.md retailer bullet + §4 TOTP line, SETUP.md §5, checklist D11.
+- Checks: web tsc 0 · `next build` exit 0 (re-verified after the feature).
+
 ## 2026-10-03 CLI audit wave 2 + hardening (claude web/SQL/docs + codex apps/native)
 
 - **Live-DB probe (lead, read-only): the database is ALREADY fully migrated.**

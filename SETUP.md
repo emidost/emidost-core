@@ -43,7 +43,9 @@ Copy each `.env.example` next to its app as `.env` (Expo reads `.env`) and `.env
 
 The retailer's registered phone number is the SMS sender allowlist. Commands:
 `LOCK <customer-code>` and `UNLOCK <customer-code> <totp>` — an 8-digit TOTP
-issued by the owner for that device is required to unlock by SMS. SMS is not
+issued by the owner for that device is required to unlock by SMS. The retailer
+app can also generate the offline unlock code itself (Authenticator style,
+cached after one online fetch); SMS UNLOCK needs the same TOTP. SMS is not
 cryptographically authenticated: the customer code and the device PIN/TOTP
 paths are the authenticated factors. An SMS gateway/aggregator is not
 included; choose one and keep costs in mind. Android 14+ delivery restrictions

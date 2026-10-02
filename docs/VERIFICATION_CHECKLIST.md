@@ -49,7 +49,7 @@ Every item carries one of four states:
 | D8 | Unlock-wins watermark + SUPERSEDED acks (native AND JS paths; serverNow − elapsedDelta math) | CODE | LockStateStore.isLockStale + shared stale.ts (9/9 tests), sync.ts LOCK branch acks SUPERSEDED, ack route |
 | D9 | Offline SMS LOCK/UNLOCK from retailer number + customer code; LOCK gated on DO + loan | CODE + DEVICE | EmidostSmsReceiver |
 | D10 | Device PIN portal-set, offline verify, brute-force capable; hidden long-press entry on the lock screen | CODE | pin route + DevicePinStore + LockedScreen unlockWithCode |
-| D11 | Offline TOTP unlock (owner-issued, audited; secret encrypted at rest with AES-256-GCM); hidden long-press entry on the lock screen | CODE + DEVICE | totp route + Totp.kt + web/lib/totpCrypto.ts + LockedScreen unlockWithCode. Honest note: a local PIN/TOTP unlock updates the device immediately; the portal lock indicator follows the next command ack/heartbeat |
+| D11 | Offline TOTP unlock (owner-issued, audited; secret encrypted at rest with AES-256-GCM); hidden long-press entry on the lock screen; retailer Authenticator-style generator (fetches the same secret once via the unlock-key route, generates codes offline) | CODE + DEVICE | totp route + retailer unlock-key route + Totp.kt + shared totp.ts + web/lib/totpCrypto.ts + LockedScreen unlockWithCode. Honest note: a local PIN/TOTP unlock updates the device immediately; the portal lock indicator follows the next command ack/heartbeat |
 | D12 | Screen PIN = force-PIN-change only (resetPassword dead on A11+) | CODE | executePinPolicy |
 
 ## E. Release, settlement, suspension

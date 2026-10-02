@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  AccessibilityInfo, ActivityIndicator, FlatList, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import * as Clipboard from 'expo-clipboard';
+import * as SecureStore from 'expo-secure-store';
+import Svg, { Circle } from 'react-native-svg';
 import {
-  colors, createApi, getOemProfile, type Customer, type Device, type Retailer,
+  colors, createApi, getOemProfile, totpCode, totpSecondsLeft,
+  type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
-  Banknote, BellRing, CalendarDays, Coins, Hash, IndianRupee, Lock, LockOpen, LogIn, QrCode,
+  Banknote, BellRing, CalendarDays, Coins, Hash, IndianRupee, KeyRound, Lock, LockOpen, LogIn, QrCode,
   Settings2, Smartphone, Store, UserPlus, Wallet,
 } from 'lucide-react-native';
 
@@ -40,6 +44,8 @@ export default function App() {
   const [balance, setBalance] = useState<{ credits_balance: number; lock_allowances: number } | null>(null);
   // The brand chosen in the customer form drives the per-OEM Enrol walkthrough.
   const [enrolBrand, setEnrolBrand] = useState('');
+  // Full-screen offline unlock code view for one device.
+  const [unlockFor, setUnlockFor] = useState<Device | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -58,6 +64,7 @@ export default function App() {
 
   if (session === null) return <View style={s.center}><ActivityIndicator color={ACCENT} size="large" /></View>;
   if (!session) return <Login onDone={() => setSession(true)} />;
+  if (unlockFor) return <UnlockCodeScreen device={unlockFor} onClose={() => setUnlockFor(null)} />;
 
   return (
     <View style={{ flex: 1 }}>
@@ -70,7 +77,7 @@ export default function App() {
       </View>
       {tab === 'customers' && <Customers />}
       {tab === 'new' && <NewCustomer onDone={() => setTab('customers')} onBrand={setEnrolBrand} />}
-      {tab === 'devices' && <Devices />}
+      {tab === 'devices' && <Devices onUnlockCode={setUnlockFor} />}
       {tab === 'enrol' && <Enrol brand={enrolBrand} />}
       <View style={s.tabs}>
         <TabButton icon={Wallet} label="Customers" active={tab === 'customers'} onPress={() => setTab('customers')} />
@@ -351,7 +358,7 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
   );
 }
 
-function Devices() {
+function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
   const [rows, setRows] = useState<Device[]>([]);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { api.listDevices().then(setRows).catch(() => {}); }, []);
@@ -385,11 +392,165 @@ function Devices() {
               {d.is_locked ? <LockOpen color="#fff" size={16} /> : <Lock color="#fff" size={16} />}
               <Text style={s.buttonText}>{d.is_locked ? 'Unlock' : 'Lock'}</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.outlineBtn, { marginTop: 8 }]}
+              onPress={() => onUnlockCode(d)}
+              accessibilityRole="button"
+              accessibilityLabel="Offline unlock code"
+            >
+              <KeyRound size={14} color={ACCENT} />
+              <Text style={s.outlineBtnText}>Offline unlock code</Text>
+            </TouchableOpacity>
           </View>
         )}
         ListEmptyComponent={<Text style={s.muted}>No devices yet.</Text>}
         contentContainerStyle={{ paddingBottom: 16 }}
       />
+    </View>
+  );
+}
+
+/**
+ * Google Authenticator-style offline unlock code for one device. The TOTP
+ * secret is fetched once (online) and cached in SecureStore; codes are then
+ * generated locally forever, so this works with the phone fully offline.
+ */
+function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => void }) {
+  const key = `emidost.retailer.unlockkey.${device.id}`;
+  const [secret, setSecret] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const list = await api.listCustomers();
+        if (active) setCustomerName(list.find((c) => c.id === device.customer_id)?.name ?? null);
+      } catch {
+        // The name is optional decoration; the code works without it.
+      }
+    })();
+    return () => { active = false; };
+  }, [device.customer_id]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        let saved = await SecureStore.getItemAsync(key);
+        if (!saved) {
+          const res = await api.getDeviceUnlockKey(device.id);
+          saved = res.secret;
+          await SecureStore.setItemAsync(key, saved);
+        }
+        if (active) setSecret(saved);
+      } catch (e) {
+        if (!active) return;
+        const msg = e instanceof Error ? e.message : '';
+        if (msg.includes('409')) {
+          setError('The phone has no unlock key yet. It must complete one online sync before offline unlock works.');
+        } else {
+          setError('No saved key. Connect once to load it.');
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, [key, device.id]);
+
+  // 1 s tick: the code recomputes and flips at each 30 s boundary.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (active) setReduceMotion(v); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
+
+  const code = useMemo(() => (secret ? totpCode(secret, now) : null), [secret, now]);
+  const secondsLeft = totpSecondsLeft(now);
+
+  async function copyCode() {
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+  }
+
+  const header = customerName
+    ? `${customerName} · ${device.manufacturer ?? ''} ${device.model ?? ''}`.trim()
+    : `${device.manufacturer ?? ''} ${device.model ?? ''}`.trim();
+
+  // Countdown ring: the stroke drains as the 30 s window elapses.
+  const R = 44;
+  const CIRC = 2 * Math.PI * R;
+  const dashOffset = CIRC * (1 - secondsLeft / 30);
+
+  return (
+    <View style={s.page}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to devices">
+          <Text style={s.backText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={s.title}>Offline unlock code</Text>
+      </View>
+      <Text style={s.muted}>{header}</Text>
+
+      {error ? (
+        <View style={s.card}>
+          <Text style={s.muted}>{error}</Text>
+          <TouchableOpacity style={s.button} onPress={onClose}>
+            <Text style={s.buttonText}>Back to devices</Text>
+          </TouchableOpacity>
+        </View>
+      ) : !secret || !code ? (
+        <View style={s.center}><ActivityIndicator color={ACCENT} size="large" /></View>
+      ) : (
+        <View style={[s.card, { alignItems: 'center', marginTop: 16 }]}>
+          <Text style={s.codeLabel}>Current code</Text>
+          <Text
+            style={s.bigCode}
+            accessibilityLabel={`Unlock code ${code.slice(0, 4)} ${code.slice(4)}`}
+          >
+            {code.slice(0, 4)} {code.slice(4)}
+          </Text>
+          {reduceMotion ? (
+            <Text style={s.muted}>New code in {secondsLeft}s</Text>
+          ) : (
+            <>
+              <View style={s.ringWrap}>
+                <Svg width={110} height={110} viewBox="0 0 110 110">
+                  <Circle cx={55} cy={55} r={R} stroke="#E5E7EB" strokeWidth={6} fill="none" />
+                  <Circle
+                    cx={55} cy={55} r={R}
+                    stroke={ACCENT} strokeWidth={6} fill="none"
+                    strokeDasharray={CIRC} strokeDashoffset={dashOffset}
+                    strokeLinecap="round"
+                    transform="rotate(-90 55 55)"
+                  />
+                </Svg>
+              </View>
+              <Text style={s.muted}>New code in {secondsLeft}s</Text>
+            </>
+          )}
+          <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={copyCode} accessibilityRole="button">
+            <Text style={s.buttonText}>{copied ? 'Copied' : 'Copy code'}</Text>
+          </TouchableOpacity>
+          <Text style={[s.muted, { textAlign: 'center', marginTop: 12 }]}>
+            Long-press the lock emblem on the phone, then type this code.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -458,4 +619,12 @@ const s = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 12, fontWeight: '600', color: '#1A1D21' },
+
+  // Offline unlock code screen.
+  outlineBtn: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: ACCENT, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14 },
+  outlineBtnText: { color: ACCENT, fontWeight: '600', fontSize: 14 },
+  backText: { color: ACCENT, fontSize: 15, fontWeight: '600' },
+  codeLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280' },
+  bigCode: { fontSize: 56, fontWeight: '700', color: ACCENT, fontVariant: ['tabular-nums'], letterSpacing: 2, marginTop: 8 },
+  ringWrap: { marginTop: 12 },
 });

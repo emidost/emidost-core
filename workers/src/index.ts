@@ -27,6 +27,7 @@ import { GET as enrollmentGet } from '../../web/lib/apiHandlers/enrollmentGet';
 import { GET as retailerDevicesGet } from '../../web/lib/apiHandlers/retailerDevices';
 import { POST as commandProxyPost } from '../../web/lib/apiHandlers/commandProxy';
 import { POST as commandsPost } from '../../web/lib/apiHandlers/commands';
+import { POST as retailerUnlockKeyPost } from '../../web/lib/apiHandlers/retailerUnlockKey';
 import { POST as registerPost } from '../../web/lib/apiHandlers/register';
 import { POST as heartbeatPost } from '../../web/lib/apiHandlers/heartbeat';
 import { POST as ackPost } from '../../web/lib/apiHandlers/ack';
@@ -62,6 +63,7 @@ const ROUTES: RouteDef[] = [
   { segments: 2, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1), get: retailerDevicesGet },
   { segments: 3, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1) && seg('command-proxy')(p, 2), post: commandProxyPost },
   { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1) && seg('commands')(p, 3), post: (req, ctx) => commandsPost(req, { params: { id: ctx.params.id } }) },
+  { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1) && seg('unlock-key')(p, 3), post: (req, ctx) => retailerUnlockKeyPost(req, { params: { id: ctx.params.id } }) },
   { segments: 2, match: (p) => seg('device')(p, 0) && seg('register')(p, 1), post: registerPost },
   { segments: 2, match: (p) => seg('device')(p, 0) && seg('heartbeat')(p, 1), post: heartbeatPost },
   { segments: 3, match: (p) => seg('device')(p, 0) && seg('command')(p, 1) && seg('ack')(p, 2), post: ackPost },
@@ -82,7 +84,7 @@ export default {
       if (def.segments !== segs.length || !def.match(segs)) continue;
       if (def.segments === 3 && segs[0] === 'owner' && segs[1] === 'retailers') params.id = segs[2];
       if (def.segments === 4 && ['credits', 'allowances', 'totp', 'pin', 'commands'].includes(segs[3])) params.id = segs[2];
-      if (def.segments === 4 && ['consent', 'enrollment', 'payments', 'schedules'].includes(segs[3])) params.id = segs[2];
+      if (def.segments === 4 && ['consent', 'enrollment', 'payments', 'schedules', 'unlock-key'].includes(segs[3])) params.id = segs[2];
       if (def.segments === 3 && segs[0] === 'retailer' && segs[1] === 'enrollments') params.id = segs[2];
       const method = request.method.toLowerCase();
       const handler = method === 'get' ? def.get : method === 'post' ? def.post : method === 'patch' ? def.patch : undefined;

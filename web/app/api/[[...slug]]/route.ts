@@ -32,6 +32,7 @@ import { POST as commandsPost } from '@/lib/apiHandlers/commands';
 import { POST as registerPost } from '@/lib/apiHandlers/register';
 import { POST as heartbeatPost } from '@/lib/apiHandlers/heartbeat';
 import { POST as ackPost } from '@/lib/apiHandlers/ack';
+import { POST as retailerUnlockKeyPost } from '@/lib/apiHandlers/retailerUnlockKey';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,7 @@ const ROUTES: RouteDef[] = [
   { segments: 2, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1), get: retailerDevicesGet },
   { segments: 3, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1) && seg('command-proxy')(p, 2), post: commandProxyPost },
   { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1) && seg('commands')(p, 3), post: (req, ctx) => commandsPost(req, { params: { id: ctx.params.id } }) },
+  { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1) && seg('unlock-key')(p, 3), post: (req, ctx) => retailerUnlockKeyPost(req, { params: { id: ctx.params.id } }) },
   { segments: 2, match: (p) => seg('device')(p, 0) && seg('register')(p, 1), post: registerPost },
   { segments: 2, match: (p) => seg('device')(p, 0) && seg('heartbeat')(p, 1), post: heartbeatPost },
   { segments: 3, match: (p) => seg('device')(p, 0) && seg('command')(p, 1) && seg('ack')(p, 2), post: ackPost },
@@ -105,6 +107,7 @@ function dispatch(
     if (def.segments === 4 && ['consent', 'enrollment', 'payments', 'schedules'].includes(parts[3])) params.id = parts[2];
     if (def.segments === 3 && parts[0] === 'retailer' && parts[1] === 'enrollments') params.id = parts[2];
     if (def.segments === 4 && parts[3] === 'commands') params.id = parts[2];
+    if (def.segments === 4 && parts[3] === 'unlock-key') params.id = parts[2];
     const handler = method === 'get' ? def.get : method === 'post' ? def.post : def.patch;
     if (handler) return handler(req, { params });
   }
