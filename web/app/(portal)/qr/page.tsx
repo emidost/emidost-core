@@ -20,7 +20,9 @@ function hexToChecksum(hex: string): string {
 }
 
 export default function QrPage() {
-  const [apkUrl, setApkUrl] = useState('');
+  const [apkUrl, setApkUrl] = useState(
+    'https://github.com/emidost/emidost/releases/latest/download/emidost-customer.apk',
+  );
   const [sha256, setSha256] = useState('');
   const [png, setPng] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
