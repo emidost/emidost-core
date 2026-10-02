@@ -2,10 +2,8 @@
 -- The old helper functions SELECTed profiles from inside profiles policies.
 -- Roles now live in the JWT app_metadata claim, written by the admin API
 -- (create_accounts.mjs / retailer-create route), never by a recursive SELECT.
-
--- Drop the recursive helpers' usage; keep them for nothing (removed below).
-drop function if exists public.actor_role();
-drop function if exists public.actor_retailer();
+-- ORDER MATTERS: the dependent policies are dropped first, and only then the
+-- helper functions (Postgres refuses to drop a function its policies still use).
 
 -- profiles: self read only; owner read via JWT claim.
 drop policy if exists profiles_self on public.profiles;
@@ -112,3 +110,9 @@ create policy releases_read on public.release_events for select
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
           and customer_id in (select id from public.customers
               where retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid)));
+
+-- Only after every dependent policy is recreated may the old recursive
+-- helpers go away.
+drop function if exists public.actor_role();
+drop function if exists public.actor_retailer();
+
