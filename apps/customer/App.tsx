@@ -13,8 +13,11 @@ import * as Notifications from 'expo-notifications';
 import {
   getInstallationId, isRegistered, pollOnce, registerWithToken, startSync,
   getCachedState, enforceOfflineWatchdog, unlockWithCode,
-  cachedPhotoExists, PHOTO_FILE_URI,
+  cachedPhotoExists, PHOTO_FILE_URI, refreshPushToken, setPushToken,
 } from './src/services/sync';
+import {
+  initPush, registerKickTask, addPushTokenListener, addKickListener, requestNotificationPermission,
+} from './src/services/push';
 
 const ACCENT = colors.accentAmber;
 
@@ -30,6 +33,7 @@ export default function App() {
   const [retailerPhone, setRetailerPhone] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const inFlight = useRef(false);
+  const pushUnsubs = useRef<(() => void)[]>([]);
   // The loop reads the latest due through a ref, so a new due amount does not
   // restart the interval (which used to fire an extra heartbeat each time).
   const dueRef = useRef(due);
@@ -39,9 +43,28 @@ export default function App() {
     void (async () => {
       const registered = await isRegistered();
       setPhase(registered ? 'active' : 'bind');
-      if (registered) await startSync();
+      if (registered) {
+        await startSync();
+        // FCM kick channel: handler + background task + listeners. Push
+        // failures never disturb the lock flow (poll cadence is the fallback).
+        initPush();
+        registerKickTask();
+        pushUnsubs.current.push(addPushTokenListener((t) => setPushToken(t)));
+        pushUnsubs.current.push(addKickListener(() => {
+          void DeviceMgmt.kickCommandService();
+          void pollOnce();
+        }));
+        void (async () => {
+          await requestNotificationPermission();
+          await refreshPushToken();
+        })();
+      }
     })();
-    return () => { if (timer.current) clearInterval(timer.current); };
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+      pushUnsubs.current.forEach((unsub) => { try { unsub(); } catch { /* noop */ } });
+      pushUnsubs.current = [];
+    };
   }, []);
 
   useEffect(() => {

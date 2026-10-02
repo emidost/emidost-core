@@ -125,6 +125,8 @@ export interface HeartbeatRequest {
   heartbeat?: boolean;
   /** Live enforcedLocked readback; the server reconciles devices.is_locked from it. */
   locked: boolean;
+  /** Expo push token for the FCM kick channel (omitted when unavailable). */
+  fcm_token?: string | null;
 }
 
 /** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */

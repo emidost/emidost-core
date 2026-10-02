@@ -8,6 +8,7 @@ import {
   dueReminderCopy, isLockCommandStale, isoToEpochMillis,
   type HeartbeatNextDue, type HeartbeatRequest, type HeartbeatResponse,
 } from '@emidost/shared';
+import { getPushToken, pushProjectId } from './push';
 
 const KEY_INSTALLATION = 'emidost.installation_id';
 const KEY_DEVICE_TOKEN = 'emidost.device_token';
@@ -16,6 +17,21 @@ const KEY_BASELINE = 'emidost.sim_baseline_set';
 const KEY_LAST_SYNC_OK = 'emidost.last_sync_ok_at';
 const KEY_CACHED_STATE = 'emidost.cached_state';
 const KEY_PHOTO_URL = 'emidost.photo_url_seen';
+
+// FCM kick token, kept in memory after the first fetch (like the device identity).
+let pushTokenMem: string | null = null;
+
+/** Update the in-memory push token; a real change triggers an immediate poll so the server learns it. */
+export function setPushToken(token: string | null): void {
+  if (token === pushTokenMem) return;
+  pushTokenMem = token;
+  void pollOnce();
+}
+
+/** Fetch the Expo push token (null on no Play Services / no google-services.json) and hand it to the poll. */
+export async function refreshPushToken(): Promise<void> {
+  setPushToken(await getPushToken(pushProjectId()));
+}
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 const FRP_ACCOUNTS = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
@@ -235,8 +251,14 @@ export async function pollOnce(): Promise<PollUiState | null> {
   let resp: HeartbeatResponse;
   try {
     // The device reports its own live state; the server reconciles
-    // devices.is_locked from the enforcedLocked readback (web scope).
-    const body: HeartbeatRequest = { mode: stBefore.mode, locked: stBefore.enforcedLocked };
+    // devices.is_locked from the enforcedLocked readback (web scope). The
+    // FCM kick token rides along when available (omitted when null, so a
+    // token that never existed is never cleared server-side).
+    const body: HeartbeatRequest = {
+      mode: stBefore.mode,
+      locked: stBefore.enforcedLocked,
+      ...(pushTokenMem ? { fcm_token: pushTokenMem } : {}),
+    };
     const res = await fetch(`${API_URL}/api/device/heartbeat?installation_id=${installationId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Device-Token': deviceToken },
