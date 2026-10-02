@@ -4,6 +4,14 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-02 fix wave (plan-robustly-then-fix)
+
+- **Landing design pass applied** (spec §5-6): headline "Sell phones on EMI. Get paid on time.", trust section with 3 clearly-marked-for-replacement quotes + verifiable strip, locked→paid hero cycle (6s CSS, reduced-motion off). Pushed to the landing repo.
+- **Payments UI**: web customer detail page (record + history + schedule) + retailer app inline "Record payment" row; GET endpoints for payments + schedules.
+- **Reminder scheduling**: expo-notifications channel + −3/−1/0/+1/+3 dates from heartbeat `next_due`, replaced each poll, cancelled on COMPLETE/SETTLED.
+- **TOTP at-rest encryption**: AES-256-GCM (`web/lib/totpCrypto.ts`, key from TOTP_ENC_KEY or service key), heartbeat decrypts server-side and delivers over TLS.
+- Checks: web/shared/device-kit/customer/retailer/owner tsc all 0 · landing tsc 0 · stale tests 6/6. Stray bak file removed (7131eeb).
+
 ## 2026-10-02 accounts wiring
 
 - GitHub: private repo created + pushed — https://github.com/emidost/emidost (commits b95a384 initial, 50e142e Supabase wiring). Git credential via the provided token; recommend rotating it after setup.
