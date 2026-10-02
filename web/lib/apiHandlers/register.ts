@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'too many requests' }, { status: 429 });
   }
   const body = await req.json().catch(() => ({}));
-  const token: string | undefined = body?.token;
+  // The token is lowercase hex; phones may type it upper-cased.
+  const token: string | undefined = typeof body?.token === 'string' ? body.token.trim().toLowerCase() : undefined;
   const installationId: string | undefined = body?.installation_id;
   const manufacturer: string | undefined = body?.manufacturer;
   const model: string | undefined = body?.model;
@@ -38,20 +39,21 @@ export async function POST(req: NextRequest) {
     return bad('This loan is settled; re-enrolment is not allowed');
   }
 
-  // Atomic one-shot consumption: only the CREATED state transitions.
-  const { data: consumed } = await svc.from('enrollment_sessions')
-    .update({ state: 'installed' })
-    .eq('id', session.id).eq('state', 'created')
-    .select('id').single();
-  if (!consumed) return bad('Enrolment token already used');
-
-  // Takeover guard: the installation id may already exist; it must belong to
-  // this session's retailer, otherwise the token cannot re-point it.
+  // Takeover guard, checked before the token is spent: the installation id may
+  // already exist; it must belong to this session's retailer, otherwise the
+  // token cannot re-point it.
   const { data: existing } = await svc.from('devices')
     .select('retailer_id').eq('installation_id', installationId).maybeSingle();
   if (existing && existing.retailer_id !== session.retailer_id) {
     return bad('This installation id belongs to another retailer');
   }
+
+  // Atomic one-shot consumption: only the CREATED state transitions.
+  const { data: consumed } = await svc.from('enrollment_sessions')
+    .update({ state: 'installed' })
+    .eq('id', session.id).eq('state', 'created')
+    .select('id').maybeSingle();
+  if (!consumed) return bad('Enrolment token already used');
 
   const { data: device, error } = await svc.from('devices')
     .upsert({
