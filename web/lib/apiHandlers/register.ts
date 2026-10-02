@@ -22,6 +22,11 @@ export async function POST(req: NextRequest) {
   const model: string | undefined = body?.model;
   const osVersion: string | undefined = body?.os_version;
   const deviceToken: string | undefined = body?.device_token;
+  // Optional FCM/Expo push token (wake-only kick). Stored when present; the
+  // column is revoked from anon/authenticated (0013) so it never leaks via RLS.
+  const fcmToken: string | undefined =
+    typeof body?.fcm_token === 'string' && body.fcm_token.length > 0 && body.fcm_token.length <= 200
+      ? body.fcm_token : undefined;
   if (!token || !installationId || !deviceToken) return bad('token, installation_id and device_token required');
 
   const svc = serviceClient();
@@ -75,6 +80,8 @@ export async function POST(req: NextRequest) {
       os_version: osVersion ?? null,
       device_token_hash: createHash('sha256').update(deviceToken).digest('hex'),
       consent_record_id: null,
+      fcm_token: fcmToken ?? null,
+      fcm_token_updated_at: fcmToken ? new Date().toISOString() : null,
     }, { onConflict: 'installation_id' })
     .select().single();
   if (error || !device) return Response.json({ error: error?.message ?? 'device upsert failed' }, { status: 500 });

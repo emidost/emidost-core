@@ -81,7 +81,10 @@ export async function POST(req: NextRequest) {
     await svc.from('devices').update({ is_locked: false }).eq('id', device.id);
   }
   if (ackStatus === 'EXECUTED' && command.command_type === 'RELEASE') {
-    await svc.from('devices').update({ is_locked: false, hidden_state: 'visible' }).eq('id', device.id);
+    // Release ends push too: a released phone must never receive kicks.
+    await svc.from('devices').update({
+      is_locked: false, hidden_state: 'visible', fcm_token: null, fcm_token_updated_at: null,
+    }).eq('id', device.id);
     await svc.from('release_events').insert({ customer_id: device.customer_id, triggered_by: 'admin' });
     // Frees the device credit at most once per device (guarded in SQL by the
     // slot_freed ledger row; 0010_credit_lifecycle.sql).

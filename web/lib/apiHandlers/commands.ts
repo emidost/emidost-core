@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { bad, forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
+import { sendKick } from '@/lib/fcm';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices')
-    .select('id, retailer_id, customer_id, customers(status)')
+    .select('id, retailer_id, customer_id, fcm_token, customers(status)')
     .eq('id', params.id).maybeSingle();
   if (!device || device.retailer_id !== profile.retailer_id) return bad('Device not found');
   if (!device.customer_id) return bad('Device is not bound to a customer');
@@ -79,9 +80,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
+  // Wake-only push kick (best-effort accelerator): fired without blocking the
+  // response. sendKick never throws; failures are logged and the heartbeat
+  // poll covers the command regardless.
+  if (device.fcm_token) {
+    void sendKick(device.fcm_token).then((r) => {
+      if (!r.ok) console.error(`[push] kick failed for device ${device.id}: ${r.error}`);
+    });
+  }
+
   await svc.from('audit_log').insert({
     actor_id: profile.id, retailer_id: device.retailer_id,
-    event: 'COMMAND_ISSUED', detail: { device_id: device.id, command_type: commandType, command_id: data.id },
+    event: 'COMMAND_ISSUED',
+    detail: {
+      device_id: device.id, command_type: commandType, command_id: data.id,
+      push_kick: device.fcm_token ? 'attempted' : 'skipped',
+    },
   });
   return Response.json(data, { status: 201 });
 }
