@@ -10,14 +10,29 @@ export async function GET(req: NextRequest) {
   if (!profile) return unauthorized();
   if (profile.role !== 'retailer_staff' && profile.role !== 'owner') return forbidden();
   if (profile.is_suspended) return forbidden();
-  let query = serviceClient().from('customers').select('*').order('created_at');
+  const svc = serviceClient();
+  let query = svc.from('customers').select('*').order('created_at');
   if (profile.role === 'retailer_staff') query = query.eq('retailer_id', profile.retailer_id);
   // ?id= fetches one customer (detail page) instead of the whole list.
   const id = req.nextUrl.searchParams.get('id');
   if (id) query = query.eq('id', id).limit(1);
   const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
+
+  // Attach a 24 h signed photo URL where a photo exists (private bucket).
+  // Per-item catch: a storage hiccup yields null for that row, never an error.
+  const rows = data as Array<Record<string, unknown> & { photo_path?: string | null }>;
+  const withPhotos = await Promise.all(rows.map(async (row) => {
+    if (!row.photo_path) return { ...row, photo_url: null };
+    try {
+      const { data: signed } = await svc.storage
+        .from('customer-photos').createSignedUrl(row.photo_path, 86400);
+      return { ...row, photo_url: signed?.signedUrl ?? null };
+    } catch {
+      return { ...row, photo_url: null };
+    }
+  }));
+  return Response.json(withPhotos, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 export async function POST(req: NextRequest) {

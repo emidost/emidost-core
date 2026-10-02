@@ -4,7 +4,7 @@ Financed-phone EMI lock system. Three roles, one backend:
 
 - **Owner** — web portal + Android app. Manages retailers, credits (device slots), lock allowances, suspends accounts, watches devices, audits everything.
 - **Retailer** — Android app. Registers customers, records payments, walks a per-brand setup wizard, generates the enrolment QRs, locks/unlocks within allowances, sends offline SMS lock/unlock from the registered number.
-- **Customer** — Android app installed on the financed phone. Launcher name "wifi". Runs the full hard-lock engine (Device Owner only), reminders with photo + Bengali/Hindi voice, retailer contact, offline SMS lock/unlock, offline TOTP. Hidden from the app drawer after setup; unhidden on release.
+- **Customer** — Android app installed on the financed phone. Launcher name "wifi". Runs the full hard-lock engine (Device Owner only), lock screen shows the customer photo, reminders carry Bengali/Hindi voice + text, retailer contact, offline SMS lock/unlock, offline TOTP. Hidden from the app drawer after setup; unhidden on release.
 
 ## Layout
 

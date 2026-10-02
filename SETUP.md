@@ -20,6 +20,9 @@ Steps that need YOUR accounts. The repo ships with placeholders only; no real cr
    the JWT `app_metadata` claim, which only the script (or the portal's
    "Add retailer" form) writes.
 5. Realtime is optional; the portal polls.
+6. Storage: the private `customer-photos` bucket is created by the same
+   all-in-one (0014). No manual storage setup and no bucket policies are
+   needed — uploads and signed URLs go through the API with the service role.
 
 ## 2. Expo / EAS (new account)
 
@@ -51,12 +54,27 @@ paths are the authenticated factors. An SMS gateway/aggregator is not
 included; choose one and keep costs in mind. Android 14+ delivery restrictions
 must be verified per device family.
 
-## 6. Device acceptance (required before calling any family "working")
+## 6. Push (optional)
+
+FCM/Expo push is a wake-only acceleration layer: when a command is queued the
+server sends a data-only `{ type: 'kick' }` to the phone, which then fetches
+the real command via its authenticated heartbeat. Polling and SMS stay the
+fallback layers, so nothing breaks without push.
+
+1. Create a Firebase project and drop `google-services.json` into
+   `apps/customer` (set `googleServicesFile` in its app.json if needed).
+2. Expo push works on the default tier with no access token; set
+   `EXPO_PUSH_ACCESS_TOKEN` in `web/.env.local` (and the EAS global env) only
+   when you need higher volume.
+3. Phones without Play Services never register a push token and ride the
+   heartbeat poll. The token column is revoked from anon/authenticated (0013).
+
+## 7. Device acceptance (required before calling any family "working")
 
 Per family: fresh reset, no accounts, no passcode → enrol → lock → 112 dials → SIM out locks within 30 s → reboot auto-locks → power menu has no Reboot → offline SMS LOCK/UNLOCK from the retailer number works → release unhides the app. Record model, firmware, build id in `checksum.md`.
 
 Wireless path (B) walk, same per-family rule: overlay grant + accessibility toggle → wireless debugging on → pairing code read/shown → retailer app `adb pair`/`connect` → pm grants → `dpm set-device-owner` → `dpm list device-owners` readback shows the component → debug-off cleanup confirms `adb_enabled 0` → app hidden. A family counts as "working" only after this passes on a real device.
 
-## 7. What is NOT shipped
+## 8. What is NOT shipped
 
 No real Supabase/EAS/SMS credentials, no deployment config, no releases. Deployment requires explicit confirmation.

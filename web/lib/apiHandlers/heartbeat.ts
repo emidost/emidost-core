@@ -22,14 +22,14 @@ export async function POST(req: NextRequest) {
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices')
-    .select('id, customer_id, retailer_id, device_token_hash, device_pin_hash, pin_verify, is_locked, mode, hidden_state, last_heartbeat_at, customers(status, customer_code, lock_mode, emi_amount, emi_months, emi_due_day), retailers(phone, is_suspended, name)')
+    .select('id, customer_id, retailer_id, device_token_hash, device_pin_hash, pin_verify, is_locked, mode, hidden_state, last_heartbeat_at, fcm_token, customers(status, customer_code, lock_mode, emi_amount, emi_months, emi_due_day, photo_path), retailers(phone, is_suspended, name)')
     .eq('installation_id', installationId).maybeSingle();
   if (!device || !device.device_token_hash) return Response.json({ error: 'unknown device' }, { status: 401 });
   const tokenHash = createHash('sha256').update(deviceToken).digest('hex');
   if (tokenHash !== device.device_token_hash) return Response.json({ error: 'bad token' }, { status: 401 });
 
   const retailers = device.retailers as unknown as { phone: string | null; is_suspended: boolean | null; name: string | null } | null;
-  const customers = device.customers as unknown as { status: string; customer_code: string | null; lock_mode: 'lock' | 'notify_only' | null; emi_amount: number | null; emi_months: number | null; emi_due_day: number | null } | null;
+  const customers = device.customers as unknown as { status: string; customer_code: string | null; lock_mode: 'lock' | 'notify_only' | null; emi_amount: number | null; emi_months: number | null; emi_due_day: number | null; photo_path: string | null } | null;
   const suspended = retailers?.is_suspended === true;
 
   // Device-reported live state. Promotion to device_owner requires an open
@@ -95,10 +95,32 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // FCM/Expo wake token: stored/rotated here in the SAME parallel update wave
+  // as last_heartbeat_at (no extra round trip). `fcm_token: null` in the body
+  // clears the stored token (e.g. the phone lost push registration).
+  const heartbeatUpdate: Record<string, string | null> = { last_heartbeat_at: new Date().toISOString() };
+  const bodyFcm = body?.fcm_token;
+  if (typeof bodyFcm === 'string' && bodyFcm.length <= 200 && bodyFcm !== device.fcm_token) {
+    heartbeatUpdate.fcm_token = bodyFcm.length > 0 ? bodyFcm : null;
+    heartbeatUpdate.fcm_token_updated_at = bodyFcm.length > 0 ? new Date().toISOString() : null;
+  } else if (bodyFcm === null && device.fcm_token) {
+    heartbeatUpdate.fcm_token = null;
+    heartbeatUpdate.fcm_token_updated_at = null;
+  }
+
+  // Customer photo: one signed-URL call per poll, only when a photo exists.
+  // Storage failure → null (the photo is a UX nicety, never a lock dependency).
+  const photoUrlPromise = customers?.photo_path
+    ? svc.storage.from('customer-photos')
+        .createSignedUrl(customers.photo_path, 86400)
+        .then(({ data }) => data?.signedUrl ?? null)
+        .catch(() => null)
+    : Promise.resolve(null);
+
   // One parallel wave: the pending select includes both PENDING and RECEIVED,
   // so it does not need to wait for the mark-RECEIVED update.
-  const [, pendingRes, totpRow, dueRows] = await Promise.all([
-    svc.from('devices').update({ last_heartbeat_at: new Date().toISOString() }).eq('id', device.id),
+  const [, pendingRes, totpRow, dueRows, photoUrl] = await Promise.all([
+    svc.from('devices').update(heartbeatUpdate).eq('id', device.id),
     svc.from('device_commands')
       .select('id, command_type, payload, created_at, status')
       .eq('device_id', device.id).in('status', ['PENDING', 'RECEIVED']).order('created_at'),
@@ -108,6 +130,7 @@ export async function POST(req: NextRequest) {
           .select('due_date, amount_due, status').eq('customer_id', device.customer_id)
           .in('status', ['PENDING', 'PARTIAL', 'OVERDUE']).order('due_date').limit(1)
       : Promise.resolve({ data: null }),
+    photoUrlPromise,
   ]);
   const pendingRows = pendingRes.data ?? [];
   // A suspended retailer cannot issue restrictive commands, but authorized
@@ -163,6 +186,7 @@ export async function POST(req: NextRequest) {
     emi_amount: customers?.emi_amount ?? null,
     emi_months: customers?.emi_months ?? null,
     emi_due_day: customers?.emi_due_day ?? null,
+    photo_url: photoUrl,
     retailer_phone: retailers?.phone ?? null,
     retailer_name: retailers?.name ?? null,
     retailer_suspended: suspended,

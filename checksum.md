@@ -4,6 +4,81 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 customer photo — server + storage half
+
+- Lead decision (user confirmed): the retailer attaches the customer's photo at
+  registration; it shows on the phone's lock screen and accompanies reminders,
+  cached on the phone for offline. Photos live in a PRIVATE Supabase Storage
+  bucket; uploads go through an API route with the service role (no bucket
+  policies); the heartbeat mints a signed URL; the phone caches the file
+  (codex's app half).
+- **SQL (claude):** `0014_customer_photos.sql` adds `customers.photo_path` and
+  creates the private `customer-photos` bucket (`public=false`, on-conflict
+  do-nothing) with deliberately NO storage policies. All-in-one regenerated.
+- **Web (claude):** new `POST /api/retailer/customers/:id/photo`
+  (`web/lib/apiHandlers/customerPhoto.ts`, wired into the catch-all router):
+  retailer-staff only + suspension gate (403), tenant check (404), multipart
+  field `photo`, mime ∈ {image/jpeg,image/png,image/webp} (400 otherwise), size
+  ≤ 2 MB (413 with a clear message), upload to
+  `customer-photos/{customerId}/{uuid}.{ext}` via the service role, then
+  `customers.photo_path` update + `CUSTOMER_PHOTO_SET` audit row; returns
+  `{ photo_path }` (never the URL — the retailer app shows its local preview).
+  Heartbeat: `photo_url` in the response = service-role
+  `createSignedUrl('customer-photos', path, 86400)`, minted inside the existing
+  parallel wave only when a photo exists; storage failure → null (the photo is
+  a UX nicety, never a lock dependency). retailerCustomers GET attaches the
+  same 24 h `photo_url` per listed customer (per-item catch → null).
+- Docs: CONTEXT.md customer + retailer bullets (private bucket, signed URL,
+  offline cache; honest note that Android notification images need a remote
+  URL, so the photo shows on the lock screen the reminder opens, not inside
+  the notification), README customer line corrected the same way, checklist
+  F4 added, SETUP §1 storage line, this entry.
+- Checks: web tsc 0 · workers tsc 0 · `next build` exit 0.
+- App half (codex, next): retailer photo picker at registration + preview;
+  customer app fetches/caches the photo from the heartbeat `photo_url` and
+  renders it on the lock screen; reminder screen shows it.
+- Edge (honest): uploading a new photo leaves the old object in the bucket
+  (no delete on replace yet) — harmless at 2 MB/photo scale, noted for a
+  cleanup wave.
+
+## 2026-10-03 FCM push layer (wake-only kick) — supabase/server half
+
+- Design (lead decision): FCM/Expo push is a WAKE-ONLY accelerator. The payload
+  is data-only `{ type: 'kick' }` with no command content; the phone fetches the
+  real command via its authenticated heartbeat, so Supabase stays the single
+  source of truth and a forged push can at most trigger one poll. Layered
+  fallback: push → heartbeat poll → SMS.
+- **SQL (claude):** `0013_fcm_tokens.sql` adds `devices.fcm_token` +
+  `fcm_token_updated_at` and REVOKES SELECT on both from anon/authenticated
+  (service role keeps access; staff SELECT policies are table-level, so the
+  revoke closes the columns for them too). All-in-one regenerated (header +
+  appended 0013).
+- **Web (claude):** `web/lib/fcm.ts` `sendKick` POSTs to Expo Push Service
+  (`https://exp.host/--/api/v2/push/send`) with `[{ to, ttl: 60, priority:
+  'high', data: { type: 'kick' } }]`, 5 s AbortController timeout, never
+  throws (returns { ok, error }), optional `EXPO_PUSH_ACCESS_TOKEN` header
+  (added to web/.env.example as optional — default tier needs none). register
+  accepts an optional `fcm_token` (string ≤ 200 chars) and stores it with
+  updated_at on the upsert; heartbeat rotates/clears it inside the existing
+  parallel update wave (no extra round trip; `fcm_token: null` clears).
+  commands.ts + commandProxy.ts fire the kick after the command insert without
+  blocking (sendKick never throws; failures logged with the device id) and
+  record `push_kick: 'attempted'|'skipped'` in the audit detail. ack.ts RELEASE
+  clears fcm_token + updated_at (a released phone never receives kicks).
+  Explicit device column lists (retailerDevices + both device pages) already
+  exclude the new columns — verified, no change needed.
+- **App side (codex, next):** customer app registers the Expo push token (or
+  skips cleanly without Play Services) and a data-only kick listener triggers
+  one poll; nothing else changes — polling and SMS are the fallbacks.
+- Docs: CONTEXT.md §2 + §4 (layer, source-of-truth rule), SETUP.md "Push
+  (optional)" section, checklist section J (J1-J4 CODE, J5 DEVICE).
+- Checks: web tsc 0 · workers tsc 0 · `next build` exit 0.
+- Honest edge (stated): Expo data-only messages have no guaranteed background
+  wake on every OEM; a data-only `{type:'kick'}` may be delivered with delay or
+  never on aggressively battery-managed devices — that is exactly why the poll
+  and SMS layers stay in place and why no command content ever rides in the
+  push. Real wake latency is J5 (DEVICE).
+
 ## 2026-10-03 premium design wave (claude web + codex apps + lead landing)
 
 - Design rules applied: biswodip-design-review pipeline + taste-skill + no-ai-slop;

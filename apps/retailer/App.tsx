@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, FlatList, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  AccessibilityInfo, ActivityIndicator, FlatList, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
+import * as ImagePicker from 'expo-image-picker';
 import * as DeviceMgmt from '@emidost/device-kit';
 import Svg, { Circle } from 'react-native-svg';
 import {
@@ -13,7 +14,7 @@ import {
   type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
-  ArrowLeft, Banknote, BellRing, CalendarDays, Coins, Copy, Hash, IndianRupee, KeyRound, Lock, LockOpen, LogIn, Play, QrCode,
+  ArrowLeft, Banknote, BellRing, CalendarDays, Camera, CheckCircle2, Coins, Copy, Hash, ImagePlus, IndianRupee, KeyRound, Lock, LockOpen, LogIn, Play, QrCode,
   Settings2, Smartphone, Store, UserPlus, Wallet,
 } from 'lucide-react-native';
 
@@ -169,6 +170,9 @@ function Customers() {
                 tone={c.lock_mode === 'notify_only' ? colors.textMid : colors.accentTeal}
                 label={c.lock_mode === 'notify_only' ? 'Reminders only' : 'Lock plan'}
               />
+              {!!c.photo_path && (
+                <Chip tone={colors.accentTeal} label="Photo" />
+              )}
             </View>
             {(c.status === 'RUNNING' || c.status === 'NPA') && <SetupCode customerId={c.id} />}
             <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
@@ -280,6 +284,11 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<Customer | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<string | null>(null);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
   const set = (k: string) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   async function save() {
@@ -287,18 +296,52 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
     setBusy(true);
     setErr(null);
     try {
-      await api.createCustomer({
+      const customer = await api.createCustomer({
         ...form,
         emi_months: parseInt(form.emi_months, 10),
         emi_amount: parseFloat(form.emi_amount),
         emi_due_day: parseInt(form.emi_due_day, 10),
       });
-      setMsg('Customer added. Create a setup code on their card, then enrol the phone.');
-      setTimeout(onDone, 1500);
+      setCreated(customer);
+      setMsg('Customer added. Add a photo now, or skip with Done.');
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function pickPhoto(source: 'gallery' | 'camera') {
+    if (photoBusy) return;
+    setPhotoErr(null);
+    try {
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { setPhotoErr('Camera permission needed to take a photo.'); return; }
+        const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+        if (!res.canceled && res.assets?.[0]) setPhotoUri(res.assets[0].uri);
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { setPhotoErr('Photo library permission needed to pick a photo.'); return; }
+        const res = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+        if (!res.canceled && res.assets?.[0]) setPhotoUri(res.assets[0].uri);
+      }
+    } catch {
+      setPhotoErr('Could not open the photo picker.');
+    }
+  }
+
+  async function uploadPhoto() {
+    if (!created || !photoUri || photoBusy) return;
+    setPhotoBusy(true);
+    setPhotoErr(null);
+    try {
+      await api.uploadCustomerPhoto(created.id, { uri: photoUri, name: `customer-${created.id}.jpg`, mime: 'image/jpeg' });
+      setPhotoMsg('Photo added');
+    } catch (e) {
+      setPhotoErr(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setPhotoBusy(false);
     }
   }
 
@@ -307,6 +350,61 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
       <Text style={s.title}>New customer</Text>
       {msg && <Text style={{ color: colors.success }}>{msg}</Text>}
       {err && <Text style={s.error}>{err}</Text>}
+
+      {created && (
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Add a customer photo</Text>
+          <Text style={s.muted}>It shows on the phone's lock screen so the retailer knows whose phone this is.</Text>
+          <View style={s.quickRow}>
+            <TouchableOpacity
+              style={[s.outlineBtn, { flex: 1 }]}
+              onPress={() => pickPhoto('gallery')}
+              disabled={photoBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Pick photo from gallery"
+            >
+              <ImagePlus size={16} color={ACCENT} />
+              <Text style={s.outlineBtnText}>Gallery</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.outlineBtn, { flex: 1 }]}
+              onPress={() => pickPhoto('camera')}
+              disabled={photoBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Take photo with camera"
+            >
+              <Camera size={16} color={ACCENT} />
+              <Text style={s.outlineBtnText}>Camera</Text>
+            </TouchableOpacity>
+          </View>
+          {photoUri && (
+            <Image source={{ uri: photoUri }} style={s.photoPreview} accessible accessibilityLabel="Customer photo preview" />
+          )}
+          {photoUri && !photoMsg && (
+            <TouchableOpacity
+              style={s.button}
+              onPress={uploadPhoto}
+              disabled={photoBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Upload photo"
+            >
+              <CheckCircle2 color={colors.onAccent} size={16} />
+              <Text style={s.buttonText}>{photoBusy ? 'Uploading…' : 'Upload photo'}</Text>
+            </TouchableOpacity>
+          )}
+          {photoMsg && <Text style={{ color: colors.success, marginTop: 8 }}>{photoMsg}</Text>}
+          {photoErr && <Text style={s.error}>{photoErr}</Text>}
+          <TouchableOpacity
+            style={[s.outlineBtn, { marginTop: 12 }]}
+            onPress={onDone}
+            accessibilityRole="button"
+            accessibilityLabel="Done"
+          >
+            <Text style={s.outlineBtnText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <Field label="Name" value={form.name} onChange={set('name')} icon={UserPlus} />
       <Field label="Phone number" value={form.phone} onChange={set('phone')} icon={Smartphone} />
       <Field label="IMEI" value={form.imei} onChange={set('imei')} icon={Hash} />
@@ -777,4 +875,5 @@ const s = StyleSheet.create({
   // Premium layout helpers.
   quickRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingRight: 8 },
+  photoPreview: { width: 112, height: 112, borderRadius: 56, borderWidth: 1, borderColor: colors.border, alignSelf: 'center', marginTop: 12 },
 });

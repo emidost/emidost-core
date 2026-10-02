@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as DeviceMgmt from '@emidost/device-kit';
 import * as Notifications from 'expo-notifications';
+import * as FileSystem from 'expo-file-system';
 import {
   dueReminderCopy, isLockCommandStale, isoToEpochMillis,
   type HeartbeatNextDue, type HeartbeatRequest, type HeartbeatResponse,
@@ -14,6 +15,7 @@ const KEY_REGISTERED = 'emidost.registered';
 const KEY_BASELINE = 'emidost.sim_baseline_set';
 const KEY_LAST_SYNC_OK = 'emidost.last_sync_ok_at';
 const KEY_CACHED_STATE = 'emidost.cached_state';
+const KEY_PHOTO_URL = 'emidost.photo_url_seen';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 const FRP_ACCOUNTS = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
@@ -21,6 +23,42 @@ const FRP_ACCOUNTS = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
 
 /** No-internet watchdog: a lock-enabled loan locks after 5 days offline. */
 export const OFFLINE_LOCK_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
+
+/**
+ * Customer photo cache. The heartbeat's signed photo_url is downloaded once
+ * per URL change and shown from local storage on the lock screen, so it works
+ * offline. Failures here never disturb the lock flow (the photo is a UX
+ * nicety; the lock is local and unaffected).
+ */
+export const PHOTO_FILE_URI = `${FileSystem.documentDirectory}reminder-photo.jpg`;
+
+export async function syncCustomerPhoto(photoUrl: string | null): Promise<void> {
+  try {
+    const seen = await AsyncStorage.getItem(KEY_PHOTO_URL);
+    if (photoUrl && photoUrl !== seen) {
+      const tmp = await FileSystem.downloadAsync(photoUrl, `${FileSystem.documentDirectory}reminder-photo.tmp.jpg`);
+      if (tmp.status === 200) {
+        await FileSystem.moveAsync({ from: tmp.uri, to: PHOTO_FILE_URI });
+        await AsyncStorage.setItem(KEY_PHOTO_URL, photoUrl);
+      }
+    } else if (!photoUrl) {
+      const info = await FileSystem.getInfoAsync(PHOTO_FILE_URI);
+      if (info.exists) await FileSystem.deleteAsync(PHOTO_FILE_URI, { idempotent: true });
+      await AsyncStorage.removeItem(KEY_PHOTO_URL);
+    }
+  } catch {
+    // Download failures are swallowed: the photo simply does not show.
+  }
+}
+
+export async function cachedPhotoExists(): Promise<boolean> {
+  try {
+    const info = await FileSystem.getInfoAsync(PHOTO_FILE_URI);
+    return info.exists;
+  } catch {
+    return false;
+  }
+}
 
 export interface CachedState {
   loan_status: string;
@@ -214,6 +252,9 @@ export async function pollOnce(): Promise<PollUiState | null> {
   await markSyncOk();
   // Native mirror: the watchdog must work with the app closed or killed.
   await DeviceMgmt.markSyncOkNative();
+  // Customer photo cache (offline lock-screen image; failures never disturb
+  // the lock flow — the helper swallows its own errors).
+  await syncCustomerPhoto(resp.photo_url ?? null);
   const lockMode = resp.lock_mode === 'notify_only' ? 'notify_only' : 'lock';
   await applyOnce('lock_mode', lockMode, () => DeviceMgmt.setLockModeNative(lockMode));
 

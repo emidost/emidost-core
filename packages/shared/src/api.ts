@@ -55,6 +55,26 @@ export function createApi({ baseUrl, getToken }: ApiClientOptions) {
       emi_months: number; emi_amount: number; emi_due_day: number;
       lock_mode: 'lock' | 'notify_only';
     }) => req<Customer>('/api/retailer/customers', { method: 'POST', body: JSON.stringify(body) }),
+    /**
+     * Multipart photo upload. RN's FormData sets the multipart boundary itself,
+     * so no manual Content-Type is set (the JSON header from req() would break
+     * the upload).
+     */
+    uploadCustomerPhoto: async (customerId: string, file: { uri: string; name: string; mime: string }) => {
+      const token = await getToken();
+      const form = new FormData();
+      form.append('photo', { uri: file.uri, name: file.name, type: file.mime } as unknown as Blob);
+      const res = await fetch(`${baseUrl}/api/retailer/customers/${customerId}/photo`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`${res.status} photo upload: ${body.slice(0, 200)}`);
+      }
+      return (await res.json()) as { photo_path: string };
+    },
     recordConsent: (customerId: string, body: { lang: string; otp_ack: boolean; signature_ref?: string }) =>
       req<{ consent_id: string }>(`/api/retailer/customers/${customerId}/consent`, {
         method: 'POST', body: JSON.stringify(body),

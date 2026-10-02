@@ -1,6 +1,6 @@
 -- ============================================================================
 -- emidost ALL-IN-ONE (single file). Open a NEW query tab and run this whole file.
--- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012).
+-- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012), FCM wake tokens (0013), customer photos (0014).
 -- Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
 -- Idempotent: safe to re-run.
 -- ============================================================================
@@ -875,3 +875,40 @@ grant execute on function public.rate_limit_hit(text, int, int) to service_role;
 -- Idempotent: ADD VALUE IF NOT EXISTS is safe to re-run.
 
 alter type public.command_type add value if not exists 'REBOOT';
+
+-- emidost 0013 - FCM/Expo push wake-up tokens (layered fallback: push -> poll -> SMS).
+-- The token is a WAKE-ONLY kick: the push payload carries no command content,
+-- the phone always fetches the real command via its authenticated heartbeat,
+-- so Supabase stays the single source of truth and a forged push can at most
+-- trigger one poll. Token hygiene: the column is revoked from anon and
+-- authenticated (service role keeps access; staff SELECT policies stay
+-- table-level, so this revoke closes the column for them too).
+-- Idempotent: safe to re-run.
+
+do $$ begin
+  alter table public.devices add column if not exists fcm_token text;
+exception when duplicate_column then null; end $$;
+
+do $$ begin
+  alter table public.devices add column if not exists fcm_token_updated_at timestamptz;
+exception when duplicate_column then null; end $$;
+
+revoke select (fcm_token, fcm_token_updated_at) on public.devices from anon, authenticated;
+
+-- emidost 0014 - customer photos (private storage bucket + customers.photo_path).
+-- Photos live in a PRIVATE Supabase Storage bucket; uploads go through the API
+-- route with the service role (no bucket policies = no public or anon access).
+-- The heartbeat mints a signed URL for the bound device; the phone caches the
+-- file for offline use. The retailer app shows its own local preview and never
+-- needs a signed URL at upload time.
+-- Idempotent: safe to re-run.
+
+do $$ begin
+  alter table public.customers add column if not exists photo_path text;
+exception when duplicate_column then null; end $$;
+
+insert into storage.buckets (id, name, public)
+values ('customer-photos', 'customer-photos', false)
+on conflict (id) do nothing;
+
+-- Deliberately NO storage.objects policies: the bucket is service-role only.

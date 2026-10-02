@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Animated, Easing, ScrollView, StyleSheet,
+  AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { KeyRound, Lock, PhoneCall, Settings2, ShieldCheck, Siren, Smartphone, RefreshCw, CircleCheck } from 'lucide-react-native';
@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
 import {
   getInstallationId, isRegistered, pollOnce, registerWithToken, startSync,
   getCachedState, enforceOfflineWatchdog, unlockWithCode,
+  cachedPhotoExists, PHOTO_FILE_URI,
 } from './src/services/sync';
 
 const ACCENT = colors.accentAmber;
@@ -21,6 +22,7 @@ export default function App() {
   const [phase, setPhase] = useState<'loading' | 'bind' | 'active'>('loading');
   const [locked, setLocked] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [photoExists, setPhotoExists] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [debugTaps, setDebugTaps] = useState(0);
   const [due, setDue] = useState<{ due_date: string; amount_due: number | null } | null>(null);
@@ -70,6 +72,7 @@ export default function App() {
         const st = await DeviceMgmt.getDeviceManagementStatus();
         setLocked(st.enforcedLocked);
         setHidden(st.hidden);
+        setPhotoExists(await cachedPhotoExists());
         if (st.enforcedLocked) {
           await DeviceMgmt.showLockOverlay('Phone locked', latestDue
             ? `Rs ${Number(latestDue.amount_due).toFixed(0)} due. Call your retailer.`
@@ -112,6 +115,7 @@ export default function App() {
       <LockedScreen
         due={due} overdueDays={overdueDays}
         retailerPhone={retailerPhone}
+        photoUri={photoExists ? PHOTO_FILE_URI : null}
         onUnlocked={() => { setLocked(false); void pollOnce(); }}
       />
     );
@@ -119,6 +123,11 @@ export default function App() {
 
   return (
     <ScrollView style={s.page}>
+      {photoExists && (
+        <View style={[s.card, { alignItems: 'center' }]}>
+          <Image source={{ uri: PHOTO_FILE_URI }} style={s.photoCard} accessible accessibilityLabel="Customer photo" />
+        </View>
+      )}
       <Text style={s.title}>Pay on time. The phone stays yours.</Text>
       <View style={s.card}>
         <Text style={s.cardTitle}>Next instalment</Text>
@@ -421,6 +430,7 @@ function LockedScreen(props: {
   due: { due_date: string; amount_due: number | null } | null;
   overdueDays: number;
   retailerPhone: string | null;
+  photoUri: string | null;
   onUnlocked: () => void;
 }) {
   const [lang, setLang] = useState<CopyLang>('en');
@@ -499,6 +509,15 @@ function LockedScreen(props: {
           </TouchableOpacity>
         ))}
       </View>
+
+      {props.photoUri && (
+        <Image
+          source={{ uri: props.photoUri }}
+          style={s.photoAvatar}
+          accessible
+          accessibilityLabel="Customer photo"
+        />
+      )}
 
       <Text style={s.lockAmount} numberOfLines={1} adjustsFontSizeToFit accessibilityLabel={amount}>
         {amount}
@@ -621,6 +640,10 @@ const s = StyleSheet.create({
   pairBig: { fontSize: 34, fontWeight: '700', color: colors.textHi, fontVariant: ['tabular-nums'], marginTop: 4 },
   pairMid: { fontSize: 24, fontWeight: '700', color: colors.textHi, fontVariant: ['tabular-nums'], marginTop: 4 },
   pairCode: { fontSize: 56, fontWeight: '700', color: ACCENT, fontVariant: ['tabular-nums'], letterSpacing: 6, marginTop: 4 },
+
+  // Customer photo.
+  photoCard: { width: 96, height: 96, borderRadius: 48, borderWidth: 1, borderColor: colors.border },
+  photoAvatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 1, borderColor: LOCKED.border, marginBottom: 16 },
 
   // Lock screen (dark = locked).
   lockPage: { flex: 1, backgroundColor: LOCKED.bg, padding: 24, alignItems: 'center', justifyContent: 'center' },

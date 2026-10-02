@@ -66,6 +66,7 @@ Every item carries one of four states:
 | F1 | Customer app named "wifi"; hidden from launcher after activation; unhidden on release | CODE + DEVICE | app.json, sync.ts hideSelf |
 | F2 | Colorful per-role design + Lucide icons + sentence-case humanizer copy | CODE | apps |
 | F3 | Consent + payments UI | CODE — web console customer page (record payment + history + schedule) and retailer app inline Record-payment row; consent is taken directly at the counter, an optional audit row API exists (no blocking record) |
+| F4 | Customer photo: retailer upload at registration (API route, JPEG/PNG/WebP ≤ 2 MB, private bucket, service role only), signed URL minted by the heartbeat, cached on the phone for offline use | CODE | 0014_customer_photos.sql + customerPhoto route + heartbeat photo_url. Honest note: Android notification images need a remote URL, so the photo shows on the lock screen the reminder opens, not inside the notification itself |
 
 ## G. Performance
 | # | Item | State | Evidence |
@@ -94,8 +95,17 @@ non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 ## I. Deployment gates (all yours, none done)
 | # | Item | State |
 |---|---|---|
-| I1 | Supabase project + migrations: live DB has 0001–0010 applied (probed 2026-10-03: lock_mode, LOCATION, record_payment, refund RPCs all present). Remaining: run 0011 (or the all-in-one) in a NEW query tab to enable rate_limits RLS | CRED (one query tab left) |
+| I1 | Supabase project + migrations: live DB has 0001–0010 applied (probed 2026-10-03: lock_mode, LOCATION, record_payment, refund RPCs all present). Remaining: run 0011 + 0012 + 0013 (or the all-in-one) in a NEW query tab to enable rate_limits RLS, the REBOOT enum and the FCM token columns | CRED (one query tab left) |
 | I2 | EAS account + first builds (owner/retailer/customer) + Kotlin Gradle pass | CRED |
 | I3 | SMS provider (if SMS commands are used beyond the local receiver) | CRED |
 | I4 | GitHub release hosting for the customer APK (QR download link) | CRED |
 | I5 | No deployment until you confirm | — |
+
+## J. Push acceleration (FCM kick)
+| # | Item | State | Evidence |
+|---|---|---|---|
+| J1 | FCM/Expo token stored server-side (`devices.fcm_token` + updated_at); column revoked from anon/authenticated (service role only) | CODE | 0013_fcm_tokens.sql; register.ts + heartbeat.ts store/rotate/clear it |
+| J2 | Kick sent after command insert on both command paths (retailer + owner), best-effort, never blocks or fails the command; failures logged, `push_kick` in audit detail | CODE | commands.ts, commandProxy.ts, web/lib/fcm.ts |
+| J3 | Wake-only: the push payload is data-only `{ type: 'kick' }` with no command content; Supabase stays the source of truth | CODE | web/lib/fcm.ts sendKick |
+| J4 | Fallback intact: heartbeat poll + SMS unchanged; a phone with no token rides polling; RELEASE clears the token | CODE | heartbeat.ts, ack.ts RELEASE branch |
+| J5 | Real-device wake latency (data-only background delivery on OEMs without Play Services) | DEVICE | per-family walk |

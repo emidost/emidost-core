@@ -32,6 +32,14 @@ github.com/emidost/emidost).
   `fhmndtznwtchqrfuobyq`). Keys live in `web/.env.local` + `apps/*/.env`
   (gitignored; never commit).
 - Portal: https://emidost-pd8s.vercel.app (login 200, API auth 401 = healthy).
+- Push (optional layer): Expo Push Service sends a WAKE-ONLY data-only kick
+  (`{ type: 'kick' }`, no command content) when a command is queued; the phone
+  still fetches the real command via its authenticated heartbeat, so a forged
+  push can at most trigger one poll. Layered fallback: push → heartbeat poll →
+  SMS. Phones without Play Services simply never register a token and ride
+  polling. Tokens live in `devices.fcm_token`, revoked from anon/authenticated
+  (0013); sent via `web/lib/fcm.ts` with an optional `EXPO_PUSH_ACCESS_TOKEN`.
+  App-side token registration + kick listener is the customer app's half.
 - Database: schema applied (tables verified). Indexes in
   `supabase/migrations/0002_perf_indexes.sql` (part of the all-in-one).
 - Accounts (no customer login exists; customers are retailer-created):
@@ -62,7 +70,9 @@ github.com/emidost/emidost).
 
 ### Retailer (Expo app, accent teal #0D9488)
 - Registers customers: name, phone, IMEI, brand/model (22-brand matrix), EMI
-  months, EMI amount, EMI due day.
+  months, EMI amount, EMI due day, and the customer's photo
+  (`POST /api/retailer/customers/:id/photo` → private storage bucket; the
+  retailer app shows its own local preview).
 - Records payments (cash) into the payments table; summaries are DB truth.
 - Brand-specific setup wizard (per-OEM steps).
 - Generates download QR + provisioning QR + wireless option.
@@ -77,12 +87,21 @@ github.com/emidost/emidost).
 ### Customer (Expo app, accent amber #D97706, launcher name "wifi")
 - No login. Retailer registers the customer; the app binds with the setup code
   + a device token.
-- Lock screen, reminders (photo + Bengali/Hindi voice), retailer contact, 112,
-  diagnostics.
+- Lock screen shows the customer photo (private Supabase Storage bucket,
+  signed URL minted by the heartbeat, cached on the phone for offline use);
+  reminders carry Bengali/Hindi voice + text. Honest note: Android
+  notification images need a remote URL, so the photo appears on the lock
+  screen the reminder opens, not inside the notification itself. Retailer
+  contact, 112, and diagnostics are on the lock screen too.
 - Hidden from the launcher after activation; unhidden on release.
 
 ## 4. The lock system (hard-lock-only; no soft lock anywhere)
 
+- Command delivery is layered: an FCM/Expo wake-only kick (data-only payload,
+  no command content) tells the phone to poll now; the heartbeat poll fetches
+  the real command from Supabase; SMS works fully offline. Supabase stays the
+  single source of truth — a forged push can at most trigger one poll, and a
+  phone with no push token just rides the poll.
 - LOCK refused everywhere (server, native, SMS, SIM, boot) unless live Device
   Owner (`isDeviceOwnerApp` + readback). Non-DO LOCK acks FAILED, never
   EXECUTED.

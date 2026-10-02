@@ -42,6 +42,8 @@ export interface Customer {
   customer_code: string | null;
   status: LoanStatus;
   lock_mode: 'lock' | 'notify_only';
+  photo_path?: string | null;
+  photo_url?: string | null;
 }
 
 export interface Device {
@@ -117,7 +119,6 @@ export interface HeartbeatNextDue {
   status: string;
 }
 
-/** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */
 /** Heartbeat request body: device-reported OS readback (server never trusts the client blindly). */
 export interface HeartbeatRequest {
   mode: DeviceMode | string;
@@ -126,6 +127,7 @@ export interface HeartbeatRequest {
   locked: boolean;
 }
 
+/** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */
 export interface HeartbeatResponse {
   commands: HeartbeatCommand[];
   device_pin_hash: string | null;
@@ -144,6 +146,8 @@ export interface HeartbeatResponse {
   next_due: HeartbeatNextDue | null;
   overdue_days: number;
   is_locked: boolean;
+  /** 24 h signed URL of the customer photo (null when none); cached on-device for offline. */
+  photo_url: string | null;
   server_now: string;
   policies: Record<string, boolean>;
 }
