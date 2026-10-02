@@ -319,6 +319,20 @@ td.empty-cell {
 }
 .nav a:hover { color: var(--text-hi); text-decoration: none; }
 .nav a.active { color: var(--accent-indigo); border-bottom-color: var(--accent-indigo); }
+.nav a.brand {
+  color: var(--text-hi);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  margin-right: 4px;
+}
+.nav a.brand img { display: block; }
+.nav-sep {
+  width: 1px;
+  background: var(--border-strong);
+  margin: 12px 6px;
+  align-self: stretch;
+}
 
 /* ---------- Layout helpers ---------- */
 .grid { display: grid; gap: 14px; }

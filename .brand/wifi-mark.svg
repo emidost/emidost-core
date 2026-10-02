@@ -1,0 +1,11 @@
+<!-- emidost customer mark: wifi glyph, amber arcs with teal middle arc on Ink tile, 2026-10-03 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Ink tile with subtle Paper inner border so the mark reads on dark and light surfaces -->
+  <rect x="32" y="32" width="960" height="960" rx="211" fill="#0F141C"/>
+  <rect x="52" y="52" width="920" height="920" rx="192" fill="none" stroke="#F4F1EA" stroke-opacity="0.12" stroke-width="4"/>
+  <!-- Wifi glyph: outer and inner arcs amber (the customer accent), middle arc teal (the retailer link) -->
+  <path d="M 236 384 A 390 390 0 0 1 788 384" fill="none" stroke="#D97706" stroke-width="84" stroke-linecap="round"/>
+  <path d="M 321 469 A 270 270 0 0 1 703 469" fill="none" stroke="#0D9488" stroke-width="72" stroke-linecap="round"/>
+  <path d="M 406 554 A 150 150 0 0 1 618 554" fill="none" stroke="#D97706" stroke-width="60" stroke-linecap="round"/>
+  <circle cx="512" cy="660" r="76" fill="#D97706"/>
+</svg>

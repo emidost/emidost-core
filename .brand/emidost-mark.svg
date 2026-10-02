@@ -1,0 +1,14 @@
+<!-- emidost brand mark: open padlock, tri-color shackle (indigo/teal/amber) on Ink tile, 2026-10-03 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Ink tile with subtle Paper inner border so the mark reads on dark and light surfaces -->
+  <rect x="32" y="32" width="960" height="960" rx="211" fill="#0F141C"/>
+  <rect x="52" y="52" width="920" height="920" rx="192" fill="none" stroke="#F4F1EA" stroke-opacity="0.12" stroke-width="4"/>
+  <!-- Open padlock: Paper body (free/released), keyhole in Ink -->
+  <rect x="312" y="512" width="400" height="344" rx="64" fill="#F4F1EA"/>
+  <circle cx="512" cy="592" r="60" fill="#0F141C"/>
+  <rect x="482" y="630" width="60" height="130" rx="30" fill="#0F141C"/>
+  <!-- Shackle, open on the right: indigo left arm (owner), teal top arc (retailer), amber raised right arm (customer) -->
+  <path d="M 356 512 L 356 348" fill="none" stroke="#4F46E5" stroke-width="92" stroke-linecap="round"/>
+  <path d="M 356 348 A 156 156 0 0 1 668 348" fill="none" stroke="#0D9488" stroke-width="92" stroke-linecap="round"/>
+  <path d="M 668 348 L 668 448" fill="none" stroke="#D97706" stroke-width="92" stroke-linecap="round"/>
+</svg>

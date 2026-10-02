@@ -9,13 +9,14 @@ import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
 import * as DeviceMgmt from '@emidost/device-kit';
 import Svg, { Circle } from 'react-native-svg';
+import mark from './assets/icon.png';
 import {
   colors, createApi, getOemProfile, totpCode, totpSecondsLeft,
   type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
   ArrowLeft, Banknote, BellRing, CalendarDays, Camera, CheckCircle2, Coins, Copy, Hash, ImagePlus, IndianRupee, KeyRound, Lock, LockOpen, LogIn, Play, QrCode,
-  Settings2, Smartphone, Store, UserPlus, Wallet,
+  Settings2, Smartphone, UserPlus, Wallet,
 } from 'lucide-react-native';
 
 const ACCENT = colors.accentTeal;
@@ -74,7 +75,7 @@ export default function App() {
   return (
     <View style={{ flex: 1 }}>
       <View style={s.header}>
-        <Store color={ACCENT} size={18} />
+        <Image source={mark} style={s.brandMarkSm} accessible accessibilityLabel="emidost" />
         <Text style={s.headerTitle}>emidost Retailer</Text>
         <Text style={s.headerMeta}>
           <Coins size={12} /> {balance?.credits_balance ?? 0} slots · <Lock size={12} /> {balance?.lock_allowances ?? 0} locks
@@ -130,7 +131,7 @@ function Login({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={s.center}>
-      <LogIn color={ACCENT} size={36} />
+      <Image source={mark} style={s.brandMark} accessible accessibilityLabel="emidost" />
       <Text style={s.title}>Retailer sign in</Text>
       <TextInput style={s.input} placeholder="Login ID" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
@@ -900,4 +901,8 @@ const s = StyleSheet.create({
   quickRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingRight: 8 },
   photoPreview: { width: 112, height: 112, borderRadius: 56, borderWidth: 1, borderColor: colors.border, alignSelf: 'center', marginTop: 12 },
+
+  // Brand mark.
+  brandMark: { width: 64, height: 64, borderRadius: 16, marginBottom: 12 },
+  brandMarkSm: { width: 28, height: 28, borderRadius: 8 },
 });

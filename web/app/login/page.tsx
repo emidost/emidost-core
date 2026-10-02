@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { LogIn, ShieldCheck, RefreshCw } from 'lucide-react';
+import Image from 'next/image';
+import { LogIn, RefreshCw } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 
 export default function LoginPage() {
@@ -23,10 +24,11 @@ export default function LoginPage() {
 
   return (
     <main style={{ maxWidth: 360, margin: '12vh auto', padding: 16 }}>
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <ShieldCheck size={22} color="var(--owner)" aria-hidden="true" />
-          <h1 style={{ margin: 0, fontSize: 18 }}>emidost</h1>
+      <div className="card" style={{ padding: 28 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <Image src="/mark.png" alt="emidost" width={64} height={64} priority style={{ borderRadius: 16 }} />
+          <h1 style={{ margin: '12px 0 0', fontSize: 22, letterSpacing: '-0.01em' }}>emidost</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>Owner and retailer portal</p>
         </div>
         <form onSubmit={submit}>
           <label className="label" htmlFor="id">Login ID</label>

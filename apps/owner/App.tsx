@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { colors, createApi, type Retailer } from '@emidost/shared';
+import mark from './assets/icon.png';
 import {
-  Ban, CircleCheck, Coins, LayoutDashboard, Lock, LogIn, ScrollText,
+  Ban, CircleCheck, Coins, Lock, LogIn, ScrollText,
   Smartphone, Store, UserPlus, Wallet,
 } from 'lucide-react-native';
 
@@ -48,7 +49,7 @@ export default function App() {
   return (
     <View style={{ flex: 1 }}>
       <View style={s.header}>
-        <LayoutDashboard color={ACCENT} size={18} />
+        <Image source={mark} style={s.brandMarkSm} accessible accessibilityLabel="emidost" />
         <Text style={s.headerTitle}>emidost Owner</Text>
       </View>
       {tab === 'retailers' && <Retailers />}
@@ -99,7 +100,7 @@ function Login({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={s.center}>
-      <LogIn color={ACCENT} size={36} />
+      <Image source={mark} style={s.brandMark} accessible accessibilityLabel="emidost" />
       <Text style={s.title}>Owner sign in</Text>
       <TextInput style={s.input} placeholder="Login ID" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
@@ -307,4 +308,8 @@ const s = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 12, fontWeight: '600', color: colors.textHi },
+
+  // Brand mark.
+  brandMark: { width: 64, height: 64, borderRadius: 16, marginBottom: 12 },
+  brandMarkSm: { width: 28, height: 28, borderRadius: 8 },
 });

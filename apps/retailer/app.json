@@ -7,12 +7,22 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F141C"
+    },
     "plugins": [
       "./plugin-adb-assets"
     ],
     "android": {
       "package": "com.emidost.retailer",
       "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F141C"
+      },
       "permissions": ["INTERNET"]
     }
   }

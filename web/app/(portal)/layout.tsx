@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LayoutDashboard, Store, Smartphone, QrCode, ScrollText, Wallet, Users,
 } from 'lucide-react';
@@ -34,6 +35,11 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <div>
       <nav className="nav" aria-label="Portal">
+        <Link href="/" className="brand" aria-label="emidost home">
+          <Image src="/mark.png" alt="" width={32} height={32} style={{ borderRadius: 8 }} />
+          <span>emidost</span>
+        </Link>
+        <span className="nav-sep" aria-hidden="true" />
         {links.map((l) => (
           <Link key={l.href} href={l.href}>
             <l.icon size={16} aria-hidden="true" /> {l.label}
