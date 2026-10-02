@@ -83,6 +83,26 @@ object EmidostOverlay {
           root.addView(call)
         }
 
+        // The lock cover must never block emergency access.
+        if (mode == "lock") {
+          val emergency = Button(ctx).apply {
+            text = "Emergency 112"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#DC2626"))
+          }
+          emergency.setOnClickListener {
+            dismissInternal(ctx)
+            try {
+              ctx.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_DIAL)
+                  .setData(android.net.Uri.parse("tel:112"))
+                  .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+              )
+            } catch (_: Exception) {}
+          }
+          root.addView(emergency)
+        }
+
         wm.addView(root, params)
         view = root
       } catch (_: Exception) {

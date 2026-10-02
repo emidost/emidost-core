@@ -32,8 +32,12 @@ class EmidostSmsReceiver : BroadcastReceiver() {
           }
         }
         "UNLOCK" -> {
-          // Unlock always wins and stays available after release.
-          DeviceActions.releaseLock(context)
+          // Unlock always wins and stays available after release. The body
+          // must carry a valid TOTP (authenticated factor): bare-SMS unlock
+          // is spoofable and is not accepted.
+          if (parts.size >= 3 && Totp.verify(context, parts[2])) {
+            DeviceActions.releaseLock(context)
+          }
         }
       }
     }

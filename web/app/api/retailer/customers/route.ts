@@ -56,5 +56,28 @@ export async function POST(req: NextRequest) {
     actor_id: profile.id, retailer_id: profile.retailer_id,
     event: 'CUSTOMER_CREATED', detail: { customer_id: data.id, brand: data.brand, model: data.model },
   });
+
+  // Generate the full repayment schedule atomically with the customer.
+  const safeDueDay = dueDayOfMonth(dueDay);
+  const now = new Date();
+  const rows: { customer_id: string; retailer_id: string; due_date: string; amount_due: number; status: string }[] = [];
+  for (let i = 1; i <= emiMonths; i += 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    d.setDate(Math.min(safeDueDay, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    rows.push({
+      customer_id: data.id, retailer_id: profile.retailer_id as string,
+      due_date: d.toISOString().slice(0, 10), amount_due: emiAmount, status: 'PENDING',
+    });
+  }
+  const { error: schedErr } = await svc.from('emi_schedules').insert(rows);
+  if (schedErr) {
+    await svc.from('customers').delete().eq('id', data.id);
+    return Response.json({ error: schedErr.message ?? 'schedule insert failed' }, { status: 500 });
+  }
+
   return Response.json(data, { status: 201 });
+}
+
+function dueDayOfMonth(day: number): number {
+  return Math.min(Math.max(day, 1), 31);
 }

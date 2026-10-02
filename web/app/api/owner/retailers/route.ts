@@ -46,9 +46,17 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: rErr?.message ?? 'retailer insert failed' }, { status: 500 });
   }
 
-  await svc.from('profiles')
-    .update({ retailer_id: retailer.id, role: 'retailer_staff', full_name: name, phone })
-    .eq('id', authUser.user.id);
+  // Upsert the staff profile (the new auth schema ships no handle_new_user
+  // trigger, so an UPDATE would match zero rows).
+  const { error: profErr } = await svc.from('profiles').upsert({
+    id: authUser.user.id, role: 'retailer_staff', retailer_id: retailer.id,
+    full_name: name, phone, is_suspended: false,
+  });
+  if (profErr) {
+    await svc.from('retailers').delete().eq('id', retailer.id);
+    await svc.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+    return Response.json({ error: profErr.message }, { status: 500 });
+  }
   await svc.from('audit_log').insert({
     actor_id: profile.id, retailer_id: retailer.id,
     event: 'RETAILER_CREATED', detail: { name, phone, login_id: loginId },

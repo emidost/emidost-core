@@ -32,6 +32,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { data: customer } = await svc.from('customers')
     .select('id, retailer_id, status').eq('id', params.id).maybeSingle();
   if (!customer || customer.retailer_id !== profile.retailer_id) return bad('Customer not found');
+  if (customer.status === 'COMPLETE' || customer.status === 'SETTLED') {
+    return bad('This loan is settled. No further payments are needed.');
+  }
 
   const { data, error } = await svc.from('payments').insert({
     customer_id: customer.id, retailer_id: customer.retailer_id,
@@ -49,10 +52,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (remaining <= 0) break;
     const need = Number(s.amount_due);
     if (remaining >= need) {
-      await svc.from('emi_schedules').update({ status: 'PAID' }).eq('id', s.id);
+      await svc.from('emi_schedules').update({ status: 'PAID', amount_paid: s.amount_due }).eq('id', s.id);
       remaining -= need;
     } else {
-      await svc.from('emi_schedules').update({ status: 'PARTIAL' }).eq('id', s.id);
+      await svc.from('emi_schedules').update({ status: 'PARTIAL', amount_paid: remaining }).eq('id', s.id);
       remaining = 0;
     }
   }

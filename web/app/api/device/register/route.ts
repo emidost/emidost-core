@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { bad } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
+import { deviceRateKey, rateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,9 @@ export const dynamic = 'force-dynamic';
  * session. Consent + session preconditions were enforced at creation time.
  */
 export async function POST(req: NextRequest) {
+  if (!rateLimit(deviceRateKey(req), 20, 60_000)) {
+    return Response.json({ error: 'too many requests' }, { status: 429 });
+  }
   const body = await req.json().catch(() => ({}));
   const token: string | undefined = body?.token;
   const installationId: string | undefined = body?.installation_id;
@@ -22,11 +26,24 @@ export async function POST(req: NextRequest) {
   const svc = serviceClient();
   const tokenHash = createHash('sha256').update(token).digest('hex');
   const { data: session } = await svc.from('enrollment_sessions')
-    .select('id, retailer_id, customer_id, state, expires_at')
+    .select('id, retailer_id, customer_id, state, expires_at, customers(status), retailers(is_suspended)')
     .eq('token_hash', tokenHash).maybeSingle();
   if (!session) return bad('Invalid or used enrolment token');
   if (new Date(session.expires_at).getTime() < Date.now()) return bad('Enrolment session expired');
-  if (session.state === 'active' || session.state === 'expired') return bad('Session already used');
+
+  const customers = session.customers as unknown as { status: string } | null;
+  const retailers = session.retailers as unknown as { is_suspended: boolean | null } | null;
+  if (retailers?.is_suspended === true) return bad('Retailer suspended');
+  if (customers && (customers.status === 'COMPLETE' || customers.status === 'SETTLED')) {
+    return bad('This loan is settled; re-enrolment is not allowed');
+  }
+
+  // Atomic one-shot consumption: only the CREATED state transitions.
+  const { data: consumed } = await svc.from('enrollment_sessions')
+    .update({ state: 'installed' })
+    .eq('id', session.id).eq('state', 'created')
+    .select('id').single();
+  if (!consumed) return bad('Enrolment token already used');
 
   // Takeover guard: the installation id may already exist; it must belong to
   // this session's retailer, otherwise the token cannot re-point it.
@@ -50,7 +67,6 @@ export async function POST(req: NextRequest) {
     .select().single();
   if (error || !device) return Response.json({ error: error?.message ?? 'device upsert failed' }, { status: 500 });
 
-  await svc.from('enrollment_sessions').update({ state: 'installed' }).eq('id', session.id);
   await svc.from('audit_log').insert({
     retailer_id: session.retailer_id, event: 'DEVICE_REGISTERED',
     detail: { device_id: device.id, installation_id: installationId, manufacturer, model },

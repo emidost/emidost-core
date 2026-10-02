@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import * as Crypto from 'expo-crypto';
 import * as DeviceMgmt from '@emidost/device-kit';
 import * as Notifications from 'expo-notifications';
 import { dueReminderCopy } from '@emidost/shared';
@@ -7,22 +8,22 @@ import { dueReminderCopy } from '@emidost/shared';
 const KEY_INSTALLATION = 'emidost.installation_id';
 const KEY_DEVICE_TOKEN = 'emidost.device_token';
 const KEY_REGISTERED = 'emidost.registered';
+const KEY_BASELINE = 'emidost.sim_baseline_set';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 const FRP_ACCOUNTS = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
   .split(',').map((s) => s.trim()).filter(Boolean);
 
-export function randomInstallationId(): string {
-  const chars = 'abcdef0123456789';
-  let out = '';
-  for (let i = 0; i < 32; i += 1) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+/** CSPRNG device identity (Math.random is predictable and must not be used). */
+export function randomHex(bytes: number): string {
+  const out = Crypto.getRandomBytes(bytes);
+  return Array.from(out).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 export async function getInstallationId(): Promise<string> {
   const existing = await AsyncStorage.getItem(KEY_INSTALLATION);
   if (existing) return existing;
-  const fresh = randomInstallationId();
+  const fresh = randomHex(16);
   await AsyncStorage.setItem(KEY_INSTALLATION, fresh);
   return fresh;
 }
@@ -30,7 +31,7 @@ export async function getInstallationId(): Promise<string> {
 export async function getDeviceToken(): Promise<string> {
   const existing = await AsyncStorage.getItem(KEY_DEVICE_TOKEN);
   if (existing) return existing;
-  const fresh = randomInstallationId() + randomInstallationId();
+  const fresh = randomHex(32);
   await AsyncStorage.setItem(KEY_DEVICE_TOKEN, fresh);
   return fresh;
 }
@@ -143,11 +144,16 @@ export async function pollOnce(): Promise<PollUiState | null> {
     await DeviceMgmt.setTotpSecret(String(resp.totp_secret));
   }
 
-  // SIM-swap baseline (IMSI/ICCID may be null on some devices; documented).
+  // SIM-swap baseline: set exactly once (a replacement SIM must never become
+  // the new baseline silently; IMSI/ICCID may be null on some devices).
   if (loanStatus === 'RUNNING' || loanStatus === 'NPA') {
-    const sim = await DeviceMgmt.getSimInfo();
-    if (sim && (sim.imsi || sim.iccid)) {
-      await DeviceMgmt.setSimBaseline(sim.imsi ?? null, sim.iccid ?? null);
+    const baselineSet = await AsyncStorage.getItem(KEY_BASELINE);
+    if (baselineSet !== '1') {
+      const sim = await DeviceMgmt.getSimInfo();
+      if (sim && (sim.imsi || sim.iccid)) {
+        await DeviceMgmt.setSimBaseline(sim.imsi ?? null, sim.iccid ?? null);
+        await AsyncStorage.setItem(KEY_BASELINE, '1');
+      }
     }
   }
 

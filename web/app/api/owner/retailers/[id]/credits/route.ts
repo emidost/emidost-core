@@ -15,20 +15,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!Number.isFinite(delta) || delta === 0) return bad('Delta must be a non-zero number');
 
   const svc = serviceClient();
-  const { data: retailer } = await svc.from('retailers').select('credits_balance').eq('id', params.id).maybeSingle();
-  if (!retailer) return Response.json({ error: 'not found' }, { status: 404 });
-  const next = retailer.credits_balance + delta;
-  if (next < 0) return bad('Credits cannot go below zero');
-
-  const { data, error } = await svc.from('retailers')
-    .update({ credits_balance: next }).eq('id', params.id).select('credits_balance').single();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  // Atomic adjustment (no read-then-write race).
+  const { data: balance, error } = await svc.rpc('adjust_credits', { rid: params.id, d: delta });
+  if (error || balance === null || balance === undefined) {
+    if (delta < 0) return bad('Credits cannot go below zero');
+    return Response.json({ error: error?.message ?? 'retailer not found' }, { status: 500 });
+  }
 
   await svc.from('credit_ledger').insert({
-    retailer_id: params.id, kind, delta, balance_after: next, by_profile: profile.id,
+    retailer_id: params.id, kind, delta, balance_after: Number(balance), by_profile: profile.id,
   });
   await svc.from('audit_log').insert({
-    actor_id: profile.id, retailer_id: params.id, event: 'CREDITS_ALLOCATED', detail: { delta, balance_after: next },
+    actor_id: profile.id, retailer_id: params.id, event: 'CREDITS_ALLOCATED', detail: { delta, balance_after: balance },
   });
-  return Response.json(data);
+  return Response.json({ credits_balance: balance });
 }

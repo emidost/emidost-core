@@ -26,15 +26,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!device || device.retailer_id !== profile.retailer_id) return bad('Device not found');
   if (!device.customer_id) return bad('Device is not bound to a customer');
 
-  // Paid loans can never be locked again.
+  // Paid loans can never be locked again; UNLOCK/RELEASE stay available.
   const { data: customer } = await svc.from('customers').select('status').eq('id', device.customer_id).maybeSingle();
-  if (customer && (customer.status === 'COMPLETE' || customer.status === 'SETTLED')) {
+  if (commandType === 'LOCK' && customer && (customer.status === 'COMPLETE' || customer.status === 'SETTLED')) {
     return bad('This loan is settled. Locking is disabled.');
   }
+
+  // Insert the command first; the allowance debit follows only on success.
+  const { data, error } = await svc.from('device_commands').insert({
+    device_id: device.id, retailer_id: device.retailer_id,
+    command_type: commandType, payload: body.payload ?? {}, created_by: profile.id,
+  }).select().single();
+  if (error || !data) return Response.json({ error: error?.message ?? 'command insert failed' }, { status: 500 });
 
   if (commandType === 'LOCK') {
     const { data: newBalance } = await svc.rpc('decrement_allowance', { rid: profile.retailer_id });
     if (newBalance === null || newBalance === undefined) {
+      // Roll back the command: the retailer has no allowance for it.
+      await svc.from('device_commands').update({ status: 'CANCELLED' }).eq('id', data.id);
       return bad('No lock allowances left. Ask the owner to top up.');
     }
     await svc.from('credit_ledger').insert({
@@ -42,12 +51,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       balance_after: Number(newBalance), by_profile: profile.id,
     });
   }
-
-  const { data, error } = await svc.from('device_commands').insert({
-    device_id: device.id, retailer_id: device.retailer_id,
-    command_type: commandType, payload: body.payload ?? {}, created_by: profile.id,
-  }).select().single();
-  if (error || !data) return Response.json({ error: error?.message ?? 'command insert failed' }, { status: 500 });
 
   await svc.from('audit_log').insert({
     actor_id: profile.id, retailer_id: device.retailer_id,

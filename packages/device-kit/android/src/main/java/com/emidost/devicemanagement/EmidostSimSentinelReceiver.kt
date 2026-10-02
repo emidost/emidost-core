@@ -40,6 +40,12 @@ class EmidostSimSentinelReceiver : BroadcastReceiver() {
   private var pending: Runnable? = null
 
   override fun onReceive(context: Context, intent: Intent) {
+    val action = intent.action ?: return
+    if (action != TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED &&
+      action != "android.intent.action.SIM_STATE_CHANGED" &&
+      action != Intent.ACTION_AIRPLANE_MODE_CHANGED
+    ) return
+
     if (!DeviceActions.isOwner(context)) return
     if (!SimSentinelStore.loanOutstanding(context)) return
 
@@ -54,7 +60,9 @@ class EmidostSimSentinelReceiver : BroadcastReceiver() {
       return
     }
 
-    if (state == TelephonyManager.SIM_STATE_ABSENT || state == TelephonyManager.SIM_STATE_UNKNOWN) {
+    // Only a confirmed ABSENT state locks, after the debounce. UNKNOWN is
+    // transient (boot, modem restart) and must not cause false locks.
+    if (state == TelephonyManager.SIM_STATE_ABSENT) {
       pending?.let { handler.removeCallbacks(it) }
       pending = Runnable {
         // Re-check the loan state at fire time: a settlement that landed during

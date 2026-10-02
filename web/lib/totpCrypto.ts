@@ -7,7 +7,13 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypt
  * over TLS; the device keeps the plaintext locally (documented).
  */
 function key(): Buffer {
-  const material = process.env.TOTP_ENC_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'dev-key';
+  const material = process.env.TOTP_ENC_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!material) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('TOTP_ENC_KEY or SUPABASE_SERVICE_ROLE_KEY must be set');
+    }
+    return createHash('sha256').update('dev-key').digest();
+  }
   return createHash('sha256').update(material).digest();
 }
 

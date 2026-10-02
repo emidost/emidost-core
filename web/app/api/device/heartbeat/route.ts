@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { serviceClient } from '@/lib/supabaseServer';
 import { decryptTotpSecret } from '@/lib/totpCrypto';
+import { deviceRateKey, rateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,9 @@ export const dynamic = 'force-dynamic';
  * reports its own OS readback; the server never fabricates policy states.
  */
 export async function POST(req: NextRequest) {
+  if (!rateLimit(deviceRateKey(req), 120, 60_000)) {
+    return Response.json({ error: 'too many requests' }, { status: 429 });
+  }
   const installationId = req.nextUrl.searchParams.get('installation_id');
   const deviceToken = req.headers.get('x-device-token');
   if (!installationId || !deviceToken) return Response.json({ error: 'missing auth' }, { status: 401 });
@@ -28,11 +32,19 @@ export async function POST(req: NextRequest) {
   const customers = device.customers as unknown as { status: string; customer_code: string | null } | null;
   const suspended = retailers?.is_suspended === true;
 
-  // Device-reported live state (honest activation: only the OS readback counts).
+  // Device-reported live state. Promotion to device_owner requires an open
+  // enrolment session for this customer (the client cannot self-promote).
   const body = await req.json().catch(() => ({}));
-  if (body?.mode === 'device_owner' || body?.mode === 'device_admin') {
+  if (body?.mode === 'device_admin') {
     await svc.from('devices').update({ mode: body.mode }).eq('id', device.id);
-    if (body.mode === 'device_owner') {
+  }
+  if (body?.mode === 'device_owner') {
+    const { data: openSession } = await svc.from('enrollment_sessions')
+      .select('id').eq('customer_id', device.customer_id)
+      .in('state', ['created', 'installed', 'connected', 'owner_verified', 'access_verified', 'finalizing'])
+      .maybeSingle();
+    if (openSession) {
+      await svc.from('devices').update({ mode: 'device_owner' }).eq('id', device.id);
       await svc.from('enrollment_sessions')
         .update({ state: 'active' })
         .eq('customer_id', device.customer_id)
@@ -67,9 +79,11 @@ export async function POST(req: NextRequest) {
     : 0;
 
   return Response.json({
-    // A suspended retailer cannot issue commands; existing devices stay
-    // owner-managed. UNLOCK/RELEASE still land through the owner path.
-    commands: suspended ? [] : pendingRows ?? [],
+    // A suspended retailer cannot issue restrictive commands, but authorized
+    // recovery (UNLOCK/RELEASE) always reaches the device.
+    commands: suspended
+      ? (pendingRows ?? []).filter((c) => c.command_type === 'UNLOCK' || c.command_type === 'RELEASE')
+      : pendingRows ?? [],
     device_pin_hash: device.device_pin_hash ?? null,
     pin_verify: device.pin_verify ?? null,
     totp_secret: totpRow?.data?.secret_enc ? decryptTotpSecret(totpRow.data.secret_enc) : null,
