@@ -9,7 +9,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const envText = readFileSync(resolve(root, 'web/.env.local'), 'utf8');
+const envText = readFileSync(resolve(root, 'web/.env.local'), 'utf8').replace(/^\uFEFF/, '');
 const env = Object.fromEntries(
   envText.split(/\r?\n/).filter(Boolean).filter((l) => !l.startsWith('#'))
     .map((l) => {
