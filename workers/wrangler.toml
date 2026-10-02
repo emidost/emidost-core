@@ -2,6 +2,7 @@ name = "emidost-api"
 main = "src/index.ts"
 compatibility_date = "2026-10-02"
 nodejs_compat = "v2"
+workers_dev = true
 
 # The shared handlers use node:crypto (createHash/createHmac/randomBytes/
 # createCipheriv) - provided by nodejs_compat on the Workers runtime.

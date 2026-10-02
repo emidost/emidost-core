@@ -1,4 +1,4 @@
-﻿import { createHash } from 'crypto';
+import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { serviceClient } from '@/lib/supabaseServer';
 import { decryptTotpSecret } from '@/lib/totpCrypto';
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     .eq('device_id', device.id).in('status', ['PENDING', 'RECEIVED']).order('created_at');
 
   const frpAccounts = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
-    .split(',').map((s) => s.trim()).filter(Boolean);
+    .split(',').map((s: string) => s.trim()).filter(Boolean);
 
   const nextDue = dueRows?.data?.[0] ?? null;
   const overdueDays = nextDue && nextDue.status !== 'PENDING'

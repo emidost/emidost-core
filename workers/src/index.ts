@@ -1,4 +1,4 @@
-﻿import { NextRequest } from './shims/next-server';
+import { NextRequest } from './shims/next-server';
 
 // Single-entry Worker API: the exact dispatch table from the Next.js catch-all,
 // reusing the shared handlers so every URL and behavior stays identical.
@@ -88,6 +88,6 @@ export default {
       const handler = method === 'get' ? def.get : method === 'post' ? def.post : method === 'patch' ? def.patch : undefined;
       if (handler) return handler(req, { params });
     }
-    return Response.json({ error: 'not found' }, { status: 404 });
+    return Response.json({ error: 'not found', segs, method: request.method, table: ROUTES.length }, { status: 404 });
   },
 };
