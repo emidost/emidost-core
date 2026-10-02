@@ -5,7 +5,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import {
-  createApi, getOemProfile, type Customer, type Device, type Retailer,
+  colors, createApi, getOemProfile, type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
   CalendarDays, Coins, Hash, IndianRupee, Lock, LockOpen, LogIn, QrCode,
@@ -79,6 +79,15 @@ export default function App() {
   );
 }
 
+function Chip({ tone, label }: { tone: string; label: string }) {
+  return (
+    <View style={s.chip}>
+      <View style={[s.chipDot, { backgroundColor: tone }]} />
+      <Text style={s.chipText}>{label}</Text>
+    </View>
+  );
+}
+
 function TabButton(props: { icon: typeof Wallet; label: string; active: boolean; onPress: () => void }) {
   const I = props.icon;
   return (
@@ -131,8 +140,14 @@ function Customers() {
           <Text style={s.cardTitle}>{c.name}</Text>
           <Text style={s.muted}>{c.phone} · {c.brand} {c.model} · IMEI {c.imei}</Text>
           <Text style={s.muted}>
-            {c.emi_months} months · Rs {Number(c.emi_amount).toFixed(0)}/month · due day {c.emi_due_day} · {c.status}
+            {c.emi_months} months · Rs {Number(c.emi_amount).toFixed(0)}/month · due day {c.emi_due_day}
           </Text>
+          <View style={s.chipRow}>
+            <Chip
+              tone={c.status === 'NPA' ? colors.danger : c.status === 'RUNNING' ? colors.accentTeal : colors.textMid}
+              label={c.status}
+            />
+          </View>
         </View>
       ))}
       {rows.length === 0 && <Text style={s.muted}>No customers yet.</Text>}
@@ -226,7 +241,10 @@ function Devices() {
       {rows.map((d) => (
         <View key={d.id} style={s.card}>
           <Text style={s.cardTitle}>{d.manufacturer} {d.model}</Text>
-          <Text style={s.muted}>{d.mode} · {d.is_locked ? 'Locked' : 'Unlocked'}</Text>
+          <View style={s.chipRow}>
+            <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode} />
+            <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
+          </View>
           <TouchableOpacity style={[s.button, { marginTop: 8 }]} onPress={() => toggle(d)}>
             {d.is_locked ? <LockOpen color="#fff" size={16} /> : <Lock color="#fff" size={16} />}
             <Text style={s.buttonText}>{d.is_locked ? 'Unlock' : 'Lock'}</Text>
@@ -294,4 +312,8 @@ const s = StyleSheet.create({
   error: { color: '#DC2626', marginTop: 8 },
   button: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT, borderRadius: 8, padding: 14, marginTop: 12 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  chipText: { fontSize: 12, fontWeight: '600', color: '#1A1D21' },
 });

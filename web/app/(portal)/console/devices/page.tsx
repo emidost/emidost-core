@@ -49,14 +49,23 @@ export default function ConsoleDevicesPage() {
                 <td><span className={`chip ${d.mode === 'device_owner' ? 'ok' : 'muted'}`}>{d.mode}</span></td>
                 <td><span className={`chip ${d.is_locked ? 'danger' : 'info'}`}>{d.is_locked ? 'Locked' : 'Unlocked'}</span></td>
                 <td>
-                  <button className="btn" onClick={() => send(d.id, d.is_locked ? 'UNLOCK' : 'LOCK')}>
-                    {d.is_locked ? <LockOpen size={14} /> : <Lock size={14} />}
+                  <button className="btn sm" onClick={() => send(d.id, d.is_locked ? 'UNLOCK' : 'LOCK')}>
+                    {d.is_locked ? <LockOpen size={14} aria-hidden="true" /> : <Lock size={14} aria-hidden="true" />}
                     {d.is_locked ? 'Unlock' : 'Lock'}
                   </button>
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={4} style={{ color: 'var(--muted)' }}>No devices yet.</td></tr>}
+            {rows.length === 0 && (
+              <tr>
+                <td className="empty-cell" colSpan={4}>
+                  <div className="empty">
+                    <Smartphone className="empty-icon" size={28} aria-hidden="true" />
+                    <p>No devices yet. Enrol a phone to see it here.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

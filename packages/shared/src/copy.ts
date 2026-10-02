@@ -34,3 +34,66 @@ export function dueReminderCopy(due: string, amount: string, daysOverdue: number
     hi: 'आपकी किस्त बकाया है। कृपया समय पर भुगतान करें।',
   };
 }
+
+export type CopyLang = 'en' | 'bn' | 'hi';
+
+export interface LockCopyParams {
+  /** Pre-formatted amount, for example "Rs 2,400". */
+  amount: string;
+  /** Human due date, for example "15 June". */
+  dueDate: string;
+  retailerPhone: string;
+  overdueDays: number;
+  /** Set once a payment has been received. */
+  paidOn?: string;
+  /** The date the phone stays unlocked until. */
+  paidUntil?: string;
+}
+
+/** Button and link labels, verb-first and in sentence case. */
+export interface LockActions {
+  payNow: string;
+  callRetailer: string;
+  emergency: string;
+}
+
+export interface LockStrings {
+  locked: string;
+  overdue: string;
+  unlocked: string;
+  paid: string;
+  actions: LockActions;
+}
+
+/**
+ * Lock-screen copy for the customer app, the source of truth from spec section
+ * 6 in en, bn and hi. Sentence case, verb-first, no em or en dashes.
+ */
+export function lockScreenCopy(lang: CopyLang, p: LockCopyParams): LockStrings {
+  const days = (n: number, one: string, many: string) => (n === 1 ? one : many);
+  if (lang === 'bn') {
+    return {
+      locked: `আপনার ফোন আনলক করতে ${p.amount} পরিশোধ করুন। পেমেন্টের শেষ তারিখ ছিল ${p.dueDate}। সাহায্যের জন্য আপনার রিটেইলারকে ${p.retailerPhone} নম্বরে কল করুন।`,
+      overdue: `এখনই ${p.amount} পরিশোধ করুন। আপনার পেমেন্ট ${p.overdueDays} দিন বকেয়া।`,
+      unlocked: `${p.paidOn ?? ''} তারিখে পেমেন্ট পাওয়া গেছে। আপনার ফোন ${p.paidUntil ?? ''} পর্যন্ত আনলক থাকবে।`,
+      paid: 'ঋণ সম্পূর্ণ। ফোনটি এখন আপনার।',
+      actions: { payNow: 'এখন পরিশোধ করুন', callRetailer: 'রিটেইলারকে কল করুন', emergency: '112 এ কল করুন' },
+    };
+  }
+  if (lang === 'hi') {
+    return {
+      locked: `अपना फोन अनलॉक करने के लिए ${p.amount} का भुगतान करें। भुगतान की आखिरी तारीख ${p.dueDate} थी। मदद के लिए अपने रिटेलर को ${p.retailerPhone} पर कॉल करें।`,
+      overdue: `अभी ${p.amount} का भुगतान करें। आपका भुगतान ${p.overdueDays} दिन बकाया है।`,
+      unlocked: `${p.paidOn ?? ''} को भुगतान मिल गया। आपका फोन ${p.paidUntil ?? ''} तक अनलॉक रहेगा।`,
+      paid: 'कर्ज पूरा हुआ। अब फोन आपका है।',
+      actions: { payNow: 'अभी भुगतान करें', callRetailer: 'रिटेलर को कॉल करें', emergency: '112 पर कॉल करें' },
+    };
+  }
+  return {
+    locked: `Pay ${p.amount} to unlock your phone. The payment was due on ${p.dueDate}. Call your retailer on ${p.retailerPhone} for help.`,
+    overdue: `Pay ${p.amount} now. Your payment is ${p.overdueDays} ${days(p.overdueDays, 'day', 'days')} overdue.`,
+    unlocked: `Payment received on ${p.paidOn ?? ''}. Your phone stays unlocked until ${p.paidUntil ?? ''}.`,
+    paid: 'Loan complete. Your phone is yours.',
+    actions: { payNow: 'Pay now', callRetailer: 'Call retailer', emergency: 'Call 112' },
+  };
+}

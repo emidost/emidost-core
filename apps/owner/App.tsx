@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
-import { createApi, type Retailer } from '@emidost/shared';
+import { colors, createApi, type Retailer } from '@emidost/shared';
 import {
   Ban, CircleCheck, Coins, LayoutDashboard, Lock, LogIn, ScrollText,
   Smartphone, Store, UserPlus, Wallet,
@@ -59,6 +59,15 @@ export default function App() {
         <TabButton icon={UserPlus} label="New" active={tab === 'new'} onPress={() => setTab('new')} />
         <TabButton icon={ScrollText} label="Audit" active={tab === 'audit'} onPress={() => setTab('audit')} />
       </View>
+    </View>
+  );
+}
+
+function Chip({ tone, label }: { tone: string; label: string }) {
+  return (
+    <View style={s.chip}>
+      <View style={[s.chipDot, { backgroundColor: tone }]} />
+      <Text style={s.chipText}>{label}</Text>
     </View>
   );
 }
@@ -144,9 +153,11 @@ function Retailers() {
         <View key={r.id} style={s.card}>
           <Text style={s.cardTitle}>{r.name} · {r.phone}</Text>
           <Text style={s.muted}>
-            <Coins size={12} /> {r.credits_balance} slots · <Lock size={12} /> {r.lock_allowances} locks ·
-            {r.is_suspended ? ' Suspended' : ' Active'}
+            <Coins size={12} /> {r.credits_balance} slots · <Lock size={12} /> {r.lock_allowances} locks
           </Text>
+          <View style={s.chipRow}>
+            <Chip tone={r.is_suspended ? colors.textMid : colors.accentTeal} label={r.is_suspended ? 'Suspended' : 'Active'} />
+          </View>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
             <TouchableOpacity style={s.smallBtn} onPress={() => suspend(r)}>
               {r.is_suspended ? <CircleCheck color="#16A34A" size={14} /> : <Ban color="#DC2626" size={14} />}
@@ -260,4 +271,8 @@ const s = StyleSheet.create({
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   smallBtn: { flexDirection: 'row', gap: 4, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10 },
   smallBtnText: { fontSize: 12, fontWeight: '600', color: '#1A1D21' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  chipText: { fontSize: 12, fontWeight: '600', color: '#1A1D21' },
 });

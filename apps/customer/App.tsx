@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  AccessibilityInfo, ActivityIndicator, Animated, Easing, ScrollView, StyleSheet,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { KeyRound, Lock, PhoneCall, ShieldCheck, Siren, Smartphone } from 'lucide-react-native';
 import * as DeviceMgmt from '@emidost/device-kit';
-import { getOemProfile, dueReminderCopy } from '@emidost/shared';
+import {
+  getOemProfile, dueReminderCopy, lockScreenCopy, locked as LOCKED, type CopyLang,
+} from '@emidost/shared';
 import * as Speech from 'expo-speech';
 import * as Notifications from 'expo-notifications';
 import {
@@ -81,7 +84,6 @@ export default function App() {
       <LockedScreen
         due={due} overdueDays={overdueDays}
         retailerPhone={retailerPhone}
-        onSpeak={speakReminder}
       />
     );
   }
@@ -159,41 +161,126 @@ function BindScreen({ onBound }: { onBound: () => void }) {
   );
 }
 
+const LOCALE: Record<CopyLang, string> = { en: 'en-IN', bn: 'bn-IN', hi: 'hi-IN' };
+const LANG_LABEL: Record<CopyLang, string> = { en: 'English', bn: 'বাংলা', hi: 'हिंदी' };
+
+function formatAmount(n: number): string {
+  return `Rs ${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
+function formatDueDate(iso: string, lang: CopyLang): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    return d.toLocaleDateString(LOCALE[lang], { day: 'numeric', month: 'long' });
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Lock screen. Dark surface = locked. The amount sits at the top in tabular
+ * numerals, an amber ring breathes around the padlock, and the three actions
+ * (pay now, call retailer, call 112) are always live. The screen reflects the
+ * server lock state only; there is no optimistic green.
+ */
 function LockedScreen(props: {
   due: { due_date: string; amount_due: number } | null;
   overdueDays: number;
   retailerPhone: string | null;
-  onSpeak: () => void;
 }) {
+  const [lang, setLang] = useState<CopyLang>('en');
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const ring = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (active) setReduceMotion(v); });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { active = false; sub.remove(); };
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) { ring.setValue(0); return undefined; }
+    // Breathing ring: scale 1 to 1.04, opacity 0.5 to 0.2, 3s loop, native driver.
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ring, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(ring, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [reduceMotion, ring]);
+
+  const amount = props.due ? formatAmount(props.due.amount_due) : 'Rs 0';
+  const copy = lockScreenCopy(lang, {
+    amount,
+    dueDate: props.due ? formatDueDate(props.due.due_date, lang) : '',
+    retailerPhone: props.retailerPhone ?? '',
+    overdueDays: props.overdueDays,
+  });
+  const message = props.overdueDays > 0 ? copy.overdue : copy.locked;
+
+  const ringScale = ring.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+  const ringOpacity = ring.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.2] });
+
+  function speak() {
+    if (message) Speech.speak(message, { language: LOCALE[lang] });
+  }
+
   return (
-    <View style={[s.center, { backgroundColor: '#1A1D21' }]}>
-      <Lock color="#F59E0B" size={44} />
-      <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700', marginTop: 12 }}>Phone locked</Text>
-      <Text style={{ color: '#D1D5DB', fontSize: 18, marginTop: 8 }}>
-        {props.due ? `Rs ${Number(props.due.amount_due).toFixed(0)} due ${props.due.due_date}` : 'EMI payment required'}
+    <View style={s.lockPage}>
+      <View style={s.langRow}>
+        {(['en', 'bn', 'hi'] as CopyLang[]).map((l) => (
+          <TouchableOpacity
+            key={l}
+            style={[s.langChip, lang === l && s.langChipActive]}
+            onPress={() => setLang(l)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: lang === l }}
+          >
+            <Text style={[s.langChipText, lang === l && s.langChipTextActive]}>{LANG_LABEL[l]}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={s.lockAmount} numberOfLines={1} adjustsFontSizeToFit accessibilityLabel={amount}>
+        {amount}
       </Text>
-      {props.overdueDays > 0 && (
-        <Text style={{ color: '#FCA5A5', marginTop: 4 }}>{props.overdueDays} days overdue</Text>
-      )}
-      <TouchableOpacity style={[s.button, { marginTop: 20 }]} onPress={props.onSpeak}>
-        <ShieldCheck color="#fff" size={16} />
-        <Text style={s.buttonText}>Hear the reminder</Text>
+
+      <View style={s.ringWrap}>
+        <Animated.View
+          style={[s.breathRing, { transform: [{ scale: ringScale }], opacity: ringOpacity }]}
+          pointerEvents="none"
+        />
+        <View style={s.lockEmblem}>
+          <Lock color={LOCKED.ring} size={40} />
+        </View>
+      </View>
+
+      <Text style={s.lockMessage}>{message}</Text>
+
+      <TouchableOpacity style={s.payBtn} onPress={speak} accessibilityRole="button">
+        <Text style={s.payBtnText}>{copy.actions.payNow}</Text>
       </TouchableOpacity>
-      {props.retailerPhone && (
-        <TouchableOpacity
-          style={[s.button, { backgroundColor: '#0D9488', marginTop: 10 }]}
-          onPress={() => void DeviceMgmt.showCallOverlay('Call retailer', props.retailerPhone ?? '', props.retailerPhone ?? '')}
-        >
-          <PhoneCall color="#fff" size={16} />
-          <Text style={s.buttonText}>Call retailer</Text>
-        </TouchableOpacity>
-      )}
+
       <TouchableOpacity
-        style={[s.button, { backgroundColor: '#DC2626', marginTop: 10 }]}
-        onPress={() => void DeviceMgmt.showCallOverlay('Emergency', '112', '112')}
+        style={s.outlineBtn}
+        onPress={() => { if (props.retailerPhone) void DeviceMgmt.showCallOverlay('Call retailer', props.retailerPhone, props.retailerPhone); }}
+        accessibilityRole="button"
       >
-        <Siren color="#fff" size={16} />
-        <Text style={s.buttonText}>Emergency 112</Text>
+        <PhoneCall color={LOCKED.textHi} size={16} />
+        <Text style={s.outlineBtnText}>{copy.actions.callRetailer}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.linkBtn}
+        onPress={() => void DeviceMgmt.showCallOverlay('Emergency', '112', '112')}
+        accessibilityRole="link"
+      >
+        <Siren color={LOCKED.textMid} size={14} />
+        <Text style={s.linkBtnText}>{copy.actions.emergency}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -230,4 +317,23 @@ const s = StyleSheet.create({
   error: { color: '#DC2626', marginTop: 8 },
   button: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT, borderRadius: 8, padding: 14, marginTop: 12 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  // Lock screen (dark = locked).
+  lockPage: { flex: 1, backgroundColor: LOCKED.bg, padding: 24, alignItems: 'center', justifyContent: 'center' },
+  langRow: { position: 'absolute', top: 48, flexDirection: 'row', gap: 8 },
+  langChip: { borderWidth: 1, borderColor: LOCKED.border, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  langChipActive: { borderColor: LOCKED.ring },
+  langChipText: { color: LOCKED.textMid, fontSize: 13, fontWeight: '600' },
+  langChipTextActive: { color: LOCKED.textHi },
+  lockAmount: { color: LOCKED.textHi, fontSize: 96, fontWeight: '700', fontVariant: ['tabular-nums'], textAlign: 'center', marginBottom: 8 },
+  ringWrap: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center', marginVertical: 16 },
+  breathRing: { position: 'absolute', width: 112, height: 112, borderRadius: 56, borderWidth: 2, borderColor: LOCKED.ring },
+  lockEmblem: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: LOCKED.surface },
+  lockMessage: { color: LOCKED.textHi, fontSize: 17, lineHeight: 24, textAlign: 'center', maxWidth: 420, marginBottom: 24 },
+  payBtn: { backgroundColor: LOCKED.amberHi, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: 420 },
+  payBtnText: { color: '#1A1D21', fontSize: 17, fontWeight: '700' },
+  outlineBtn: { flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: LOCKED.border, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: 420, marginTop: 12 },
+  outlineBtnText: { color: LOCKED.textHi, fontSize: 15, fontWeight: '600' },
+  linkBtn: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, marginTop: 8 },
+  linkBtnText: { color: LOCKED.textMid, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
 });

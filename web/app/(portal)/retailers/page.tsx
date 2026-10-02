@@ -48,21 +48,27 @@ export default function RetailersPage() {
                 <td>{r.lock_allowances}</td>
                 <td>
                   <span className={`chip ${r.is_suspended ? 'danger' : 'ok'}`}>
-                    {r.is_suspended ? <Ban size={12} /> : <CircleCheck size={12} />}
                     {r.is_suspended ? 'Suspended' : 'Active'}
                   </span>
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>
-                  <Link className="btn" href={`/retailers/${r.id}`}><Pencil size={14} /> Edit</Link>{' '}
-                  <button className="btn" onClick={() => toggleSuspend(r)}>
-                    {r.is_suspended ? <CircleCheck size={14} /> : <Ban size={14} />}
+                  <Link className="btn sm" href={`/retailers/${r.id}`}><Pencil size={14} aria-hidden="true" /> Edit</Link>{' '}
+                  <button className="btn sm" onClick={() => toggleSuspend(r)}>
+                    {r.is_suspended ? <CircleCheck size={14} aria-hidden="true" /> : <Ban size={14} aria-hidden="true" />}
                     {r.is_suspended ? 'Resume' : 'Suspend'}
                   </button>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>No retailers yet. <UserPlus size={14} /> Add one from the owner app or API.</td></tr>
+              <tr>
+                <td className="empty-cell" colSpan={6}>
+                  <div className="empty">
+                    <UserPlus className="empty-icon" size={28} aria-hidden="true" />
+                    <p>No retailers yet. Add one from the owner app or API.</p>
+                  </div>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

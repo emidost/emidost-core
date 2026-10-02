@@ -99,20 +99,12 @@ async function main() {
   });
   console.log('retailer:', staffUser.email, retailerId);
 
-  // 3. Customer
-  const custUser = await admin('/users', {
-    method: 'POST',
-    body: JSON.stringify({
-      email: ACCOUNTS[2].email, password: ACCOUNTS[2].password, email_confirm: true,
-      app_metadata: { provider: 'email', providers: ['email'] },
-      user_metadata: { name: ACCOUNTS[2].name },
-    }),
-  });
-  await rest('profiles', 'POST', {
-    id: custUser.id, role: 'customer', full_name: ACCOUNTS[2].name, phone: ACCOUNTS[2].phone, is_suspended: false,
-  });
+  // 3. Customer: NO auth account. Customers are created by the retailer in the
+  // retailer app (customers row + setup code); the customer app binds with the
+  // setup code + a device token. Only a demo row is created here so the board
+  // is not empty.
   const custRow = await rest('customers', 'POST', {
-    retailer_id: retailerId, name: ACCOUNTS[2].name, phone: ACCOUNTS[2].phone,
+    retailer_id: retailerId, name: 'Demo Customer', phone: '919800000002',
     imei: '000000000000000', brand: 'Samsung', model: 'Galaxy A15',
     emi_months: 12, emi_amount: 2400, emi_due_day: 5, customer_code: 'EMD-DEMO', status: 'RUNNING',
   });
@@ -123,8 +115,8 @@ async function main() {
     customer_id: custRow[0].id, retailer_id: retailerId,
     due_date: due.toISOString().slice(0, 10), amount_due: 2400, status: 'PENDING',
   });
-  console.log('customer:', custUser.email, custRow[0].id);
-  console.log('done: 3 accounts + 1 retailer + 1 customer + 1 EMI schedule');
+  console.log('customer (no login; binds via setup code):', custRow[0].id);
+  console.log('done: 2 accounts (owner, retailer) + 1 retailer + 1 demo customer + 1 EMI schedule');
 }
 
 main().catch((e) => {
