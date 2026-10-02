@@ -4,6 +4,20 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-02 improvement arena (3 auditors + design arena, push cf921b8 / b1258b3)
+
+Fixed now:
+- Kotlin build blockers (would have failed EAS Gradle): SMS `?: continue` rewrite, UserManager→DPM add/clearUserRestriction, `FactoryResetProtectionPolicy.Builder()` (no DPM helper exists), module `appContext.reactContext` non-null, OemFingerprint List<Intent> signature, onTimeout override removed (compileSdk 34).
+- Unlock watermark math: `unlockAtServerTime = serverNow - elapsedDelta` (was device-wall-based; fresh LOCK after unlock wrongly marked stale).
+- Payments allocate against `amount_due - amount_paid` (partials no longer overwrite).
+- Bearer-token auth parity in web/lib/auth.ts (apps can hit the Vercel fallback); wrangler `compatibility_flags = ["nodejs_compat"]`.
+- Retailer add-customer + record-payment busy guards (no double submits).
+- Portal dashboard: undefined CSS vars (--textHi/--line/--teal → --text-hi/--border/--accent-teal), flat stat icons, verb-first title.
+- Customer offline cache shape (due date string + amount) fixed.
+- Landing SEO pass by Claude: metadata/OG/twitter, canonical, sitemap/robots repoint, favicon, keyword H1s, WhatsApp deep-link CTA. tsc 0, deployed to Pages.
+
+Honest deferred (next wave; some need EAS/device): native mirror of the 5-day watchdog + separate local reassert timer, credit activation/release lifecycle, atomic ack transitions + allowance reservation, stable offline TOTP provisioning, SIM debounce re-read + ICCID compare, kiosk lock-task verification, docs understate updates. All recorded, none faked.
+
 ## 2026-10-02 offline + lock-mode wave (push 4dec110)
 
 - `0007_offline_lock.sql`: `customers.lock_mode` ('lock' | 'notify_only', default lock) + index. All-in-one rebuilt (7 migrations).
