@@ -454,7 +454,7 @@ do $$ begin
     check (balance_after >= 0);
 exception when duplicate_object then null; end $$;
 
--- emidost 0004 â€" on-demand location + fewer network assumptions.
+-- emidost 0004 - on-demand location + fewer network assumptions.
 -- Location is stored only when the device fetches a LOCATION request.
 
 do $$ begin
@@ -465,9 +465,9 @@ do $$ begin
   alter table public.devices add column if not exists last_location_at timestamptz;
 exception when duplicate_column then null; end $$;
 
-do $$ begin
-  alter type public.command_type add value if not exists 'LOCATION';
-exception when duplicate_object then null; end $$;
+-- ADD VALUE cannot run inside a PL/pgSQL exception block (subtransaction);
+-- IF NOT EXISTS already makes it idempotent, so run it bare.
+alter type public.command_type add value if not exists 'LOCATION';
 
 -- emidost 0005 â€” RLS via JWT app_metadata (fixes the max_stack_depth recursion).
 -- The old helper functions SELECTed profiles from inside profiles policies.
@@ -598,8 +598,9 @@ delete from public.audit_log
  where created_at < now() - interval '90 days';
 
 -- Scheduled cleanup if pg_cron is enabled (create extension via dashboard if
--- missing; this block is harmless either way).
-do $$
+-- missing; this block is harmless either way). Note the distinct dollar-quote
+-- tags: the inner command string must not close the outer DO block.
+do $ret$
 declare
   has_cron boolean;
 begin
@@ -608,9 +609,9 @@ begin
     perform cron.schedule(
       'emidost-retention',
       '0 3 * * *',
-      $$delete from public.device_command_acks where received_at < now() - interval '30 days';
+      $cron$delete from public.device_command_acks where received_at < now() - interval '30 days';
         delete from public.device_commands where status in ('EXECUTED','SUPERSEDED','CANCELLED','FAILED','EXPIRED') and created_at < now() - interval '60 days';
-        delete from public.audit_log where created_at < now() - interval '90 days';$$
+        delete from public.audit_log where created_at < now() - interval '90 days';$cron$
     );
   end if;
-end $$;
+end $ret$;

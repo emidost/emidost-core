@@ -12,8 +12,9 @@ delete from public.audit_log
  where created_at < now() - interval '90 days';
 
 -- Scheduled cleanup if pg_cron is enabled (create extension via dashboard if
--- missing; this block is harmless either way).
-do $$
+-- missing; this block is harmless either way). Note the distinct dollar-quote
+-- tags: the inner command string must not close the outer DO block.
+do $ret$
 declare
   has_cron boolean;
 begin
@@ -22,9 +23,9 @@ begin
     perform cron.schedule(
       'emidost-retention',
       '0 3 * * *',
-      $$delete from public.device_command_acks where received_at < now() - interval '30 days';
+      $cron$delete from public.device_command_acks where received_at < now() - interval '30 days';
         delete from public.device_commands where status in ('EXECUTED','SUPERSEDED','CANCELLED','FAILED','EXPIRED') and created_at < now() - interval '60 days';
-        delete from public.audit_log where created_at < now() - interval '90 days';$$
+        delete from public.audit_log where created_at < now() - interval '90 days';$cron$
     );
   end if;
-end $$;
+end $ret$;
