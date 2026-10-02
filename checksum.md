@@ -4,6 +4,29 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 Firebase/FCM completion + first build (lead executed)
+
+- User provided google-services.json (project emidost-c9136, package
+  com.emidost.customer verified). Placed at apps/customer/google-services.json,
+  gitignored (repo rule: no credentials committed).
+- ./plugin-firebase config plugin applies the google-services Gradle plugin at
+  prebuild (root classpath + app apply, idempotent, fixture test 6/6); the
+  Firebase BoM is deliberately skipped (firebase-messaging:24.0.1 arrives via
+  expo-notifications).
+- EAS: created project-scoped production env GOOGLE_SERVICES_JSON (file type,
+  secret visibility) on @emidosts-team/emidost-customer via `eas env:set`.
+  Account envs verified present: EXPO_PUBLIC_SUPABASE_URL, ANON_KEY,
+  EXPO_PUBLIC_API_URL (worker URL), EXPO_PUBLIC_FRP_ACCOUNTS.
+- Customer APK build queued (no-wait): build f9b4bbf4-aadf-4a8f-ae45-7968e48b65d0
+  (https://expo.dev/accounts/emidosts-team/projects/emidost-customer/builds/f9b4bbf4-aadf-4a8f-ae45-7968e48b65d0).
+  Gradle compile = the first real Kotlin proof; outcome pending the user's
+  report.
+- Open flags: the app's EXPO_PUBLIC_API_URL points at the Cloudflare worker —
+  the worker must be redeployed (wrangler deploy + secrets) to serve today's
+  handlers (unlock-key, escalation PATCH, photo upload, fcm kicks); until then
+  the Vercel host serves them. SQL 0011-0016 still needs the user's query-tab
+  run.
+
 ## 2026-10-03 reminder control shift — server + SQL half
 
 - Plan: `.review/reminder-shift-plan.md` (lead decision). User rule: BEFORE the
