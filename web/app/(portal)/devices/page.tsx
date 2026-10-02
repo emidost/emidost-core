@@ -35,11 +35,11 @@ export default function DevicesPage() {
   }
 
   return (
-    <main className="page">
-      <h1 className="page-title"><Smartphone size={20} aria-hidden="true" /> Devices</h1>
+    <main className="page" id="main" tabIndex={-1}>
+      <h1 className="page-title band-title"><Smartphone size={20} aria-hidden="true" /> Devices</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       <div className="card">
-        <table>
+        <table className="table-actions">
           <thead>
             <tr><th>Model</th><th>OS</th><th>Mode</th><th>Lock</th><th>Last heartbeat</th><th></th></tr>
           </thead>

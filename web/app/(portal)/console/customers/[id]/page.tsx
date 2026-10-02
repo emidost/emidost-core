@@ -62,7 +62,7 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <main className="page" style={{ maxWidth: 720 }}>
+    <main className="page console-page" id="main" tabIndex={-1} style={{ maxWidth: 720 }}>
       <h1 className="page-title"><ReceiptText size={20} aria-hidden="true" /> {customer?.name ?? 'Customer'}</h1>
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
       {err && <p style={{ color: 'var(--danger)' }}>{err}</p>}

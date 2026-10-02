@@ -21,7 +21,7 @@ export default function ConsoleCustomersPage() {
   }, []);
 
   return (
-    <main className="page">
+    <main className="page console-page" id="main" tabIndex={-1}>
       <h1 className="page-title"><Users size={20} aria-hidden="true" /> Customers</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       <div style={{ marginBottom: 12 }}>
@@ -30,7 +30,7 @@ export default function ConsoleCustomersPage() {
         </Link>
       </div>
       <div className="card">
-        <table>
+        <table className="table-actions">
           <thead>
             <tr><th>Name</th><th>Phone</th><th>Phone model</th><th>EMI</th><th>Plan</th><th>Status</th><th></th></tr>
           </thead>

@@ -33,11 +33,7 @@ Server state is the only truth; never cache green.
 
 ## 4 · Signature animations
 - Lock engage: padlock scale 1→0.96 + shackle close, 240ms std, zero overshoot; card flips to dark 400ms entr; amber breathing ring loop 3s (scale 1→1.04, opacity 0.5→0.2).
-- Unlock celebration: single expanding ring 600ms emph + confetti capped at 20 particles, one run; card flips to light, settle 900ms.
-- SIM alert: card shake ±4px ×3 over 500ms; ripple ring 1Hz loop, ≤3 loops.
-- Payment: checkmark stroke-dash draw 400ms emph; amount ticks up 600ms std, tabular nums.
-- Enrolment rail: animate only the delta; new step 16px slide + fade 240ms entr.
-- Heartbeat: sync-dot ripple 2000ms loop, transform/opacity only.
+- WHAT SHIPS (honest, 2026-10-03): the lock-engage breathing ring exists in the customer app; reduced-motion shows a static emblem. The following are SPEC-ONLY, not implemented — unlock celebration (ring + capped confetti), SIM alert (shake + 1Hz ripple), payment check draw + tick-up, enrolment rail delta animation, heartbeat ripple. No doc claims motion that is not shown.
 - Landing keyframes: lockpulse (hero phone auto-cycle locked→paid, 6s), shieldscan, chipfloat with rotate, conic EMI progress ring (0→100% + tabular %).
 - Engine: transform/opacity only; RN useNativeDriver everywhere; prefers-reduced-motion → loops off, durations 0, ≤150ms opacity fades; ≤3 loops/screen.
 

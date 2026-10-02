@@ -63,7 +63,7 @@ export default function RetailerEditPage() {
   }
 
   return (
-    <main className="page" style={{ maxWidth: 640 }}>
+    <main className="page" id="main" tabIndex={-1} style={{ maxWidth: 640 }}>
       <h1 className="page-title"><Store size={20} aria-hidden="true" /> {row?.name ?? 'Retailer'}</h1>
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
       {err && <p style={{ color: 'var(--danger)' }}>{err}</p>}

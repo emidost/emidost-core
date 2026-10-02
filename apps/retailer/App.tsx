@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, FlatList, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -132,7 +132,7 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <View style={s.center}>
       <Image source={mark} style={s.brandMark} accessible accessibilityLabel="emidost" />
-      <Text style={s.title}>Retailer sign in</Text>
+      <View style={s.band}><Text style={s.title}>Retailer sign in</Text></View>
       <TextInput style={s.input} placeholder="Login ID" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
       {error && <Text style={s.error}>{error}</Text>}
@@ -146,18 +146,34 @@ function Login({ onDone }: { onDone: () => void }) {
 
 function Customers() {
   const [rows, setRows] = useState<Customer[]>([]);
-  useEffect(() => {
-    api.listCustomers().then(setRows).catch(() => {});
+  const [refreshing, setRefreshing] = useState(false);
+  const reload = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      setRows(await api.listCustomers());
+    } catch {
+      // stale list stays; pull-to-refresh retries
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
+  useEffect(() => { void reload(); }, [reload]);
+  const onPaymentDone = useCallback(() => { void reload(); }, [reload]);
   return (
     <View style={s.page}>
-      <Text style={s.title}>Customers</Text>
+      <View style={s.band}><Text style={s.title}>Customers</Text></View>
       <FlatList
         data={rows}
         keyExtractor={(c) => c.id}
+        refreshing={refreshing}
+        onRefresh={reload}
+        removeClippedSubviews
         renderItem={({ item: c }) => (
           <View style={s.card}>
-            <Text style={s.cardTitle}>{c.name}</Text>
+            <View style={s.cardHead}>
+              <UserPlus size={16} color={ACCENT} />
+              <Text style={s.cardTitle}>{c.name}</Text>
+            </View>
             <Text style={s.muted}>{c.phone} · {c.brand} {c.model} · IMEI {c.imei}</Text>
             <Text style={s.muted}>
               {c.emi_months} months · Rs {Number(c.emi_amount).toFixed(0)}/month · due day {c.emi_due_day}
@@ -176,10 +192,10 @@ function Customers() {
               )}
             </View>
             {(c.status === 'RUNNING' || c.status === 'NPA') && <SetupCode customerId={c.id} />}
-            <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
+            <PaymentRow customerId={c.id} onDone={onPaymentDone} />
           </View>
         )}
-        ListEmptyComponent={<Text style={s.muted}>No customers yet.</Text>}
+        ListEmptyComponent={<Text style={s.muted}>No customers yet. Add one from the New tab.</Text>}
         contentContainerStyle={{ paddingBottom: 16 }}
       />
     </View>
@@ -348,7 +364,7 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
 
   return (
     <ScrollView style={s.page}>
-      <Text style={s.title}>New customer</Text>
+      <View style={s.band}><Text style={s.title}>New customer</Text></View>
       {msg && <Text style={{ color: colors.success }}>{msg}</Text>}
       {err && <Text style={s.error}>{err}</Text>}
 
@@ -466,43 +482,64 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
 function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
   const [rows, setRows] = useState<Device[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [alerting, setAlerting] = useState<string | null>(null);
-  useEffect(() => { api.listDevices().then(setRows).catch(() => {}); }, []);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const reload = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      setRows(await api.listDevices());
+    } catch {
+      // stale list stays; pull-to-refresh retries
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
 
   async function toggle(d: Device) {
+    if (busyId) return;
+    setBusyId(d.id);
     setErr(null);
     try {
       await api.sendCommand(d.id, d.is_locked ? 'UNLOCK' : 'LOCK');
-      const list = await api.listDevices();
-      setRows(list);
+      setRows(await api.listDevices());
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Command failed');
+    } finally {
+      setBusyId(null);
     }
   }
 
   async function alert(d: Device) {
-    if (alerting) return;
-    setAlerting(d.id);
+    if (busyId) return;
+    setBusyId(d.id);
     setErr(null);
     try {
       await api.sendCommand(d.id, 'ALERT');
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Alert failed');
     } finally {
-      setAlerting(null);
+      setBusyId(null);
     }
   }
 
   return (
     <View style={s.page}>
-      <Text style={s.title}>Devices</Text>
+      <View style={s.band}><Text style={s.title}>Devices</Text></View>
       {err && <Text style={s.error}>{err}</Text>}
       <FlatList
         data={rows}
         keyExtractor={(d) => d.id}
+        refreshing={refreshing}
+        onRefresh={reload}
+        removeClippedSubviews
         renderItem={({ item: d }) => (
           <View style={s.card}>
-            <Text style={s.cardTitle}>{d.manufacturer} {d.model}</Text>
+            <View style={s.cardHead}>
+              <Smartphone size={16} color={ACCENT} />
+              <Text style={s.cardTitle}>{d.manufacturer} {d.model}</Text>
+            </View>
             <View style={s.chipRow}>
               <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode === 'device_owner' ? 'Device owner' : d.mode === 'device_admin' ? 'Device admin' : 'Not enrolled'} />
               <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
@@ -511,15 +548,17 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
               <TouchableOpacity
                 style={[s.button, { marginTop: 0, flex: 1 }]}
                 onPress={() => toggle(d)}
+                disabled={busyId === d.id}
                 accessibilityRole="button"
                 accessibilityLabel={d.is_locked ? 'Unlock device' : 'Lock device'}
               >
                 {d.is_locked ? <LockOpen color={colors.onAccent} size={16} /> : <Lock color={colors.onAccent} size={16} />}
-                <Text style={s.buttonText}>{d.is_locked ? 'Unlock' : 'Lock'}</Text>
+                <Text style={s.buttonText}>{busyId === d.id ? 'Working…' : d.is_locked ? 'Unlock' : 'Lock'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.outlineBtn, { marginTop: 0, flex: 1 }]}
                 onPress={() => onUnlockCode(d)}
+                disabled={busyId === d.id}
                 accessibilityRole="button"
                 accessibilityLabel="Offline unlock code"
               >
@@ -529,17 +568,17 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
               <TouchableOpacity
                 style={[s.outlineBtn, { marginTop: 0, flex: 1 }]}
                 onPress={() => alert(d)}
-                disabled={alerting === d.id}
+                disabled={busyId === d.id}
                 accessibilityRole="button"
                 accessibilityLabel="Alert the phone"
               >
                 <BellRing size={14} color={ACCENT} />
-                <Text style={s.outlineBtnText}>{alerting === d.id ? 'Sending…' : 'Alert'}</Text>
+                <Text style={s.outlineBtnText}>{busyId === d.id ? 'Sending…' : 'Alert'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
-        ListEmptyComponent={<Text style={s.muted}>No devices yet.</Text>}
+        ListEmptyComponent={<Text style={s.muted}>No devices yet. Enrol one from the Enrol tab.</Text>}
         contentContainerStyle={{ paddingBottom: 16 }}
       />
     </View>
@@ -634,7 +673,7 @@ function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => 
 
   return (
     <View style={s.page}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <View style={s.band}>
         <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to devices" style={s.backBtn}>
           <ArrowLeft color={ACCENT} size={18} />
           <Text style={s.backText}>Back</Text>
@@ -709,7 +748,7 @@ function Enrol({ brand, onWirelessEnrol }: { brand: string; onWirelessEnrol: () 
 
   return (
     <ScrollView style={s.page}>
-      <Text style={s.title}>Enrol a phone</Text>
+      <View style={s.band}><Text style={s.title}>Enrol a phone</Text></View>
       <Text style={s.muted}>Walkthrough for: {profileName || 'Unknown brand'}</Text>
       <Text style={s.muted}>
         1. Take the customer's consent at the counter and create a setup code on their customer card. 2. Factory-reset the customer phone, skip every account, set no PIN.
@@ -828,7 +867,7 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
 
   return (
     <View style={s.page}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <View style={s.band}>
         <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to enrol" style={s.backBtn}>
           <ArrowLeft color={ACCENT} size={18} />
           <Text style={s.backText}>Back</Text>
@@ -863,15 +902,17 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.bg },
   page: { flex: 1, backgroundColor: colors.bg, padding: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: colors.tealSoft, borderBottomWidth: 1, borderBottomColor: colors.border },
   headerTitle: { fontWeight: '700', fontSize: 16, flex: 1 },
   headerMeta: { color: colors.textMid, fontSize: 12 },
   tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 2 },
   tabActive: { backgroundColor: colors.tealSoft },
   tabLabel: { fontSize: 11, color: colors.textMid, fontWeight: '600' },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  title: { fontSize: 18, fontWeight: '700', color: colors.textHi },
+  band: { backgroundColor: colors.tealSoft, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   card: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 10 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardTitle: { fontWeight: '700', fontSize: 15 },
   muted: { color: colors.textMid, fontSize: 13, marginTop: 2 },
   label: { fontSize: 12, fontWeight: '600', color: colors.textMid },

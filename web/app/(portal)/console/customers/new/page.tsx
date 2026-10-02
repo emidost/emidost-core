@@ -35,7 +35,7 @@ export default function NewCustomerPage() {
   }
 
   return (
-    <main className="page" style={{ maxWidth: 640 }}>
+    <main className="page console-page" id="main" tabIndex={-1} style={{ maxWidth: 640 }}>
       <h1 className="page-title"><UserPlus size={20} aria-hidden="true" /> New customer</h1>
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
       {err && <p style={{ color: 'var(--danger)' }}>{err}</p>}

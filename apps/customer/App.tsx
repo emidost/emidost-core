@@ -128,7 +128,7 @@ export default function App() {
           <Image source={{ uri: PHOTO_FILE_URI }} style={s.photoCard} accessible accessibilityLabel="Customer photo" />
         </View>
       )}
-      <Text style={s.title}>Pay on time. The phone stays yours.</Text>
+      <View style={s.band}><Text style={s.title}>Pay on time. The phone stays yours.</Text></View>
       <View style={s.card}>
         <Text style={s.cardTitle}>Next instalment</Text>
         <Text style={s.amount}>{due ? `Rs ${Number(due.amount_due).toFixed(0)}` : 'No dues'}</Text>
@@ -195,7 +195,7 @@ function BindScreen({ onBound }: { onBound: () => void }) {
   return (
     <View style={[s.page, { padding: 24 }]}>
       <Smartphone color={ACCENT} size={36} />
-      <Text style={s.title}>Enter the setup code</Text>
+      <View style={s.band}><Text style={s.title}>Enter the setup code</Text></View>
       <Text style={s.muted}>The retailer gave you a code with this phone. It binds the phone to your EMI plan.</Text>
       {oem && <Text style={s.muted}>Detected: {oem}</Text>}
       <TextInput
@@ -310,10 +310,12 @@ function PairingWalkthrough({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={[s.page, { padding: 24 }]}>
-      <TouchableOpacity onPress={onDone} accessibilityRole="button" accessibilityLabel="Back to bind screen">
-        <Text style={s.linkText}>Back</Text>
-      </TouchableOpacity>
-      <Text style={s.title}>Wireless pairing</Text>
+      <View style={s.band}>
+        <TouchableOpacity onPress={onDone} accessibilityRole="button" accessibilityLabel="Back to bind screen">
+          <Text style={s.linkText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={s.title}>Wireless pairing</Text>
+      </View>
 
       {step === 1 && (
         <View style={s.card}>
@@ -584,6 +586,7 @@ function LockedScreen(props: {
         style={s.outlineBtn}
         onPress={() => { if (props.retailerPhone) void DeviceMgmt.showCallOverlay('Call retailer', props.retailerPhone, props.retailerPhone); }}
         accessibilityRole="button"
+        accessibilityLabel={copy.actions.callRetailer}
       >
         <PhoneCall color={LOCKED.textHi} size={16} />
         <Text style={s.outlineBtnText}>{copy.actions.callRetailer}</Text>
@@ -593,6 +596,7 @@ function LockedScreen(props: {
         style={s.linkBtn}
         onPress={() => void DeviceMgmt.showCallOverlay('Emergency', '112', '112')}
         accessibilityRole="link"
+        accessibilityLabel={copy.actions.emergency}
       >
         <Siren color={LOCKED.textMid} size={14} />
         <Text style={s.linkBtnText}>{copy.actions.emergency}</Text>
@@ -621,7 +625,8 @@ function Diagnostics({ hidden }: { hidden: boolean }) {
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg, padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: '700', color: colors.textHi },
+  band: { backgroundColor: colors.amberSoft, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   card: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 12 },
   cardTitle: { fontSize: 12, fontWeight: '600', color: colors.textMid, marginBottom: 4 },
   amount: { fontSize: 26, fontWeight: '700' },
@@ -643,7 +648,7 @@ const s = StyleSheet.create({
 
   // Customer photo.
   photoCard: { width: 96, height: 96, borderRadius: 48, borderWidth: 1, borderColor: colors.border },
-  photoAvatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 1, borderColor: LOCKED.border, marginBottom: 16 },
+  photoAvatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 1, borderColor: LOCKED.border, backgroundColor: LOCKED.surface, marginBottom: 16 },
 
   // Lock screen (dark = locked).
   lockPage: { flex: 1, backgroundColor: LOCKED.bg, padding: 24, alignItems: 'center', justifyContent: 'center' },

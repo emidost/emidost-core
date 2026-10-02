@@ -214,10 +214,12 @@ Global EAS env (Expo dashboard → environment variables → global):
 - Dark = locked, light = free. Per-role accents indigo/teal/amber.
 - Status chips = dot + text (no icon inside). Three button variants. 40px table
   rows. Icons = Lucide with aria-labels; text leads.
-- Signature animations: lock engage (no overshoot), unlock celebration (capped
-  confetti), SIM alert (shake + 1Hz ripple), payment check draw + tick-up,
-  enrolment rail animates only the delta, heartbeat ripple. transform/opacity
-  only; RN useNativeDriver; reduced-motion respected; ≤3 loops/screen.
+- Signature animations (what ships, honest): lock engage breathing ring
+  (no overshoot; reduced-motion = static emblem). The other spec items —
+  unlock celebration (capped confetti), SIM alert (shake + 1Hz ripple),
+  payment check draw + tick-up, enrolment rail delta, heartbeat ripple — are
+  spec-only, not implemented in the apps. transform/opacity only; RN
+  useNativeDriver; reduced-motion respected; ≤3 loops/screen.
 - Copy rules (humanizer + no-ai-slop, enforced): sentence case, no em/en dashes,
   no staged openers, no one-line closers, no forced triads, verb-first buttons,
   concrete numbers with units, no "simply/just/seamlessly/critical". String

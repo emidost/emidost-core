@@ -64,8 +64,8 @@ export default function RetailersPage() {
   }
 
   return (
-    <main className="page">
-      <h1 className="page-title"><Store size={20} aria-hidden="true" /> Retailers</h1>
+    <main className="page" id="main" tabIndex={-1}>
+      <h1 className="page-title band-title"><Store size={20} aria-hidden="true" /> Retailers</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
 
@@ -99,7 +99,7 @@ export default function RetailersPage() {
       </div>
 
       <div className="card">
-        <table>
+        <table className="table-actions">
           <thead>
             <tr><th>Name</th><th>Phone</th><th>Credits</th><th>Lock allowances</th><th>Status</th><th></th></tr>
           </thead>

@@ -49,31 +49,33 @@ export default function QrPage() {
   }
 
   return (
-    <main className="page" style={{ maxWidth: 640 }}>
+    <main className="page" id="main" tabIndex={-1} style={{ maxWidth: 640 }}>
       <h1 className="page-title"><QrCode size={20} aria-hidden="true" /> Enrolment QR (one QR, every customer)</h1>
-      <div className="card">
-        <label className="label">Customer APK URL (public https, GitHub release)</label>
-        <input className="input" value={apkUrl} onChange={(e) => setApkUrl(e.target.value)} placeholder="https://github.com/…/releases/download/v1/customer.apk" />
-        <label className="label">Signing-cert SHA-256 (from eas credentials)</label>
-        <input className="input" value={sha256} onChange={(e) => setSha256(e.target.value)} placeholder="64 hex chars" />
-        <button className="btn primary" onClick={generate} disabled={fetching}>
-          {fetching ? <RefreshCw size={14} aria-hidden="true" /> : <QrCode size={14} aria-hidden="true" />} Generate QR
-        </button>
-        {error && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</p>}
-      </div>
-      {png && (
-        <div className="card" style={{ marginTop: 12, textAlign: 'center' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={png} alt="Provisioning QR" style={{ width: 256, height: 256, margin: '0 auto' }} />
-          <br />
-          <a className="btn" href={png} download="emidost-provisioning-qr.png"><Download size={14} aria-hidden="true" /> Download PNG</a>
-          <ol style={{ textAlign: 'left', fontSize: 13, color: 'var(--muted)' }}>
-            <li>Factory-reset the phone. At the first setup screen, tap the same spot 6 times.</li>
-            <li>Scan this QR. The phone downloads the app and enrols it as Device Owner.</li>
-            <li>No Google account and no lock PIN may exist before scanning.</li>
-          </ol>
+      <section className="qr-band">
+        <div className="card">
+          <label className="label">Customer APK URL (public https, GitHub release)</label>
+          <input className="input" value={apkUrl} onChange={(e) => setApkUrl(e.target.value)} placeholder="https://github.com/…/releases/download/v1/customer.apk" />
+          <label className="label">Signing-cert SHA-256 (from eas credentials)</label>
+          <input className="input" value={sha256} onChange={(e) => setSha256(e.target.value)} placeholder="64 hex chars" />
+          <button className="btn primary" onClick={generate} disabled={fetching}>
+            {fetching ? <RefreshCw size={14} aria-hidden="true" /> : <QrCode size={14} aria-hidden="true" />} Generate QR
+          </button>
+          {error && <p style={{ color: '#fca5a5', fontSize: 13 }}>{error}</p>}
         </div>
-      )}
+        {png && (
+          <div className="card" style={{ marginTop: 16, textAlign: 'center' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={png} alt="Provisioning QR" style={{ width: 256, height: 256, margin: '0 auto' }} />
+            <br />
+            <a className="btn" href={png} download="emidost-provisioning-qr.png"><Download size={14} aria-hidden="true" /> Download PNG</a>
+            <ol style={{ textAlign: 'left', fontSize: 13, color: 'var(--locked-text-mid)' }}>
+              <li>Factory-reset the phone. At the first setup screen, tap the same spot 6 times.</li>
+              <li>Scan this QR. The phone downloads the app and enrols it as Device Owner.</li>
+              <li>No Google account and no lock PIN may exist before scanning.</li>
+            </ol>
+          </div>
+        )}
+      </section>
     </main>
   );
 }

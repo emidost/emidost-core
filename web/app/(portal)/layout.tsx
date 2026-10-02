@@ -34,6 +34,7 @@ export default async function PortalLayout({ children }: { children: React.React
 
   return (
     <div>
+      <a className="skip-link" href="#main">Skip to content</a>
       <nav className="nav" aria-label="Portal">
         <Link href="/" className="brand" aria-label="emidost home">
           <Image src="/mark.png" alt="" width={32} height={32} style={{ borderRadius: 8 }} />

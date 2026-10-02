@@ -40,11 +40,11 @@ export default function ConsoleDevicesPage() {
   }
 
   return (
-    <main className="page">
+    <main className="page console-page" id="main" tabIndex={-1}>
       <h1 className="page-title"><Smartphone size={20} aria-hidden="true" /> Devices</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       <div className="card">
-        <table>
+        <table className="table-actions">
           <thead><tr><th>Model</th><th>Mode</th><th>Lock</th><th></th></tr></thead>
           <tbody>
             {loading && (

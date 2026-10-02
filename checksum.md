@@ -4,6 +4,29 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 design pass 2 (all installed skills; claude portal + codex apps)
+
+- Skills: taste-skill v2 + redesign-skill + emilkowalski design-eng + no-ai-slop
+  (headroom = compression proxy, not applicable). Dials: VARIANCE 4 · MOTION 3
+  · DENSITY 4 (trust-first ops UI). Inter stays.
+- Portal: unified 180ms interactive easing, 8px grid, actionable-only row
+  hover, skip-to-content + focusable mains, branded 404, login Ink entrance
+  band, audit/console skeletons + empty states. User rule applied: DIFFERENT
+  premium color per section — Ink hero bands (dashboard/list pages), inverted
+  Paper-2 console panels, Ink QR band; Ink/Paper/Paper-2/Ink-2 family only, no
+  #fff/#000 anywhere.
+- Apps: per-screen soft-tint header bands (owner indigoSoft, retailer tealSoft,
+  customer amberSoft) over Paper content + Paper-2 cards (three visibly
+  distinct surfaces per screen); LockedScreen stays on the Ink ramp.
+  Pull-to-refresh + removeClippedSubviews on the four long lists; busy/disabled
+  states across retailer quick actions + owner inline actions; photo avatar
+  hairline ring; useCallback hot paths; explicit accessibility labels.
+- Animation review (emilkowalski): lock-engage breathing ring PASS (only
+  ambient loop, GPU-only, reduced-motion → static); unlock confetti, SIM
+  shake, heartbeat ripple = honest absences — docs corrected to ship-only
+  claims (DESIGN_SPEC §4 + CONTEXT §7).
+- Checks: all 7 tsc surfaces 0 · tests 13/13 · next build 14 routes.
+
 ## 2026-10-03 overdue escalation wave — lead supplement (native half + 4-day rule)
 
 - Codex native half landed: OverdueAlerter 30-min loop + bn/hi TTS x3 +

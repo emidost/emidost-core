@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -101,7 +101,7 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <View style={s.center}>
       <Image source={mark} style={s.brandMark} accessible accessibilityLabel="emidost" />
-      <Text style={s.title}>Owner sign in</Text>
+      <View style={s.band}><Text style={s.title}>Owner sign in</Text></View>
       <TextInput style={s.input} placeholder="Login ID" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
       {error && <Text style={s.error}>{error}</Text>}
@@ -117,19 +117,33 @@ function Retailers() {
   const [rows, setRows] = useState<Retailer[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [topupFor, setTopupFor] = useState<string | null>(null);
   const [topupValue, setTopupValue] = useState('');
   const [allowFor, setAllowFor] = useState<string | null>(null);
   const [allowValue, setAllowValue] = useState('');
 
-  useEffect(() => { api.listRetailers().then(setRows).catch(() => {}); }, []);
+  const reload = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      setRows(await api.listRetailers());
+    } catch {
+      // stale list stays; pull-to-refresh retries
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
 
   async function suspend(r: Retailer) {
+    if (busy) return;
+    setBusy(true);
     setErr(null);
     try {
       await api.updateRetailer(r.id, { is_suspended: !r.is_suspended });
       setRows(await api.listRetailers());
     } catch (e) { setErr(e instanceof Error ? e.message : 'Update failed'); }
+    finally { setBusy(false); }
   }
 
   async function giveCredits(r: Retailer) {
@@ -160,14 +174,20 @@ function Retailers() {
 
   return (
     <View style={s.page}>
-      <Text style={s.title}>Retailers</Text>
+      <View style={s.band}><Text style={s.title}>Retailers</Text></View>
       {err && <Text style={s.error}>{err}</Text>}
       <FlatList
         data={rows}
         keyExtractor={(r) => r.id}
+        refreshing={refreshing}
+        onRefresh={reload}
+        removeClippedSubviews
         renderItem={({ item: r }) => (
           <View style={s.card}>
-            <Text style={s.cardTitle}>{r.name} · {r.phone}</Text>
+            <View style={s.cardHead}>
+              <Store size={16} color={ACCENT} />
+              <Text style={s.cardTitle}>{r.name} · {r.phone}</Text>
+            </View>
             <Text style={s.muted}>
               <Coins size={12} /> {r.credits_balance} slots · <Lock size={12} /> {r.lock_allowances} locks
             </Text>
@@ -175,15 +195,15 @@ function Retailers() {
               <Chip tone={r.is_suspended ? colors.textMid : colors.accentTeal} label={r.is_suspended ? 'Suspended' : 'Active'} />
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <TouchableOpacity style={s.smallBtn} onPress={() => suspend(r)}>
+              <TouchableOpacity style={s.smallBtn} onPress={() => suspend(r)} disabled={busy} accessibilityRole="button" accessibilityLabel={r.is_suspended ? 'Resume retailer' : 'Suspend retailer'}>
                 {r.is_suspended ? <CircleCheck color={colors.success} size={14} /> : <Ban color={colors.danger} size={14} />}
                 <Text style={s.smallBtnText}>{r.is_suspended ? 'Resume' : 'Suspend'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.smallBtn} onPress={() => { setTopupFor(r.id); setAllowFor(null); }}>
+              <TouchableOpacity style={s.smallBtn} onPress={() => { setTopupFor(r.id); setAllowFor(null); }} accessibilityRole="button" accessibilityLabel="Add credits">
                 <Wallet size={14} color={ACCENT} />
                 <Text style={s.smallBtnText}>Credits</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.smallBtn} onPress={() => { setAllowFor(r.id); setTopupFor(null); }}>
+              <TouchableOpacity style={s.smallBtn} onPress={() => { setAllowFor(r.id); setTopupFor(null); }} accessibilityRole="button" accessibilityLabel="Set lock allowances">
                 <Lock size={14} color={ACCENT} />
                 <Text style={s.smallBtnText}>Allowances</Text>
               </TouchableOpacity>
@@ -191,18 +211,18 @@ function Retailers() {
             {topupFor === r.id && (
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                 <TextInput style={[s.input, { flex: 1 }]} placeholder="Slots to add" keyboardType="numeric" value={topupValue} onChangeText={setTopupValue} />
-                <TouchableOpacity style={s.smallBtn} onPress={() => giveCredits(r)}><Text style={s.smallBtnText}>Add</Text></TouchableOpacity>
+                <TouchableOpacity style={s.smallBtn} onPress={() => giveCredits(r)} disabled={busy}><Text style={s.smallBtnText}>{busy ? 'Adding…' : 'Add'}</Text></TouchableOpacity>
               </View>
             )}
             {allowFor === r.id && (
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                 <TextInput style={[s.input, { flex: 1 }]} placeholder="New total" keyboardType="numeric" value={allowValue} onChangeText={setAllowValue} />
-                <TouchableOpacity style={s.smallBtn} onPress={() => setAllowances(r)}><Text style={s.smallBtnText}>Set</Text></TouchableOpacity>
+                <TouchableOpacity style={s.smallBtn} onPress={() => setAllowances(r)} disabled={busy}><Text style={s.smallBtnText}>{busy ? 'Setting…' : 'Set'}</Text></TouchableOpacity>
               </View>
             )}
           </View>
         )}
-        ListEmptyComponent={<Text style={s.muted}>No retailers yet.</Text>}
+        ListEmptyComponent={<Text style={s.muted}>No retailers yet. Create one from the New tab.</Text>}
         contentContainerStyle={{ paddingBottom: 16 }}
       />
     </View>
@@ -235,7 +255,7 @@ function NewRetailer({ onDone }: { onDone: () => void }) {
 
   return (
     <ScrollView style={s.page}>
-      <Text style={s.title}>New retailer</Text>
+      <View style={s.band}><Text style={s.title}>New retailer</Text></View>
       {msg && <Text style={{ color: colors.success }}>{msg}</Text>}
       {err && <Text style={s.error}>{err}</Text>}
       <Text style={s.label}>Name</Text>
@@ -256,28 +276,38 @@ function NewRetailer({ onDone }: { onDone: () => void }) {
 
 function Audit() {
   const [rows, setRows] = useState<{ id: string; event: string; created_at: string }[]>([]);
-  useEffect(() => {
-    void (async () => {
+  const [refreshing, setRefreshing] = useState(false);
+  const reload = useCallback(async () => {
+    setRefreshing(true);
+    try {
       const list = await api.listAudit();
       setRows(list as never);
-    })();
+    } catch {
+      // stale list stays; pull-to-refresh retries
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
+  useEffect(() => { void reload(); }, [reload]);
   return (
     <View style={s.page}>
-      <Text style={s.title}>Audit</Text>
+      <View style={s.band}><Text style={s.title}>Audit</Text></View>
       <FlatList
         data={rows}
         keyExtractor={(r) => r.id}
+        refreshing={refreshing}
+        onRefresh={reload}
+        removeClippedSubviews
         renderItem={({ item: r }) => (
           <View style={s.card}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={s.cardHead}>
               <ScrollText size={14} color={ACCENT} />
               <Text style={[s.cardTitle, { flex: 1 }]}>{r.event}</Text>
             </View>
             <Text style={s.muted}>{new Date(r.created_at).toLocaleString()}</Text>
           </View>
         )}
-        ListEmptyComponent={<Text style={s.muted}>No audit events yet.</Text>}
+        ListEmptyComponent={<Text style={s.muted}>No audit events yet. Pull to refresh.</Text>}
         contentContainerStyle={{ paddingBottom: 16 }}
       />
     </View>
@@ -287,14 +317,16 @@ function Audit() {
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.bg },
   page: { flex: 1, backgroundColor: colors.bg, padding: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  headerTitle: { fontWeight: '700', fontSize: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: colors.indigoSoft, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerTitle: { fontWeight: '700', fontSize: 16, color: colors.textHi },
   tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 2 },
   tabActive: { backgroundColor: colors.indigoSoft },
   tabLabel: { fontSize: 11, color: colors.textMid, fontWeight: '600' },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  title: { fontSize: 18, fontWeight: '700', color: colors.textHi },
+  band: { backgroundColor: colors.indigoSoft, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   card: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 10 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardTitle: { fontWeight: '700', fontSize: 15 },
   muted: { color: colors.textMid, fontSize: 13, marginTop: 2 },
   label: { fontSize: 12, fontWeight: '600', color: colors.textMid, marginTop: 10 },

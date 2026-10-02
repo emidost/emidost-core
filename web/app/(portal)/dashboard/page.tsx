@@ -40,28 +40,30 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <main className="page dashboard-page">
-      <header className="dash-hero">
-        <div>
-          <h1 className="dash-title">Track retailers, phones, and overdue EMIs</h1>
-          <p className="dash-sub">
-            Retailers, financed phones, locks, and overdue instalments - live from the database.
-          </p>
-        </div>
-        <Link className="btn primary" href="/retailers">
-          <UserPlus size={16} aria-hidden="true" /> Add retailer
-        </Link>
-      </header>
-
-      <section className="stat-grid" aria-label="Portfolio summary">
-        {stats.map((s, i) => (
-          <div className={`stat-card tone-${s.tone}`} style={{ animationDelay: `${i * 70}ms` }} key={s.label}>
-            <span className="stat-icon"><s.icon size={20} aria-hidden="true" /></span>
-            <div className="stat-num">{s.value}</div>
-            <div className="stat-label">{s.label}</div>
-            <span className="stat-sheen" aria-hidden="true" />
+    <main className="page dashboard-page" id="main" tabIndex={-1}>
+      <section className="dash-band">
+        <header className="dash-hero">
+          <div>
+            <h1 className="dash-title">Track retailers, phones, and overdue EMIs</h1>
+            <p className="dash-sub">
+              Retailers, financed phones, locks, and overdue instalments - live from the database.
+            </p>
           </div>
-        ))}
+          <Link className="btn primary" href="/retailers">
+            <UserPlus size={16} aria-hidden="true" /> Add retailer
+          </Link>
+        </header>
+
+        <div className="stat-grid" aria-label="Portfolio summary">
+          {stats.map((s, i) => (
+            <div className={`stat-card tone-${s.tone}`} style={{ animationDelay: `${i * 70}ms` }} key={s.label}>
+              <span className="stat-icon"><s.icon size={20} aria-hidden="true" /></span>
+              <div className="stat-num">{s.value}</div>
+              <div className="stat-label">{s.label}</div>
+              <span className="stat-sheen" aria-hidden="true" />
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="dash-section">
