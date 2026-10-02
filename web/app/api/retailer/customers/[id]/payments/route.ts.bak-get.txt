@@ -1,2 +1,0 @@
-// Unused placeholder (kept to satisfy the workspace file sync).
-// The real payments route is route.ts.
