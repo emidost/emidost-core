@@ -15,6 +15,7 @@
     },
     "plugins": [
       "@emidost/device-kit",
+      "./plugin-firebase",
       [
         "expo-notifications",
         {
