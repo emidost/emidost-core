@@ -38,6 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // One transaction in SQL (0010 record_payment): the payment row and the
   // oldest-first schedule settlement commit together, serialized per customer.
+  // The RPC rejects overpayments ('overpayment') and settled loans.
   const receiptNo = typeof body.receipt_no === 'string' ? body.receipt_no : null;
   const { data: rows, error } = await svc.rpc('record_payment', {
     cid: customer.id, amt: amount,
@@ -45,7 +46,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     receipt: receiptNo, recorder: profile.id,
   });
   const result = Array.isArray(rows) ? rows[0] : rows;
-  if (error || !result) return Response.json({ error: error?.message ?? 'payment failed' }, { status: 500 });
+  if (error || !result) {
+    const message = String(error?.message ?? '');
+    if (message.includes('overpayment')) {
+      return bad('Overpayment: the amount exceeds the total remaining balance due.');
+    }
+    return Response.json({ error: error?.message ?? 'payment failed' }, { status: 500 });
+  }
 
   // Everything paid: the loan completes and the device credit is freed.
   // The phone releases itself on its next sync of loan_status.

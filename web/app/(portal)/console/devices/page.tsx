@@ -5,8 +5,6 @@ import { Lock, LockOpen, Smartphone } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { Device } from '@emidost/shared';
 
-export const dynamic = 'force-dynamic';
-
 export default function ConsoleDevicesPage() {
   const [rows, setRows] = useState<Device[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +16,11 @@ export default function ConsoleDevicesPage() {
       if (!user) return;
       const { data: profile } = await supabase.from('profiles').select('retailer_id').eq('id', user.id).maybeSingle();
       if (!profile?.retailer_id) return;
-      const { data, error: err } = await supabase.from('devices').select('*').eq('retailer_id', profile.retailer_id);
+      // Explicit columns: pin_verify, device_token_hash, device_pin_hash and
+      // SIM baselines must never reach a retailer's browser.
+      const { data, error: err } = await supabase.from('devices')
+        .select('id, customer_id, retailer_id, installation_id, manufacturer, model, os_version, mode, is_locked, hidden_state, last_heartbeat_at, last_location, last_location_at, created_at')
+        .eq('retailer_id', profile.retailer_id);
       if (err) setError(err.message);
       else setRows(data ?? []);
     })();

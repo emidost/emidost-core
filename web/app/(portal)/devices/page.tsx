@@ -5,8 +5,6 @@ import { Lock, LockOpen, Smartphone, QrCode } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { Device } from '@emidost/shared';
 
-export const dynamic = 'force-dynamic';
-
 export default function DevicesPage() {
   const [rows, setRows] = useState<Device[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +12,11 @@ export default function DevicesPage() {
 
   useEffect(() => {
     void (async () => {
-      const { data, error: err } = await supabase.from('devices').select('*').order('created_at', { ascending: false });
+      // Explicit columns (owner board): keep pin_verify / token hash / SIM
+      // baselines out of the browser payload even for the owner.
+      const { data, error: err } = await supabase.from('devices')
+        .select('id, customer_id, retailer_id, installation_id, manufacturer, model, os_version, mode, is_locked, hidden_state, last_heartbeat_at, last_location, last_location_at, created_at')
+        .order('created_at', { ascending: false });
       if (err) setError(err.message);
       else setRows(data ?? []);
     })();

@@ -104,13 +104,38 @@ export interface AuditRow {
   created_at: string;
 }
 
-/** Heartbeat response: commands to execute + fresh device PIN + server_now for the unlock-wins watermark. */
+/** One command row as delivered by the heartbeat (includes the ack-relevant status). */
+export interface HeartbeatCommand
+  extends Pick<DeviceCommand, 'id' | 'command_type' | 'payload' | 'created_at'> {
+  status: CommandStatus;
+}
+
+/** The earliest outstanding EMI schedule row (or null when nothing is due). */
+export interface HeartbeatNextDue {
+  due_date: string;
+  amount_due: number | null;
+  status: string;
+}
+
+/** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */
 export interface HeartbeatResponse {
-  commands: Array<Pick<DeviceCommand, 'id' | 'command_type' | 'payload' | 'created_at'>>;
+  commands: HeartbeatCommand[];
   device_pin_hash: string | null;
+  pin_verify: string | null;
+  totp_secret: string | null;
   frp_accounts: string[];
   loan_status: LoanStatus | '';
+  customer_code: string | null;
+  lock_mode: 'lock' | 'notify_only';
+  emi_amount: number | null;
+  emi_months: number | null;
+  emi_due_day: number | null;
   retailer_phone: string | null;
+  retailer_name: string | null;
+  retailer_suspended: boolean;
+  next_due: HeartbeatNextDue | null;
+  overdue_days: number;
+  is_locked: boolean;
   server_now: string;
   policies: Record<string, boolean>;
 }

@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { Smartphone, Store, Wallet } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 
-export const dynamic = 'force-dynamic';
-
 export default function ConsolePage() {
   const [counts, setCounts] = useState({ customers: 0, devices: 0, locked: 0 });
   const [retailer, setRetailer] = useState<{ name: string; credits_balance: number; lock_allowances: number } | null>(null);

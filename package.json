@@ -8,8 +8,9 @@
   ],
   "scripts": {
     "dev:web": "npm run dev -w web",
-    "typecheck": "tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p packages/shared/tsconfig.json",
-    "test": "node --test packages/shared/src/*.test.mjs"
+    "typecheck": "tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p packages/shared/tsconfig.json && tsc --noEmit -p packages/device-kit/tsconfig.json && tsc --noEmit -p apps/customer/tsconfig.json && tsc --noEmit -p apps/retailer/tsconfig.json && tsc --noEmit -p apps/owner/tsconfig.json && tsc --noEmit -p workers/tsconfig.json",
+    "test": "node --test packages/shared/src/*.test.mjs",
+    "verify": "npm run typecheck && npm run test"
   },
   "engines": {
     "node": ">=18"

@@ -11,27 +11,28 @@ import android.telephony.TelephonyManager
 /**
  * SIM removal/swap sentinel. A SIM-absent state for 30 s (debounced) hard-locks
  * the phone. IMSI/ICCID baseline comparison catches SIM swaps. Gated on live
- * Device Owner + outstanding loan; never fires for COMPLETE/SETTLED.
+ * Device Owner + outstanding loan + a lock plan (notify_only never locks);
+ * never fires for COMPLETE/SETTLED.
  */
 object SimSentinelStore {
   private const val PREFS = "emidost_sim_sentinel"
 
   fun setBaseline(c: Context, imsi: String, iccid: String) {
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
       .putString("imsi", imsi).putString("iccid", iccid).apply()
   }
 
   fun baselineImsi(c: Context): String? =
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("imsi", null)
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("imsi", null)
 
   fun baselineIccid(c: Context): String? =
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("iccid", null)
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("iccid", null)
 
   fun loanOutstanding(c: Context): Boolean =
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("loan_outstanding", false)
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("loan_outstanding", false)
 
   fun setLoanOutstanding(c: Context, outstanding: Boolean) {
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("loan_outstanding", outstanding).apply()
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("loan_outstanding", outstanding).apply()
   }
 }
 
@@ -48,6 +49,8 @@ class EmidostSimSentinelReceiver : BroadcastReceiver() {
 
     if (!DeviceActions.isOwner(context)) return
     if (!SimSentinelStore.loanOutstanding(context)) return
+    // notify_only plans never lock: reminders only, even on SIM removal.
+    if (SyncStateStore.getLockMode(context) != "lock") return
 
     val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
     val state = try { tm.simState } catch (_: Exception) { TelephonyManager.SIM_STATE_UNKNOWN }

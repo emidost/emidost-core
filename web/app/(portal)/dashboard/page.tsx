@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import {
   Store, Smartphone, ShieldAlert, Wallet, UserPlus, QrCode,
   Coins, LockOpen, ArrowRight, CheckCircle2,
@@ -10,7 +10,10 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
   const supabase = serverClient();
   // Nothing writes OVERDUE, so overdue = unpaid and past its due date.
-  const today = new Date().toISOString().slice(0, 10);
+  // Due dates are calendar days in Asia/Calcutta (IST); the server (Vercel)
+  // runs UTC, so compute "today" with the IST offset.
+  const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
+  const today = new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
   const [{ count: retailerCount }, { count: deviceCount }, { count: lockedCount }, { count: overdueCount }] =
     await Promise.all([
       supabase.from('retailers').select('id', { count: 'exact', head: true }),

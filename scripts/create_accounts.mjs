@@ -97,9 +97,17 @@ async function main() {
     id: staffUser.id, role: 'retailer_staff', retailer_id: retailerId,
     full_name: ACCOUNTS[1].name, phone: ACCOUNTS[1].phone, is_suspended: false,
   });
+  // RLS (0005) reads role/retailer_id from the JWT app_metadata claim; the
+  // provider/providers keys are kept so GoTrue account linking still works
+  // (merge, never a bare replace).
   await admin(`/users/${staffUser.id}`, {
     method: 'PUT',
-    body: JSON.stringify({ app_metadata: { role: 'retailer_staff', retailer_id: retailerId } }),
+    body: JSON.stringify({
+      app_metadata: {
+        role: 'retailer_staff', retailer_id: retailerId,
+        provider: 'email', providers: ['email'],
+      },
+    }),
   });
   console.log('retailer:', staffUser.email, retailerId);
 

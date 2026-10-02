@@ -92,7 +92,8 @@ github.com/emidost/emidost).
   CANCELLED acks. Stale locks refuse.
 - Device PIN: owner-set via portal (`/api/owner/devices/:id/pin`), stored as
   `pin_verify = sha256(pin + ":" + installation_id)`, offline-verifiable.
-- Offline TOTP unlock (owner-issued, audited; at-rest encryption TODO).
+- Offline TOTP unlock (owner-issued, audited; secret encrypted at rest with
+  AES-256-GCM in `web/lib/totpCrypto.ts`).
 - Screen PIN: `resetPassword()` is dead for Device Owner on Android 11+, so the
   feature is a force-PIN-change policy (quality + min length) only.
 - Settled loans (COMPLETE/SETTLED) never re-lock, anywhere.
@@ -173,11 +174,16 @@ Global EAS env (Expo dashboard → environment variables → global):
 
 - SPAKE2 self-pair: skeleton only; QR provisioning is the working path.
 - Consent: direct at the counter (user decision); no blocking record; optional
-  audit row only.
-- Payments UI in apps: API exists, screens pending.
-- Reminder scheduling (expo-notifications): copy + voice ready, scheduling not
-  wired.
-- TOTP at-rest encryption: TODO.
+  audit row only (consent API exists; no dedicated consent screen in the apps).
+- Payments UI: web console customer page records payments + shows history and
+  the schedule; the retailer app has an inline Record-payment row; the customer
+  app has no payments screen (it does not pay in-app).
+- Reminder scheduling (expo-notifications): wired — channel + −3/−1/0/+1/+3
+  day dates from the heartbeat `next_due`, replaced each poll, cancelled on
+  COMPLETE/SETTLED.
+- TOTP at-rest encryption: DONE — AES-256-GCM in `web/lib/totpCrypto.ts`
+  (key from TOTP_ENC_KEY or the service key); the heartbeat decrypts
+  server-side and delivers over TLS.
 - No physical device has run the acceptance walk; per-family certification is
   empty.
 - Deployment: portal live on Vercel; APK builds + releases not yet done (user

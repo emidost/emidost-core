@@ -6,8 +6,6 @@ import { Coins, Lock, Pencil, Store } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { Retailer } from '@emidost/shared';
 
-export const dynamic = 'force-dynamic';
-
 export default function RetailerEditPage() {
   const { id } = useParams<{ id: string }>();
   const [row, setRow] = useState<Retailer | null>(null);

@@ -1,4 +1,4 @@
-﻿-- emidost 0001 â€" fresh schema for a NEW Supabase project.
+-- emidost 0001 â€" fresh schema for a NEW Supabase project.
 -- Idempotent: safe to re-run (to_regclass guards).
 -- No secrets: PIN hashes only, token hashes only, audit stores no payload secrets.
 
@@ -219,9 +219,11 @@ create table if not exists public.audit_log (
 );
 
 -- â"€â"€ actor helpers (read the LIVE profiles row; no auth.users access) â"€â"€â"€â"€â"€â"€â"€â"€â"€
--- Newer Supabase auth schemas have no app_metadata column on auth.users, so
--- RLS resolves the role straight from public.profiles on every request. This
--- also makes suspension and role changes apply instantly, never via a stale JWT.
+-- HISTORICAL NOTE (2026-10-03): these profile-reading helpers and the
+-- policies that use them are REPLACED by 0005_rls_jwt.sql. The final RLS
+-- reads role/retailer_id from the JWT app_metadata claim (written by
+-- scripts/create_accounts.mjs and the retailer-create route); the live
+-- profiles row remains the source for route-level role/suspension checks.
 create or replace function public.actor_role() returns text language sql stable as $$
   select coalesce((select role::text from public.profiles where id = auth.uid()), 'none');
 $$;

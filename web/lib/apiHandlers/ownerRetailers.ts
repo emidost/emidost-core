@@ -1,4 +1,4 @@
-﻿import { NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import { bad, forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
 
@@ -57,6 +57,22 @@ export async function POST(req: NextRequest) {
     await svc.auth.admin.deleteUser(authUser.user.id).catch(() => {});
     return Response.json({ error: profErr.message }, { status: 500 });
   }
+
+  // RLS (0005) reads role/retailer_id from the JWT app_metadata claim. Without
+  // this the staff console's direct Supabase reads return nothing. Merge-safe:
+  // provider/providers are included so GoTrue account linking keeps working.
+  const { error: claimErr } = await svc.auth.admin.updateUserById(authUser.user.id, {
+    app_metadata: {
+      role: 'retailer_staff', retailer_id: retailer.id,
+      provider: 'email', providers: ['email'],
+    },
+  });
+  if (claimErr) {
+    await svc.from('retailers').delete().eq('id', retailer.id);
+    await svc.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+    return Response.json({ error: claimErr.message }, { status: 500 });
+  }
+
   await svc.from('audit_log').insert({
     actor_id: profile.id, retailer_id: retailer.id,
     event: 'RETAILER_CREATED', detail: { name, phone, login_id: loginId },

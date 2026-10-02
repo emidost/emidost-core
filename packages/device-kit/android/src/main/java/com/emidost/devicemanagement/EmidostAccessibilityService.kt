@@ -16,8 +16,11 @@ import android.view.accessibility.AccessibilityNodeInfo
  *  - The ONLY screen content it reads is the wireless-debugging pairing dialog
  *    during an authorized enrolment session (transient RAM regex; nothing
  *    stored, logged, or screenshotted).
- *  - Steering deters uninstall / force-stop / clear-data / Settings tampering;
- *    the gate asks for the portal-set device PIN (never shown on screen).
+ *  - Steering deters uninstall / force-stop / clear-data / Settings tampering
+ *    by relaunching the app's own lock screen; leaving the lock screen needs
+ *    the portal-set device PIN or an owner-issued TOTP, entered on the hidden
+ *    long-press entry of the lock screen (no PIN is handled here, and no
+ *    value is ever shown on screen).
  *  - Disabled on release.
  */
 class EmidostAccessibilityService : AccessibilityService() {

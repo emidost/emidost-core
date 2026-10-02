@@ -16,7 +16,7 @@ Every item carries one of four states:
 | A5 | `onProfileProvisioningComplete` finalizes (kiosk whitelist, uninstall protection, launch) | CODE | EmidostDeviceAdminReceiver.kt |
 | A6 | Activation only on live OS readback (`mode=device_owner` from the phone) | CODE | heartbeat route (body.mode → session active) |
 | A7 | A13+ restricted-settings + per-OEM gates in the walkthrough | CODE | shared oemMatrix + retailer app Enrol tab |
-| A8 | Kiosk engages (`setLockTaskPackages`, `startLockTask`, HOME takeover) | CODE + DEVICE | LockPolicies.kt, module `enterLockTask`; real pinning needs device pass |
+| A8 | Kiosk engages (`setLockTaskPackages`, `startLockTask`, HOME takeover) | CODE + DEVICE | LockPolicies.kt, module `enterLockTask` exported + called from customer App.tsx/LockedScreen whenever locked (`exitLockTask` on unlock); real pinning needs a device pass |
 
 ## B. Enrolment — wireless-debugging self-pair
 | # | Item | State | Evidence |
@@ -33,7 +33,7 @@ Every item carries one of four states:
 | C1 | FRP accounts from env only (`EXPO_PUBLIC_FRP_ACCOUNTS`), never hard-coded | CODE | heartbeat route, sync.ts, .env.example |
 | C2 | `setFactoryResetProtectionPolicy` applied at activation + restored on boot | CODE | FinancingProtection.kt |
 | C3 | Honest FRP readback (OS side unverifiable → `frp_os_confirmed=false`) | CODE | FinancingProtection.status |
-| C4 | Uninstall/factory-reset/safe-boot/add-user/debugging/clock blocks + user-control disable | CODE + DEVICE | FinancingProtection.kt |
+| C4 | Uninstall/factory-reset/safe-boot/add-user/debugging/clock blocks + user-control disable (A12+ user-control blocks are OS-restricted for some packages — the device reports the real readback, never a fake "applied") | CODE + DEVICE | FinancingProtection.kt |
 | C5 | 112 stays dialable under the call block | CODE (framework rule) + DEVICE | LockPolicies + acceptance walk |
 
 ## D. Lock engine (hard-lock-only)
@@ -46,16 +46,16 @@ Every item carries one of four states:
 | D5 | 2-min offline re-assert before any network call | CODE | EmidostCommandService.tick |
 | D6 | Boot auto-lock (receiver + HOME takeover + cover), DO-gated | CODE | EmidostBootReceiver |
 | D7 | SIM removal 30 s debounce → hard lock; SIM swap via IMSI/ICCID baseline | CODE + DEVICE | SimSentinelReceiver (baseline may be null on some devices — documented) |
-| D8 | Unlock-wins watermark + SUPERSEDED acks | CODE | LockStateStore.isLockStale, ack route |
+| D8 | Unlock-wins watermark + SUPERSEDED acks (native AND JS paths; serverNow − elapsedDelta math) | CODE | LockStateStore.isLockStale + shared stale.ts (9/9 tests), sync.ts LOCK branch acks SUPERSEDED, ack route |
 | D9 | Offline SMS LOCK/UNLOCK from retailer number + customer code; LOCK gated on DO + loan | CODE + DEVICE | EmidostSmsReceiver |
-| D10 | Device PIN portal-set, offline verify, brute-force capable | CODE | pin route + DevicePinStore |
-| D11 | Offline TOTP unlock (owner-issued, audited) | CODE + DEVICE | totp route + Totp.kt (at-rest encryption TODO) |
+| D10 | Device PIN portal-set, offline verify, brute-force capable; hidden long-press entry on the lock screen | CODE | pin route + DevicePinStore + LockedScreen unlockWithCode |
+| D11 | Offline TOTP unlock (owner-issued, audited; secret encrypted at rest with AES-256-GCM); hidden long-press entry on the lock screen | CODE + DEVICE | totp route + Totp.kt + web/lib/totpCrypto.ts + LockedScreen unlockWithCode. Honest note: a local PIN/TOTP unlock updates the device immediately; the portal lock indicator follows the next command ack/heartbeat |
 | D12 | Screen PIN = force-PIN-change only (resetPassword dead on A11+) | CODE | executePinPolicy |
 
 ## E. Release, settlement, suspension
 | # | Item | State | Evidence |
 |---|---|---|---|
-| E1 | COMPLETE/SETTLED never re-lock (server, JS, SMS, SIM, boot) | CODE | ack gate, sync.ts settled branch, receivers |
+| E1 | COMPLETE/SETTLED never re-lock (server, JS, SMS, SIM, boot). Caveat (honest): the local 5-day no-internet watchdog keeps running on the device, so a settled loan offline for 5+ days can still hold a stale lock until its first online heartbeat (which releases it); offline SMS UNLOCK needs an owner-issued TOTP | CODE | ack gate, sync.ts settled branch, receivers |
 | E2 | Payments settle schedules + complete the loan + release event | CODE | payments route |
 | E3 | Suspended retailer: no new sessions, commands refused, heartbeat serves none | CODE | routes + heartbeat |
 | E4 | Unhide "wifi" + clear protection on release | CODE | RELEASE path |
@@ -65,7 +65,7 @@ Every item carries one of four states:
 |---|---|---|---|
 | F1 | Customer app named "wifi"; hidden from launcher after activation; unhidden on release | CODE + DEVICE | app.json, sync.ts hideSelf |
 | F2 | Colorful per-role design + Lucide icons + sentence-case humanizer copy | CODE | apps |
-| F3 | Consent + payments UI in the apps | **Follow-up** — APIs exist; screens pending |
+| F3 | Consent + payments UI | CODE — web console customer page (record payment + history + schedule) and retailer app inline Record-payment row; consent is taken directly at the counter, an optional audit row API exists (no blocking record) |
 
 ## G. Performance
 | # | Item | State | Evidence |
@@ -73,6 +73,11 @@ Every item carries one of four states:
 | G1 | 13 hot-path indexes | CODE (apply on the new DB) | 0002_perf_indexes.sql |
 | G2 | Heartbeat parallelized (2 waves) + single-flight app loop | CODE | heartbeat route, App.tsx |
 | G3 | FlatList virtualization in retailer/owner lists | Follow-up | noted |
+
+Rate-limit honesty note: the per-IP/per-installation limiter is in-memory
+(per serverless instance) and the cross-instance Supabase limiter fails open
+when the DB is unreachable; the `rate_limits` table itself is closed to
+non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 
 ## H. Acceptance walks (per OEM family; a family is "works" only after a real pass)
 | # | Walk | State |

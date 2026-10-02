@@ -12,7 +12,7 @@ import * as Speech from 'expo-speech';
 import * as Notifications from 'expo-notifications';
 import {
   getInstallationId, isRegistered, pollOnce, registerWithToken, startSync,
-  getCachedState, enforceOfflineWatchdog,
+  getCachedState, enforceOfflineWatchdog, unlockWithCode,
 } from './src/services/sync';
 
 const ACCENT = '#D97706';
@@ -23,7 +23,7 @@ export default function App() {
   const [hidden, setHidden] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [debugTaps, setDebugTaps] = useState(0);
-  const [due, setDue] = useState<{ due_date: string; amount_due: number } | null>(null);
+  const [due, setDue] = useState<{ due_date: string; amount_due: number | null } | null>(null);
   const [overdueDays, setOverdueDays] = useState(0);
   const [retailerPhone, setRetailerPhone] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -74,6 +74,12 @@ export default function App() {
           await DeviceMgmt.showLockOverlay('Phone locked', latestDue
             ? `Rs ${Number(latestDue.amount_due).toFixed(0)} due. Call your retailer.`
             : 'EMI payment required');
+          // Kiosk pinning: lock-task mode only engages when the foreground
+          // activity calls startLockTask. Idempotent; re-asserted each loop.
+          await DeviceMgmt.enterLockTask();
+        } else {
+          // Unlock/release: leave lock-task mode so the phone is freely usable.
+          await DeviceMgmt.exitLockTask();
         }
       } finally {
         inFlight.current = false;
@@ -81,7 +87,7 @@ export default function App() {
     };
     void loop();
     // UI refresh only. Enforcement is local, commands arrive by SMS instantly,
-    // and the native service polls slowly (5 min) for the online fetch path.
+    // and the native service polls slowly (2 h idle, 15 s burst) online.
     timer.current = setInterval(loop, 60_000);
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [phase]);
@@ -106,6 +112,7 @@ export default function App() {
       <LockedScreen
         due={due} overdueDays={overdueDays}
         retailerPhone={retailerPhone}
+        onUnlocked={() => { setLocked(false); void pollOnce(); }}
       />
     );
   }
@@ -154,7 +161,7 @@ function BindScreen({ onBound }: { onBound: () => void }) {
   useEffect(() => {
     void (async () => {
       const info = await DeviceMgmt.getDeviceInfo();
-      const profile = await getOemProfile(info.manufacturer, info.model);
+      const profile = await getOemProfile(info.manufacturer, '');
       setOem(profile?.displayName ?? null);
     })();
   }, []);
@@ -197,8 +204,8 @@ function BindScreen({ onBound }: { onBound: () => void }) {
 const LOCALE: Record<CopyLang, string> = { en: 'en-IN', bn: 'bn-IN', hi: 'hi-IN' };
 const LANG_LABEL: Record<CopyLang, string> = { en: 'English', bn: 'বাংলা', hi: 'हिंदी' };
 
-function formatAmount(n: number): string {
-  return `Rs ${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+function formatAmount(n: number | null): string {
+  return `Rs ${Number(n ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
 function formatDueDate(iso: string, lang: CopyLang): string {
@@ -218,15 +225,22 @@ function formatDueDate(iso: string, lang: CopyLang): string {
  * server lock state only; there is no optimistic green.
  */
 function LockedScreen(props: {
-  due: { due_date: string; amount_due: number } | null;
+  due: { due_date: string; amount_due: number | null } | null;
   overdueDays: number;
   retailerPhone: string | null;
+  onUnlocked: () => void;
 }) {
   const [lang, setLang] = useState<CopyLang>('en');
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
   const ring = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Kiosk pinning re-asserted while the locked screen is mounted (idempotent).
+    void DeviceMgmt.enterLockTask();
     let active = true;
     void AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (active) setReduceMotion(v); });
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
@@ -262,6 +276,21 @@ function LockedScreen(props: {
     if (message) Speech.speak(message, { language: LOCALE[lang] });
   }
 
+  async function submitCode() {
+    if (codeBusy || !code.trim()) return;
+    setCodeBusy(true);
+    setCodeError(null);
+    const result = await unlockWithCode(code.trim());
+    setCodeBusy(false);
+    if (result.ok) {
+      setCode('');
+      setShowCode(false);
+      props.onUnlocked();
+    } else {
+      setCodeError('Code not accepted');
+    }
+  }
+
   return (
     <View style={s.lockPage}>
       <View style={s.langRow}>
@@ -287,12 +316,47 @@ function LockedScreen(props: {
           style={[s.breathRing, { transform: [{ scale: ringScale }], opacity: ringOpacity }]}
           pointerEvents="none"
         />
-        <View style={s.lockEmblem}>
-          <Lock color={LOCKED.ring} size={40} />
-        </View>
+        {/* Hidden unlock entry: long-press the emblem (same pattern as the
+            three-tap diagnostics). Accepts the portal-set device PIN or an
+            owner-issued TOTP; both verify fully offline. */}
+        <TouchableOpacity
+          onLongPress={() => setShowCode((v) => !v)}
+          delayLongPress={400}
+          accessibilityRole="button"
+          accessibilityLabel="Lock emblem. Long press to enter an unlock code."
+        >
+          <View style={s.lockEmblem}>
+            <Lock color={LOCKED.ring} size={40} />
+          </View>
+        </TouchableOpacity>
       </View>
 
       <Text style={s.lockMessage}>{message}</Text>
+
+      {showCode && (
+        <View style={s.codeRow}>
+          <TextInput
+            style={s.codeInput}
+            value={code}
+            onChangeText={setCode}
+            placeholder="PIN or unlock code"
+            placeholderTextColor={LOCKED.textLow}
+            keyboardType="numeric"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {codeError && <Text style={s.codeError}>{codeError}</Text>}
+          <TouchableOpacity
+            style={s.codeBtn}
+            onPress={submitCode}
+            disabled={codeBusy}
+            accessibilityRole="button"
+          >
+            <KeyRound color={LOCKED.textHi} size={14} />
+            <Text style={s.codeBtnText}>{codeBusy ? 'Checking…' : 'Unlock with code'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <TouchableOpacity
         style={s.payBtn}
@@ -367,6 +431,11 @@ const s = StyleSheet.create({
   breathRing: { position: 'absolute', width: 112, height: 112, borderRadius: 56, borderWidth: 2, borderColor: LOCKED.ring },
   lockEmblem: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: LOCKED.surface },
   lockMessage: { color: LOCKED.textHi, fontSize: 17, lineHeight: 24, textAlign: 'center', maxWidth: 420, marginBottom: 24 },
+  codeRow: { alignItems: 'center', width: '100%', maxWidth: 420, marginBottom: 16 },
+  codeInput: { borderWidth: 1, borderColor: LOCKED.border, color: LOCKED.textHi, backgroundColor: LOCKED.surface, borderRadius: 8, padding: 12, fontSize: 16, width: '100%', maxWidth: 300, textAlign: 'center', marginTop: 4 },
+  codeError: { color: LOCKED.danger, fontSize: 13, marginTop: 6 },
+  codeBtn: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: LOCKED.border, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20, marginTop: 10 },
+  codeBtnText: { color: LOCKED.textHi, fontSize: 14, fontWeight: '600' },
   payBtn: { backgroundColor: LOCKED.amberHi, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: 420 },
   payBtnText: { color: '#1A1D21', fontSize: 17, fontWeight: '700' },
   outlineBtn: { flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: LOCKED.border, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: 420, marginTop: 12 },

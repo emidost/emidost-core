@@ -15,11 +15,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!Number.isFinite(delta) || delta === 0) return bad('Delta must be a non-zero number');
 
   const svc = serviceClient();
+  // Distinguish "no such retailer" from "would go below zero".
+  const { data: retailer } = await svc.from('retailers')
+    .select('id').eq('id', params.id).maybeSingle();
+  if (!retailer) return Response.json({ error: 'not found' }, { status: 404 });
+
   // Atomic adjustment (no read-then-write race).
   const { data: balance, error } = await svc.rpc('adjust_credits', { rid: params.id, d: delta });
   if (error || balance === null || balance === undefined) {
     if (delta < 0) return bad('Credits cannot go below zero');
-    return Response.json({ error: error?.message ?? 'retailer not found' }, { status: 500 });
+    return Response.json({ error: error?.message ?? 'credit adjustment failed' }, { status: 500 });
   }
 
   await svc.from('credit_ledger').insert({

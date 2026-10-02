@@ -4,13 +4,64 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 CLI audit wave 2 + hardening (claude web/SQL/docs + codex apps/native)
+
+- **Live-DB probe (lead, read-only): the database is ALREADY fully migrated.**
+  All 10 tables (incl. `rate_limits`), `customers.lock_mode`, the LOCATION
+  command enum, and the RPCs (`record_payment`, `rate_limit_hit`,
+  `consume/refund/release_device_credit`, `adjust_credits`) are present, and
+  anon probes against `devices`/`payments` return `[]` (RLS works). The earlier
+  "USER STILL MUST RUN IT" note was stale — the DB was applied; only the ledger
+  said otherwise. Portal https://emidost-pd8s.vercel.app responds 200.
+- **SQL (claude):** new `0011_rate_limits_rls.sql` closes the `rate_limits`
+  table (RLS enabled + public execute revoked on `rate_limit_hit`, service_role
+  only) — 0009 had shipped it wide open. `0005_rls_jwt.sql` tightened: staff are
+  SELECT-only on customers/devices/payments/emi_schedules (all mutations via
+  the API/RPCs), and every staff branch re-checks the live profiles row for
+  suspension (own row via profiles_self, no recursion). `0010` `record_payment`
+  now REJECTS overpayments (exception 'overpayment'). Stale 0001 comment
+  corrected; all-in-one regenerated (11 migrations) and includes 0011.
+- **Web (claude):** retailer-create route writes the JWT `app_metadata` claims
+  (role/retailer_id + provider/providers, merge-safe) so RLS works for
+  portal-created retailers; `create_accounts.mjs` mirrors the merge. Device
+  pages use explicit column lists (no `pin_verify`/`device_token_hash`/
+  `device_pin_hash`/SIM baselines in the browser). register blocks cross-
+  customer re-pointing of an active device (settled devices may be
+  re-enrolled). Heartbeat: activation also covers `created` sessions, a 24 h
+  lazy sweeper expires stuck PENDING/RECEIVED commands and refunds LOCK
+  allowances once, `overdue_days` parses due dates in Asia/Calcutta, and the
+  response now includes `is_locked`. Ack route writes an ack row for the
+  settled-loan supersede path. Payments route maps overpayment to 400. Due-day
+  math is IST-based in the customer-create route and the owner dashboard.
+  New retailer console customers list page + nav link (payments UI is now
+  reachable); ignored `force-dynamic` exports removed from client pages;
+  ownerCredits returns 404 for a missing retailer.
+- **Docs:** SETUP.md §1 now says run `0000_all_in_one.sql` in a NEW query tab
+  then `node scripts/create_accounts.mjs` (no manual owner SQL); §5 SMS syntax
+  = `LOCK <customer-code>`, `UNLOCK <customer-code> <totp>`. CONTEXT §9 gaps
+  corrected (TOTP encryption done, reminders wired, payments UI exists).
+  Checklist: D11 at-rest encryption done, F3 payments UI CODE, C4 A12+
+  user-control caveat, E1 5-day-watchdog honesty note, G-section rate-limiter
+  note. BUILD_AND_DEPLOY_STEPS: 11 migrations + canonical API URL
+  https://emidost-pd8s.vercel.app. Root `package.json` typecheck now covers
+  web/shared/device-kit/customer/retailer/owner/workers (landing is a separate
+  repo: `tsc` inside `D:\emidost2` manually) + `npm run verify`.
+- **Checks:** web/shared/device-kit/customer/retailer/owner/workers tsc 0 ·
+  shared tests 9/9 · `next build` exit 0 (re-verified after all edits).
+- **Remaining USER actions:** (1) run `0011_rate_limits_rls.sql` (or the
+  regenerated all-in-one) in a NEW query tab on the live DB — RLS on
+  `rate_limits` is the one hardening piece not yet live; (2) EAS builds +
+  GitHub APK release; (3) per-family device acceptance walks. WAF/Upstash
+  rate-limit rule remains a scale item; the in-memory limiter is per-instance
+  and the shared limiter fails open (both documented).
+
 ## 2026-10-02 claim-sweep fixes (push b5cb2b8)
 
 - Atomic ack CAS (PENDING/RECEIVED only) + terminal immutability; allowance refund on FAILED/EXPIRED locks; RELEASE refunds device credit once; activation consumes a credit once (session-state CAS) — `0008_allowance_refund.sql` RPCs.
 - Stable TOTP secret (rotate=1 to mint a new one) so offline codes keep verifying.
 - SIM debounce re-reads live SIM state at fire time; kiosk live readback (kioskActive in status).
 - Owner app busy + NaN guards; customer diagnostics hidden behind three taps.
-- All checks green (8 tsc surfaces + tests); worker redeployed. All-in-one now 8 migrations; USER STILL MUST RUN IT (DB lacks lock_mode per live probe).
+- All checks green (8 tsc surfaces + tests); worker redeployed. All-in-one now 8 migrations; USER STILL MUST RUN IT (DB lacks lock_mode per live probe). RESOLVED 2026-10-03: a live probe confirmed the DB was in fact fully migrated; see the top entry.
 - Remaining user actions: run the SQL, WAF/Upstash rate-limit rule (dashboard), build customer APK + GitHub release for landing links.
 
 ## 2026-10-02 improvement arena (3 auditors + design arena, push cf921b8 / b1258b3)
@@ -40,7 +91,7 @@ Honest deferred (next wave; some need EAS/device): native mirror of the 5-day wa
 ## 2026-10-02 security + SQL hardening wave (Claude + Codex audit, auto-approved)
 
 Both CLI agents audited (17 + 31 findings, merged). Implemented (push a6a6302):
-- SQL `0003_hardening.sql`: actor helpers → SECURITY DEFINER (fixes recursive RLS), `adjust_credits` atomic RPC, `emi_schedules.amount_paid`, 5 new indexes, positive-amount + non-negative-balance constraints. All-in-one regenerated to include hardening; published-password seed file removed (accounts = admin API script only).
+- SQL `0003_hardening.sql`: actor helpers → SECURITY DEFINER, `adjust_credits` atomic RPC, `emi_schedules.amount_paid`, 5 new indexes, positive-amount + non-negative-balance constraints. All-in-one regenerated to include hardening; published-password seed file removed (accounts = admin API script only). CORRECTION (2026-10-03): the SECURITY DEFINER helpers were later REMOVED by `0005_rls_jwt.sql` — the final RLS reads role/retailer_id from the JWT `app_metadata` claim (written by the admin API), and suspension is enforced live at the route level, not inside RLS.
 - Web: enrolment token consumed atomically (state created→installed, no replay/repointing); register checks retailer suspension + rejects settled-loan re-enrolment; heartbeat no longer trusts client `mode` for owner promotion (open session required) and keeps UNLOCK/RELEASE flowing when the retailer is suspended; allowance debit moved AFTER command insert (rollback on failure); UNLOCK allowed on settled loans; payments rejected on settled loans + `amount_paid` allocation; customer creation generates the full repayment schedule (with rollback on failure); retailer creation upserts the staff profile (new auth schema has no trigger); rate limiting on register/heartbeat/ack (in-memory, 429); TOTP key throws in production when unset.
 - Mobile: device tokens via expo-crypto CSPRNG (no Math.random); SIM baseline set exactly once (replacement SIM can't silently become baseline); SIM receiver validates actions + locks only on confirmed ABSENT (UNKNOWN no longer false-locks); SMS UNLOCK now requires a valid TOTP as the authenticated factor; lock overlay gains an Emergency 112 button; LockPolicies missing ComponentName/Intent imports fixed.
 - Verified: web/shared/device-kit/customer/retailer/owner tsc all 0 · stale tests 6/6.

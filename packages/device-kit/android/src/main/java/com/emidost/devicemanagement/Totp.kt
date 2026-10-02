@@ -1,4 +1,4 @@
-﻿package com.emidost.devicemanagement
+package com.emidost.devicemanagement
 
 import android.content.Context
 import javax.crypto.Mac
@@ -13,14 +13,14 @@ object Totp {
   private const val PREFS = "emidost_totp"
 
   fun setSecret(c: Context, secret: String) {
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("secret", secret).apply()
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("secret", secret).apply()
   }
 
   fun hasSecret(c: Context): Boolean =
-    !c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("secret", "").isNullOrEmpty()
+    !DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("secret", "").isNullOrEmpty()
 
   fun verify(c: Context, code: String): Boolean {
-    val secret = c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("secret", "") ?: return false
+    val secret = DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("secret", "") ?: return false
     if (code.length != 8) return false
     val counter = System.currentTimeMillis() / 30_000L
     return listOf(counter, counter - 1, counter + 1).any { totp(secret, it) == code }

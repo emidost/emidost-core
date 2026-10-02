@@ -1,4 +1,4 @@
-﻿import { createHash } from 'crypto';
+import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { serviceClient } from '@/lib/supabaseServer';
 import { deviceRateKey, rateLimit, sharedRateLimit } from '@/lib/rateLimit';
@@ -47,7 +47,14 @@ export async function POST(req: NextRequest) {
     const { data: superseded } = await svc.from('device_commands')
       .update({ status: 'SUPERSEDED', acked_at: new Date().toISOString() })
       .eq('id', command.id).in('status', ['PENDING', 'RECEIVED']).select('id').maybeSingle();
-    if (superseded) await refundLockAllowance(svc, device.retailer_id);
+    if (superseded) {
+      await refundLockAllowance(svc, device.retailer_id);
+      // Keep the audit trail complete: this terminal transition gets its ack
+      // row like every other one.
+      await svc.from('device_command_acks').insert({
+        command_id: command.id, ack_status: 'SUPERSEDED', reason: 'settled_loan',
+      });
+    }
     return Response.json({ ok: false, reason: 'settled_loan' });
   }
 
@@ -84,6 +91,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Location is stored only when a LOCATION request was fetched and answered.
+  // Note this runs after the terminal CAS: if the device acks EXECUTED with a
+  // location payload for a command that already reached a terminal state, the
+  // location is still stored (the device did answer); the command itself is
+  // not resurrected.
   if (ackStatus === 'EXECUTED' && command.command_type === 'LOCATION' && body.location) {
     await svc.from('devices').update({
       last_location: body.location,

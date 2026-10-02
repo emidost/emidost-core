@@ -52,7 +52,18 @@ class EmidostCommandService : Service() {
         } else {
           context.startService(intent)
         }
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        // Log, never swallow: Android 15 refuses dataSync FGS starts from
+        // BOOT_COMPLETED and caps dataSync FGS at ~6 h/day. When the system
+        // rejects the start, the 2-min re-assert and the 5-day watchdog are
+        // offline until the next launch; on locked devices the app is the
+        // HOME, so boot relaunches it and the JS layer restarts the service.
+        android.util.Log.w(
+          "EmidostCommandService",
+          "service start failed (Android 15 dataSync FGS boot restriction or 6 h cap?)",
+          e,
+        )
+      }
     }
 
     /** A local event (SMS command, app foreground) wants the next poll soon. */

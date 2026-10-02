@@ -53,6 +53,7 @@ export function createApi({ baseUrl, getToken }: ApiClientOptions) {
     createCustomer: (body: {
       name: string; phone: string; imei: string; brand: string; model: string;
       emi_months: number; emi_amount: number; emi_due_day: number;
+      lock_mode: 'lock' | 'notify_only';
     }) => req<Customer>('/api/retailer/customers', { method: 'POST', body: JSON.stringify(body) }),
     recordConsent: (customerId: string, body: { lang: string; otp_ack: boolean; signature_ref?: string }) =>
       req<{ consent_id: string }>(`/api/retailer/customers/${customerId}/consent`, {

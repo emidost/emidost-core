@@ -6,8 +6,6 @@ import { Store, UserPlus, Ban, CircleCheck, Pencil, Coins } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { Retailer } from '@emidost/shared';
 
-export const dynamic = 'force-dynamic';
-
 export default function RetailersPage() {
   const [rows, setRows] = useState<Retailer[]>([]);
   const [error, setError] = useState<string | null>(null);

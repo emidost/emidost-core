@@ -3,7 +3,10 @@ import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as DeviceMgmt from '@emidost/device-kit';
 import * as Notifications from 'expo-notifications';
-import { dueReminderCopy } from '@emidost/shared';
+import {
+  dueReminderCopy, isLockCommandStale, isoToEpochMillis,
+  type HeartbeatNextDue, type HeartbeatResponse,
+} from '@emidost/shared';
 
 const KEY_INSTALLATION = 'emidost.installation_id';
 const KEY_DEVICE_TOKEN = 'emidost.device_token';
@@ -159,7 +162,7 @@ export async function startSync(): Promise<void> {
  * state for the screens.
  */
 export interface PollUiState {
-  next_due: { due_date: string; amount_due: number } | null;
+  next_due: HeartbeatNextDue | null;
   overdue_days: number;
   retailer_phone: string | null;
 }
@@ -170,7 +173,7 @@ export async function pollOnce(): Promise<PollUiState | null> {
   const stBefore = await DeviceMgmt.getDeviceManagementStatus();
   // App foreground: pull the native poll into the burst window once.
   await DeviceMgmt.kickCommandService();
-  let resp: any;
+  let resp: HeartbeatResponse;
   try {
     const res = await fetch(`${API_URL}/api/device/heartbeat?installation_id=${installationId}`, {
       method: 'POST',
@@ -178,40 +181,40 @@ export async function pollOnce(): Promise<PollUiState | null> {
       body: JSON.stringify({ mode: stBefore.mode }),
     });
     if (!res.ok) return null;
-    resp = await res.json();
+    resp = (await res.json()) as HeartbeatResponse;
   } catch {
     return null;
   }
 
   const ui: PollUiState = {
-    next_due: resp?.next_due ?? null,
-    overdue_days: resp?.overdue_days ?? 0,
-    retailer_phone: resp?.retailer_phone ?? null,
+    next_due: resp.next_due ?? null,
+    overdue_days: resp.overdue_days ?? 0,
+    retailer_phone: resp.retailer_phone ?? null,
   };
 
   // Full offline capability: persist the server truth locally, and remember
   // the successful sync (the 5-day no-internet watchdog counts from here).
   await saveCachedState({
-    loan_status: resp?.loan_status ?? '',
-    lock_mode: resp?.lock_mode ?? 'lock',
-    next_due: resp?.next_due?.due_date ?? null,
-    next_due_amount: resp?.next_due?.amount_due ?? null,
-    overdue_days: resp?.overdue_days ?? 0,
-    emi_amount: resp?.emi_amount ?? null,
-    emi_months: resp?.emi_months ?? null,
-    emi_due_day: resp?.emi_due_day ?? null,
-    retailer_phone: resp?.retailer_phone ?? null,
-    retailer_name: resp?.retailer_name ?? null,
-    customer_code: resp?.customer_code ?? null,
-    is_locked: Boolean(resp?.is_locked),
+    loan_status: resp.loan_status ?? '',
+    lock_mode: resp.lock_mode ?? 'lock',
+    next_due: resp.next_due?.due_date ?? null,
+    next_due_amount: resp.next_due?.amount_due ?? null,
+    overdue_days: resp.overdue_days ?? 0,
+    emi_amount: resp.emi_amount ?? null,
+    emi_months: resp.emi_months ?? null,
+    emi_due_day: resp.emi_due_day ?? null,
+    retailer_phone: resp.retailer_phone ?? null,
+    retailer_name: resp.retailer_name ?? null,
+    customer_code: resp.customer_code ?? null,
+    is_locked: resp.is_locked === true,
   });
   await markSyncOk();
   // Native mirror: the watchdog must work with the app closed or killed.
   await DeviceMgmt.markSyncOkNative();
-  const lockMode = resp?.lock_mode === 'notify_only' ? 'notify_only' : 'lock';
+  const lockMode = resp.lock_mode === 'notify_only' ? 'notify_only' : 'lock';
   await applyOnce('lock_mode', lockMode, () => DeviceMgmt.setLockModeNative(lockMode));
 
-  const loanStatus: string = resp?.loan_status ?? '';
+  const loanStatus: string = resp.loan_status ?? '';
   if (loanStatus === 'COMPLETE' || loanStatus === 'SETTLED') {
     // Release-first: unlock, stop the sentinel, clear protection, unhide,
     // and cancel every reminder. Once per process; the native service
@@ -238,16 +241,16 @@ export async function pollOnce(): Promise<PollUiState | null> {
     });
   }
 
-  if (resp?.retailer_phone && resp?.customer_code) {
+  if (resp.retailer_phone && resp.customer_code) {
     const phone = String(resp.retailer_phone);
     const code = String(resp.customer_code);
     await applyOnce('sms', `${phone}|${code}`, () => DeviceMgmt.configureSmsControl(phone, code));
   }
-  if (resp?.pin_verify) {
+  if (resp.pin_verify) {
     const pin = String(resp.pin_verify);
     await applyOnce('pin_verify', pin, () => DeviceMgmt.setPinVerify(pin));
   }
-  if (resp?.totp_secret) {
+  if (resp.totp_secret) {
     const totp = String(resp.totp_secret);
     await applyOnce('totp', totp, () => DeviceMgmt.setTotpSecret(totp));
   }
@@ -270,12 +273,27 @@ export async function pollOnce(): Promise<PollUiState | null> {
     await DeviceMgmt.hideSelf();
   }
 
-  // Commands: the native hard-lock gate is authoritative. No stale-lock math
-  // here (the native command service owns the unlock-wins watermark).
-  const commands: any[] = Array.isArray(resp?.commands) ? resp.commands : [];
+  // Commands: the native hard-lock gate is authoritative, and the unlock-wins
+  // watermark is checked here too (same math as the native service), so a
+  // stale LOCK is never executed by the JS path while the app is foregrounded.
+  const commands = resp.commands ?? [];
   for (const cmd of commands) {
     if (cmd.status !== 'PENDING' && cmd.status !== 'RECEIVED') continue;
     if (cmd.command_type === 'LOCK') {
+      const stale = isLockCommandStale({
+        commandCreatedServerMs: isoToEpochMillis(String(cmd.created_at ?? '')),
+        serverNowMs: isoToEpochMillis(String(resp.server_now ?? '')),
+        lastUnlockWallMs: Number(stBefore.lastUnlockedAt ?? 0),
+        lastUnlockElapsedMs: Number(stBefore.lastUnlockElapsed ?? 0),
+        nowElapsedMs: Number(stBefore.elapsedRealtime ?? 0),
+        unlockBoot: Number(stBefore.lastUnlockBoot ?? -1),
+        nowBoot: Number(stBefore.bootCount ?? -1),
+        nowWallMs: Date.now(),
+      });
+      if (stale) {
+        await ack(cmd.id, 'SUPERSEDED', 'stale_lock_unlock_wins');
+        continue;
+      }
       const result = await DeviceMgmt.executeAuthorizedLock(String(cmd.id));
       if (result.ok) await ack(cmd.id, 'EXECUTED');
       else await ack(cmd.id, 'FAILED', result.reason ?? 'hard_lock_refused');
@@ -311,6 +329,26 @@ async function ack(commandId: string, ackStatus: string, reason?: string, extra?
   }
 }
 
+/**
+ * Hidden lock-screen unlock: the portal-set device PIN or an owner-issued
+ * TOTP (8 digits) unlocks the phone locally, fully offline. A code unlock has
+ * no command id, so the server's command acks are handled by the next poll
+ * (any pending UNLOCK/RELEASE commands are acked then) and the native service.
+ */
+export async function unlockWithCode(code: string): Promise<{ ok: boolean; method: 'pin' | 'totp' | null }> {
+  if (await DeviceMgmt.verifyDevicePin(code)) {
+    await DeviceMgmt.executeAuthorizedUnlock('pin-code');
+    await DeviceMgmt.kickCommandService();
+    return { ok: true, method: 'pin' };
+  }
+  if (await DeviceMgmt.verifyTotpUnlock(code)) {
+    await DeviceMgmt.executeAuthorizedUnlock('totp-code');
+    await DeviceMgmt.kickCommandService();
+    return { ok: true, method: 'totp' };
+  }
+  return { ok: false, method: null };
+}
+
 let reminderChannelReady = false;
 async function ensureReminderChannel(): Promise<void> {
   if (reminderChannelReady) return;
@@ -328,11 +366,11 @@ async function ensureReminderChannel(): Promise<void> {
  * Schedule the −3/−1/0/+1/+3 reminder set from the next due date. Previous
  * scheduled reminders are replaced, so the set always matches the DB.
  */
-export async function scheduleReminders(nextDue: { due_date: string; amount_due: number } | null): Promise<void> {
+export async function scheduleReminders(nextDue: HeartbeatNextDue | null): Promise<void> {
   await ensureReminderChannel();
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (!nextDue) return;
-  const amount = `Rs ${Number(nextDue.amount_due).toFixed(0)}`;
+  const amount = `Rs ${Number(nextDue.amount_due ?? 0).toFixed(0)}`;
   const due = new Date(`${nextDue.due_date}T09:00:00`);
   const offsets = [-3, -1, 0, 1, 3];
   for (const off of offsets) {

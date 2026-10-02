@@ -28,6 +28,14 @@ object FinancingProtection {
     return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
   }
 
+  private fun rememberUserControlAttempted(c: Context, attempted: Boolean) {
+    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+      .putBoolean("user_control_attempted", attempted).apply()
+  }
+
+  private fun userControlAttempted(c: Context): Boolean =
+    c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("user_control_attempted", false)
+
   fun apply(c: Context, active: Boolean, frpAccounts: List<String>) {
     val dpm = c.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
     if (!dpm.isDeviceOwnerApp(c.packageName)) return
@@ -50,6 +58,11 @@ object FinancingProtection {
         } else emptyList<String>()
         dpm.setUserControlDisabledPackages(admin, pkgList)
       } catch (_: Exception) {}
+      // Honest bookkeeping: Android 12+ can refuse this call for a device
+      // owner on the primary user, and there is no OS readback API. Record
+      // that the attempt was made; status() reports it without claiming the
+      // OS applied it.
+      rememberUserControlAttempted(c, active)
     }
 
     if (active && frpAccounts.isNotEmpty()) {
@@ -110,6 +123,11 @@ object FinancingProtection {
     map["frp_requested"] = isOwner && requestedFrpAccounts(c).isNotEmpty()
     map["frp_accounts_missing"] = isOwner && requestedFrpAccounts(c).isEmpty()
     map["frp_os_confirmed"] = false
+    // Honest user-control reporting: we record the attempt, but Android does
+    // not expose whether setUserControlDisabledPackages took effect (and it
+    // can be refused on Android 12+ for device owners on the primary user).
+    map["user_control_attempted"] = isOwner && userControlAttempted(c)
+    map["user_control_os_confirmed"] = false
     return map
   }
 }

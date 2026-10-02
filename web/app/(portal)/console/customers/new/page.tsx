@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { CalendarDays, Hash, IndianRupee, Smartphone, UserPlus } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
-
 const BRANDS = ['Samsung', 'Xiaomi', 'Redmi', 'POCO', 'vivo', 'iQOO', 'OPPO', 'OnePlus', 'realme', 'HONOR', 'Google Pixel', 'Motorola', 'Nothing', 'CMF', 'Lava', 'HMD', 'TECNO', 'Infinix', 'itel', 'Other'];
 
 export default function NewCustomerPage() {

@@ -19,8 +19,9 @@ class EmidostBootReceiver : BroadcastReceiver() {
       action != "android.intent.action.QUICKBOOT_POWERON"
     ) return
 
-    // Direct-boot safe: policy state lives in device-protected storage.
-    val dpc = context.createDeviceProtectedStorageContext()
+    // Direct-boot safe: policy state lives in device-protected storage
+    // (DpcContext falls back to the plain context below API 24).
+    val dpc = DpcContext.wrap(context)
 
     FinancingProtection.restore(dpc)
 

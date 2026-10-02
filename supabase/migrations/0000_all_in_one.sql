@@ -1,6 +1,6 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- emidost ALL-IN-ONE (single file). Open a NEW query tab and run this whole file.
--- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010).
+-- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011).
 -- Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
 -- Idempotent: safe to re-run.
 -- ============================================================================
@@ -225,9 +225,11 @@ create table if not exists public.audit_log (
 );
 
 -- â"€â"€ actor helpers (read the LIVE profiles row; no auth.users access) â"€â"€â"€â"€â"€â"€â"€â"€â"€
--- Newer Supabase auth schemas have no app_metadata column on auth.users, so
--- RLS resolves the role straight from public.profiles on every request. This
--- also makes suspension and role changes apply instantly, never via a stale JWT.
+-- HISTORICAL NOTE (2026-10-03): these profile-reading helpers and the
+-- policies that use them are REPLACED by the 0005 section below. The final
+-- RLS reads role/retailer_id from the JWT app_metadata claim (written by
+-- scripts/create_accounts.mjs and the retailer-create route); the live
+-- profiles row remains the source for route-level role/suspension checks.
 create or replace function public.actor_role() returns text language sql stable as $$
   select coalesce((select role::text from public.profiles where id = auth.uid()), 'none');
 $$;
@@ -475,6 +477,14 @@ alter type public.command_type add value if not exists 'LOCATION';
 -- (create_accounts.mjs / retailer-create route), never by a recursive SELECT.
 -- ORDER MATTERS: the dependent policies are dropped first, and only then the
 -- helper functions (Postgres refuses to drop a function its policies still use).
+--
+-- 2026-10-03 audit: staff are SELECT-only on customers, devices, payments and
+-- emi_schedules — every mutation must go through the Vercel API / RPCs, which
+-- enforce the business rules (settlement, releases, allowances). Staff branches
+-- also re-check the LIVE profiles row for suspension (own row via
+-- profiles_self, no recursion), so a suspended retailer loses direct DB access
+-- immediately instead of waiting for JWT expiry. Owner + service paths are
+-- unchanged.
 
 -- profiles: self read only; owner read via JWT claim.
 drop policy if exists profiles_self on public.profiles;
@@ -484,6 +494,9 @@ create policy profiles_owner on public.profiles for all
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner')
   with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner');
 
+-- Suspension guard for every staff branch: the subquery reads the caller's own
+-- profile row, which profiles_self permits; suspended staff see no rows and
+-- may not write.
 -- retailers
 drop policy if exists retailers_owner on public.retailers;
 create policy retailers_owner on public.retailers for all
@@ -492,62 +505,77 @@ create policy retailers_owner on public.retailers for all
 drop policy if exists retailers_staff_read on public.retailers;
 create policy retailers_staff_read on public.retailers for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-         and id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid);
+         and id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+         and not exists (select 1 from public.profiles p
+             where p.id = auth.uid() and p.is_suspended));
 
 -- ledger
 drop policy if exists ledger_access on public.credit_ledger;
 create policy ledger_access on public.credit_ledger for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
 
--- customers
+-- customers: staff are read-only; only the owner keeps write access (mutations
+-- run through the API as the service role).
 drop policy if exists customers_access on public.customers;
-create policy customers_access on public.customers for all
+create policy customers_read on public.customers for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid))
-  with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
-      or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
+create policy customers_owner on public.customers for all
+  using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner')
+  with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner');
 
 -- devices
 drop policy if exists devices_access on public.devices;
 create policy devices_access on public.devices for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
 drop policy if exists devices_owner_write on public.devices;
 create policy devices_owner_write on public.devices for all
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner')
   with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner');
 
--- payments
+-- payments: staff are read-only (no direct UPDATE/DELETE of payment rows).
 drop policy if exists payments_access on public.payments;
-create policy payments_access on public.payments for all
+create policy payments_read on public.payments for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid))
-  with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
-      or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
+create policy payments_owner on public.payments for all
+  using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner')
+  with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner');
 
--- schedules
+-- schedules: staff are read-only (settlement runs through record_payment).
 drop policy if exists schedules_access on public.emi_schedules;
-create policy schedules_access on public.emi_schedules for all
+create policy schedules_read on public.emi_schedules for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid))
-  with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
-      or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
+create policy schedules_owner on public.emi_schedules for all
+  using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner')
+  with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner');
 
 -- commands
 drop policy if exists commands_read on public.device_commands;
 create policy commands_read on public.device_commands for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
 
 -- consent
 drop policy if exists consent_read on public.consent_records;
@@ -555,24 +583,32 @@ create policy consent_read on public.consent_records for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
           and customer_id in (select id from public.customers
-              where retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid)));
+              where retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid)
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
 
 -- sessions
 drop policy if exists sessions_access on public.enrollment_sessions;
 create policy sessions_access on public.enrollment_sessions for all
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid))
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)))
   with check (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
 
 -- audit
 drop policy if exists audit_read on public.audit_log;
 create policy audit_read on public.audit_log for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
-          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid));
+          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
 
 -- releases
 drop policy if exists releases_read on public.release_events;
@@ -580,7 +616,9 @@ create policy releases_read on public.release_events for select
   using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'owner'
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
           and customer_id in (select id from public.customers
-              where retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid)));
+              where retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid)
+          and not exists (select 1 from public.profiles p
+              where p.id = auth.uid() and p.is_suspended)));
 
 -- Only after every dependent policy is recreated may the old recursive
 -- helpers go away.
@@ -661,8 +699,9 @@ returns int language sql volatile as $$
 $$;
 
 -- emidost 0009 - shared rate limiting (free, uses the existing Supabase DB).
--- Works across all serverless instances (Worker + Vercel). Service-role
--- calls bypass RLS; there are no anon policies, so the table is closed.
+-- Works across all serverless instances (Worker + Vercel). The 0011 section
+-- below enables RLS on this table and revokes public execute on
+-- rate_limit_hit, closing it to non-service roles.
 
 create table if not exists public.rate_limits (
   key text primary key,
@@ -729,7 +768,8 @@ end $$;
 
 -- 3. Atomic payment allocation: the payment row and the oldest-first schedule
 --    settlement commit together, and concurrent payments for one customer
---    serialize on the customer row (no double allocation). Returns the
+--    serialize on the customer row (no double allocation). Overpayments are
+--    REJECTED (exception 'overpayment'); partials are fine. Returns the
 --    payment id and whether the loan is now complete.
 create or replace function public.record_payment(
   cid uuid, amt numeric, pay_method text, receipt text, recorder uuid
@@ -740,6 +780,7 @@ declare
   sched record;
   remaining numeric := amt;
   need numeric;
+  need_total numeric;
   pid uuid;
 begin
   select id, retailer_id, status into cust
@@ -749,6 +790,15 @@ begin
   end if;
   if cust.status in ('COMPLETE', 'SETTLED') then
     raise exception 'loan settled';
+  end if;
+
+  -- Overpayment guard (under the customer lock): anything above the total
+  -- remaining due would be silently swallowed by the allocation loop.
+  select coalesce(sum(amount_due - coalesce(amount_paid, 0)), 0) into need_total
+    from public.emi_schedules
+   where customer_id = cid and status in ('PENDING', 'OVERDUE', 'PARTIAL');
+  if amt > need_total then
+    raise exception 'overpayment: at most % is due', need_total;
   end if;
 
   insert into public.payments (customer_id, retailer_id, amount, method, receipt_no, recorded_by)
@@ -801,3 +851,19 @@ begin
     );
   end if;
 end $rl$;
+
+-- emidost 0011 - close the rate_limits table (audit 2026-10-03).
+-- 0009 created the table with RLS DISABLED; Supabase's default grants give
+-- anon/authenticated table privileges on the public schema, so the table was
+-- readable and writable by anyone holding the public anon key (keys leak IP +
+-- installation pairs; rows could be deleted to bypass the limiter).
+-- With RLS enabled and no permissive policies, only the service role and the
+-- SECURITY DEFINER rate_limit_hit function can touch it.
+-- Idempotent: safe to re-run.
+
+alter table public.rate_limits enable row level security;
+
+-- Revoke direct execution from everyone; the web API calls rate_limit_hit
+-- with the service-role key (serviceClient), which keeps working.
+revoke all on function public.rate_limit_hit(text, int, int) from public;
+grant execute on function public.rate_limit_hit(text, int, int) to service_role;

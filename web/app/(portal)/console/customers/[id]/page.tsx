@@ -5,8 +5,6 @@ import { useParams } from 'next/navigation';
 import { Banknote, CalendarDays, ReceiptText } from 'lucide-react';
 import type { Customer, EmiSchedule, Payment } from '@emidost/shared';
 
-export const dynamic = 'force-dynamic';
-
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);

@@ -5,13 +5,20 @@ Steps that need YOUR accounts. The repo ships with placeholders only; no real cr
 ## 1. Supabase (new project)
 
 1. Create a new Supabase project. Note the project ref.
-2. SQL: open the SQL editor and run `supabase/migrations/0001_schema.sql` (idempotent; safe to re-run).
+2. SQL: open the SQL editor in a NEW query tab and run the single file
+   `supabase/migrations/0000_all_in_one.sql` (schema + indexes + hardening +
+   JWT RLS + retention + lock modes + refunds + rate limits + atomic
+   payments). It is idempotent: safe to re-run.
 3. Copy values into the env files (see section 4):
    - `NEXT_PUBLIC_SUPABASE_URL` = `https://<ref>.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable key)
    - `SUPABASE_SERVICE_ROLE_KEY` (server only; never ship to a client app)
-4. Auth: enable email+password and phone OTP providers. Create the first owner: sign up through the portal, then run in the SQL editor:
-   `update profiles set role = 'owner' where id = '<auth user id>';`
+4. Auth: enable email+password (phone OTP optional). Create the accounts:
+   `node scripts/create_accounts.mjs` (reads `web/.env.local`; creates the
+   owner, a retailer + staff login, and a demo customer). Do NOT create the
+   owner by signing up and editing profiles by hand: RLS reads the role from
+   the JWT `app_metadata` claim, which only the script (or the portal's
+   "Add retailer" form) writes.
 5. Realtime is optional; the portal polls.
 
 ## 2. Expo / EAS (new account)
@@ -34,7 +41,13 @@ Copy each `.env.example` next to its app as `.env` (Expo reads `.env`) and `.env
 
 ## 5. SMS commands (retailer offline lock/unlock)
 
-The retailer's registered phone number is the SMS sender allowlist. Commands: `LOCK <customer-code> <pin-if-set>` and `UNLOCK <customer-code>`. SMS is not cryptographically authenticated: the customer code and the device PIN/TOTP paths are the authenticated fallbacks. An SMS gateway/aggregator is not included; choose one and keep costs in mind. Android 14+ delivery restrictions must be verified per device family.
+The retailer's registered phone number is the SMS sender allowlist. Commands:
+`LOCK <customer-code>` and `UNLOCK <customer-code> <totp>` — an 8-digit TOTP
+issued by the owner for that device is required to unlock by SMS. SMS is not
+cryptographically authenticated: the customer code and the device PIN/TOTP
+paths are the authenticated factors. An SMS gateway/aggregator is not
+included; choose one and keep costs in mind. Android 14+ delivery restrictions
+must be verified per device family.
 
 ## 6. Device acceptance (required before calling any family "working")
 

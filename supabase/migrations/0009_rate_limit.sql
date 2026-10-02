@@ -1,6 +1,7 @@
 -- emidost 0009 - shared rate limiting (free, uses the existing Supabase DB).
--- Works across all serverless instances (Worker + Vercel). Service-role
--- calls bypass RLS; there are no anon policies, so the table is closed.
+-- Works across all serverless instances (Worker + Vercel). 0011 enables RLS
+-- on this table and revokes public execute on rate_limit_hit, closing it to
+-- non-service roles (apply 0011 after this; 0000_all_in_one.sql includes it).
 
 create table if not exists public.rate_limits (
   key text primary key,

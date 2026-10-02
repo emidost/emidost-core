@@ -12,7 +12,7 @@ object SyncStateStore {
   private const val OFFLINE_LOCK_AFTER_MS = 5L * 24 * 60 * 60 * 1000
 
   private fun prefs(c: Context) =
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
   fun setLastSyncOk(c: Context, at: Long) = prefs(c).edit().putLong("last_sync_ok_at", at).apply()
   fun getLastSyncOk(c: Context): Long = prefs(c).getLong("last_sync_ok_at", 0L)

@@ -34,6 +34,13 @@ class EmidostDeviceManagementModule : Module() {
         "hidden" to isHidden(),
         "lastLockAssertAt" to LockStateStore.getLastLockAssertAt(context),
         "kioskActive" to LockPolicies.kioskActive(context),
+        // Unlock-wins watermark readback: the JS layer checks LOCK staleness
+        // with the same inputs the native service uses.
+        "lastUnlockedAt" to LockStateStore.getLastUnlockedAt(context),
+        "lastUnlockElapsed" to LockStateStore.getLastUnlockElapsed(context),
+        "lastUnlockBoot" to LockStateStore.getLastUnlockBoot(context),
+        "bootCount" to LockStateStore.currentBootCount(context),
+        "elapsedRealtime" to android.os.SystemClock.elapsedRealtime(),
       )
     }
 
@@ -70,6 +77,15 @@ class EmidostDeviceManagementModule : Module() {
           } else false
         } catch (_: Exception) { false }
       }
+    }
+
+    Function("exitLockTask") {
+      // Unpins the foreground activity when the phone is unlocked again.
+      // Safe to call when not pinned (the exception is caught).
+      try {
+        val activity = appContext.currentActivity
+        if (activity != null) { activity.stopLockTask(); true } else false
+      } catch (_: Exception) { false }
     }
 
     Function("executeAuthorizedLock") { commandId: String ->
@@ -211,7 +227,9 @@ class EmidostDeviceManagementModule : Module() {
     Function("kickCommandService") { EmidostCommandService.kick(); true }
 
     Function("rebootDevice") {
-      if (LockStateStore.isLocked(context)) mapOf("ok" to false, "reason" to "locked_reboot_refused")
+      // dpm.reboot exists only on API 24+ (minSdk is 23).
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) mapOf("ok" to false, "reason" to "unsupported_api")
+      else if (LockStateStore.isLocked(context)) mapOf("ok" to false, "reason" to "locked_reboot_refused")
       else {
         try { DeviceActions.dpm(context).reboot(DeviceActions.admin(context)); mapOf("ok" to true) }
         catch (_: Exception) { mapOf("ok" to false, "reason" to "exception") }

@@ -63,16 +63,25 @@ export async function POST(req: NextRequest) {
     event: 'CUSTOMER_CREATED', detail: { customer_id: data.id, brand: data.brand, model: data.model },
   });
 
-  // Generate the full repayment schedule atomically with the customer.
-  const safeDueDay = dueDayOfMonth(dueDay);
-  const now = new Date();
+  // Generate the full repayment schedule atomically with the customer. Due
+  // dates are calendar days in Asia/Calcutta (IST, UTC+05:30): the business
+  // runs on Indian dates, so compute them in IST instead of the server's
+  // timezone (Vercel runs UTC and would shift the due day by up to a day).
+  const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
+  const ist = new Date(Date.now() + IST_OFFSET_MS);
+  const y = ist.getUTCFullYear();
+  const m = ist.getUTCMonth();
   const rows: { customer_id: string; retailer_id: string; due_date: string; amount_due: number; status: string }[] = [];
   for (let i = 1; i <= emiMonths; i += 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    d.setDate(Math.min(safeDueDay, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    const total = m + i;
+    const yy = y + Math.floor(total / 12);
+    const mm = total % 12;
+    const lastDay = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate();
+    const dd = Math.min(dueDayOfMonth(dueDay), lastDay);
     rows.push({
       customer_id: data.id, retailer_id: profile.retailer_id as string,
-      due_date: d.toISOString().slice(0, 10), amount_due: emiAmount, status: 'PENDING',
+      due_date: `${yy}-${String(mm + 1).padStart(2, '0')}-${String(dd).padStart(2, '0')}`,
+      amount_due: emiAmount, status: 'PENDING',
     });
   }
   const { error: schedErr } = await svc.from('emi_schedules').insert(rows);

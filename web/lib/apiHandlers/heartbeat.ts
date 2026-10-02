@@ -47,10 +47,13 @@ export async function POST(req: NextRequest) {
       .limit(1);
     if (openSessions && openSessions.length > 0) {
       await svc.from('devices').update({ mode: 'device_owner' }).eq('id', device.id);
+      // Same state list as the open-session check above: a session still in
+      // 'created' (e.g. DPC provisioning finished before the register call)
+      // must also activate and consume the credit exactly once.
       const { data: activated } = await svc.from('enrollment_sessions')
         .update({ state: 'active' })
         .eq('customer_id', device.customer_id)
-        .in('state', ['installed', 'connected', 'finalizing'])
+        .in('state', ['created', 'installed', 'connected', 'owner_verified', 'access_verified', 'finalizing'])
         .select('id');
       // A real activation consumes one device credit, exactly once (CAS above).
       if (activated && activated.length > 0) {
@@ -63,6 +66,31 @@ export async function POST(req: NextRequest) {
             });
           }
         }
+      }
+    }
+  }
+
+  // Lazy sweeper (one-time refunds, CAS on status): a command that sits
+  // PENDING/RECEIVED for over 24 h will never be executed; expire it and, for
+  // LOCK, refund the allowance debited at queue time. A dead device therefore
+  // cannot hold the retailer's allowance forever.
+  const staleCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: staleRows } = await svc.from('device_commands')
+    .select('id, command_type')
+    .eq('device_id', device.id)
+    .in('status', ['PENDING', 'RECEIVED'])
+    .lt('created_at', staleCutoff);
+  for (const stale of staleRows ?? []) {
+    const { data: expired } = await svc.from('device_commands')
+      .update({ status: 'EXPIRED', acked_at: new Date().toISOString() })
+      .eq('id', stale.id).in('status', ['PENDING', 'RECEIVED'])
+      .select('id').maybeSingle();
+    if (expired && stale.command_type === 'LOCK') {
+      const { data: refunded } = await svc.rpc('increment_allowance', { rid: device.retailer_id });
+      if (refunded != null) {
+        await svc.from('credit_ledger').insert({
+          retailer_id: device.retailer_id, kind: 'lock_refund', delta: 1, balance_after: Number(refunded),
+        });
       }
     }
   }
@@ -98,9 +126,11 @@ export async function POST(req: NextRequest) {
 
   const nextDue = dueRows?.data?.[0] ?? null;
   // Overdue truth derives from the due date itself (PENDING rows past their
-  // date are overdue even before any updater marks them).
+  // date are overdue even before any updater marks them). Due dates are
+  // calendar days in Asia/Calcutta (IST, UTC+05:30), so parse them with the
+  // explicit offset instead of the server's own timezone.
   const overdueDays = nextDue
-    ? Math.max(0, Math.floor((Date.now() - new Date(nextDue.due_date + 'T00:00:00').getTime()) / 86_400_000))
+    ? Math.max(0, Math.floor((Date.now() - new Date(nextDue.due_date + 'T00:00:00+05:30').getTime()) / 86_400_000))
     : 0;
 
   return Response.json({
@@ -118,6 +148,7 @@ export async function POST(req: NextRequest) {
     retailer_phone: retailers?.phone ?? null,
     retailer_name: retailers?.name ?? null,
     retailer_suspended: suspended,
+    is_locked: device.is_locked,
     next_due: nextDue,
     overdue_days: overdueDays,
     server_now: new Date().toISOString(),

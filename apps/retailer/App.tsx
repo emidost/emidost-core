@@ -38,6 +38,8 @@ export default function App() {
   const [session, setSession] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>('customers');
   const [balance, setBalance] = useState<{ credits_balance: number; lock_allowances: number } | null>(null);
+  // The brand chosen in the customer form drives the per-OEM Enrol walkthrough.
+  const [enrolBrand, setEnrolBrand] = useState('');
 
   useEffect(() => {
     void (async () => {
@@ -67,9 +69,9 @@ export default function App() {
         </Text>
       </View>
       {tab === 'customers' && <Customers />}
-      {tab === 'new' && <NewCustomer onDone={() => setTab('customers')} />}
+      {tab === 'new' && <NewCustomer onDone={() => setTab('customers')} onBrand={setEnrolBrand} />}
       {tab === 'devices' && <Devices />}
-      {tab === 'enrol' && <Enrol />}
+      {tab === 'enrol' && <Enrol brand={enrolBrand} />}
       <View style={s.tabs}>
         <TabButton icon={Wallet} label="Customers" active={tab === 'customers'} onPress={() => setTab('customers')} />
         <TabButton icon={UserPlus} label="New" active={tab === 'new'} onPress={() => setTab('new')} />
@@ -252,7 +254,7 @@ function PaymentRow({ customerId, onDone }: { customerId: string; onDone: () => 
   );
 }
 
-function NewCustomer({ onDone }: { onDone: () => void }) {
+function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand: string) => void }) {
   const [form, setForm] = useState({
     name: '', phone: '', imei: '', brand: 'Samsung', model: '',
     emi_months: '12', emi_amount: '', emi_due_day: '1',
@@ -291,7 +293,7 @@ function NewCustomer({ onDone }: { onDone: () => void }) {
       <Field label="Name" value={form.name} onChange={set('name')} icon={UserPlus} />
       <Field label="Phone number" value={form.phone} onChange={set('phone')} icon={Smartphone} />
       <Field label="IMEI" value={form.imei} onChange={set('imei')} icon={Hash} />
-      <Field label="Brand" value={form.brand} onChange={set('brand')} icon={Settings2} />
+      <Field label="Brand" value={form.brand} onChange={(v) => { set('brand')(v); onBrand(v); }} icon={Settings2} />
       <Field label="Model" value={form.model} onChange={set('model')} icon={Smartphone} />
       <Field label="EMI months" value={form.emi_months} onChange={set('emi_months')} icon={CalendarDays} keyboard="numeric" />
       <Field label="EMI amount per month" value={form.emi_amount} onChange={set('emi_amount')} icon={IndianRupee} keyboard="numeric" />
@@ -382,20 +384,23 @@ function Devices() {
   );
 }
 
-function Enrol() {
+function Enrol({ brand }: { brand: string }) {
   const [steps, setSteps] = useState<string[]>([]);
   const [hint, setHint] = useState('');
+  const [profileName, setProfileName] = useState('');
   useEffect(() => {
-    // The walkthrough targets the CUSTOMER phone brand chosen in the form; the
-    // generic verified checklist is shown here as the default.
-    const profile = getOemProfile('', '');
+    // The walkthrough targets the CUSTOMER phone brand chosen in the form
+    // (empty brand falls back to the generic near-stock checklist).
+    const profile = getOemProfile(brand, brand);
     setSteps(profile.setupSteps);
     setHint(profile.wirelessDebugGateHint);
-  }, []);
+    setProfileName(profile.displayName);
+  }, [brand]);
 
   return (
     <ScrollView style={s.page}>
       <Text style={s.title}>Enrol a phone</Text>
+      <Text style={s.muted}>Walkthrough for: {profileName || 'Unknown brand'}</Text>
       <Text style={s.muted}>
         1. Take the customer's consent at the counter and create a setup code on their customer card. 2. Factory-reset the customer phone, skip every account, set no PIN.
         3. Generate the QR in the portal (Enrolment QR page) and scan it from the setup wizard after 6 taps.

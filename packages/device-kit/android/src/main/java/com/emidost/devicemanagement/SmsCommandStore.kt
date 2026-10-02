@@ -1,4 +1,4 @@
-﻿package com.emidost.devicemanagement
+package com.emidost.devicemanagement
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -8,9 +8,11 @@ import java.security.MessageDigest
 
 /**
  * Offline SMS LOCK/UNLOCK from the retailer's registered number.
- * Format:  LOCK <customer-code>   /   UNLOCK <customer-code>
+ * Format:  LOCK <customer-code>   /   UNLOCK <customer-code> <totp>
  * Sender must equal the allowlisted retailer phone; customer code must match.
- * Hard-lock-only: LOCK is refused unless the app is the live Device Owner.
+ * Hard-lock-only: LOCK is refused unless the app is the live Device Owner, the
+ * loan is outstanding, and the plan is a lock plan (notify_only never locks).
+ * UNLOCK requires a valid TOTP (authenticated factor); bare SMS is spoofable.
  * SMS is not cryptographically authenticated; the device PIN and TOTP paths
  * are the authenticated fallbacks (documented).
  */
@@ -38,7 +40,7 @@ object SmsCommandStore {
     phone.replace(Regex("[^0-9]"), "").takeLast(10)
 
   private fun prefs(c: Context): SharedPreferences =
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
 
 /**
@@ -50,14 +52,14 @@ object DevicePinStore {
   private const val PREFS = "emidost_pin"
 
   fun setVerifyHash(c: Context, hash: String) {
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("verify", hash).apply()
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("verify", hash).apply()
   }
 
   fun hasPin(c: Context): Boolean =
-    !c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "").isNullOrEmpty()
+    !DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "").isNullOrEmpty()
 
   fun verify(c: Context, entered: String): Boolean {
-    val expected = c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "") ?: return false
+    val expected = DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("verify", "") ?: return false
     val installationId = CommandServiceStore.getInstallationId(c) ?: ""
     val candidate = sha256("$entered:$installationId")
     return candidate == expected

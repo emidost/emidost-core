@@ -4,8 +4,6 @@ import { useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import { Download, QrCode, RefreshCw } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
-
 const ADMIN_COMPONENT = 'com.emidost.customer/com.emidost.devicemanagement.EmidostDeviceAdminReceiver';
 const LS_KEY = 'emidost-provisioning-v1';
 

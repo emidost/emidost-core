@@ -1,4 +1,4 @@
-﻿package com.emidost.devicemanagement
+package com.emidost.devicemanagement
 
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
@@ -18,7 +18,7 @@ object LockStateStore {
   private const val PREFS = "emidost_lock_state"
 
   private fun prefs(c: Context): SharedPreferences =
-    c.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    DpcContext.wrap(c).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
   fun setLocked(c: Context, locked: Boolean) {
     prefs(c).edit().putBoolean("locked", locked).apply()
@@ -53,7 +53,12 @@ object LockStateStore {
     -1
   }
 
+  /** Current BOOT_COUNT (monotonic boot identity; -1 when unreadable). */
+  fun currentBootCount(c: Context): Int = bootCount(c)
+
   fun getLastUnlockElapsed(c: Context): Long = prefs(c).getLong("last_unlock_elapsed", 0L)
+
+  fun getLastUnlockBoot(c: Context): Int = prefs(c).getInt("last_unlock_boot", -1)
 
   fun setLastLockAssertAt(c: Context, wallMillis: Long) {
     prefs(c).edit().putLong("last_lock_assert_at", wallMillis).apply()

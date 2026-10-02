@@ -1,13 +1,18 @@
 # Cloudflare Workers — setup guide and migration plan
 
-STATUS (2026-10-02): DONE.
+STATUS (2026-10-02; updated 2026-10-03): DONE, optional.
 - API Worker LIVE: https://emidost-api.financebuddy144.workers.dev (smoke-tested:
-  health 200, register 400, heartbeat 401).
+  health 200, register 400, heartbeat 401). It reuses web/lib/apiHandlers
+  verbatim, so it picks up every web fix on the next `wrangler deploy`.
 - Landing LIVE: https://emidost-landing.pages.dev
 - Portal stays on Vercel (dashboard UI only); a custom domain will be bought
   later for the landing and mapped in Cloudflare (Pages -> Custom domains).
-- Apps: set EXPO_PUBLIC_API_URL=https://emidost-api.financebuddy144.workers.dev
-  before the EAS builds.
+- Apps: the canonical default today is the Vercel API
+  (`EXPO_PUBLIC_API_URL=https://emidost-pd8s.vercel.app`, verified live
+  2026-10-03, matches CONTEXT.md + BUILD_AND_DEPLOY_STEPS.md). The Worker is the
+  optional zero-cost swap: set
+  `EXPO_PUBLIC_API_URL=https://emidost-api.financebuddy144.workers.dev` and
+  redeploy the Worker first so both hosts run the same handlers.
 
 Why: Cloudflare Workers free tier is commercial-safe and gives 100,000
 requests/day. Our 2-hour device poll (12 req/device/day) means 2,000 phones ≈

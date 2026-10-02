@@ -37,7 +37,8 @@ end $$;
 
 -- 3. Atomic payment allocation: the payment row and the oldest-first schedule
 --    settlement commit together, and concurrent payments for one customer
---    serialize on the customer row (no double allocation). Returns the
+--    serialize on the customer row (no double allocation). Overpayments are
+--    REJECTED (exception 'overpayment'); partials are fine. Returns the
 --    payment id and whether the loan is now complete.
 create or replace function public.record_payment(
   cid uuid, amt numeric, pay_method text, receipt text, recorder uuid
@@ -48,6 +49,7 @@ declare
   sched record;
   remaining numeric := amt;
   need numeric;
+  need_total numeric;
   pid uuid;
 begin
   select id, retailer_id, status into cust
@@ -57,6 +59,15 @@ begin
   end if;
   if cust.status in ('COMPLETE', 'SETTLED') then
     raise exception 'loan settled';
+  end if;
+
+  -- Overpayment guard (under the customer lock): anything above the total
+  -- remaining due would be silently swallowed by the allocation loop.
+  select coalesce(sum(amount_due - coalesce(amount_paid, 0)), 0) into need_total
+    from public.emi_schedules
+   where customer_id = cid and status in ('PENDING', 'OVERDUE', 'PARTIAL');
+  if amt > need_total then
+    raise exception 'overpayment: at most % is due', need_total;
   end if;
 
   insert into public.payments (customer_id, retailer_id, amount, method, receipt_no, recorded_by)

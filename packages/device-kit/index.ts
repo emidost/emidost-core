@@ -12,6 +12,13 @@ export interface DeviceStatus {
   enforcedLocked: boolean;
   hidden: boolean;
   lastLockAssertAt: number;
+  kioskActive: boolean;
+  // Unlock-wins watermark readback (mirrors LockStateStore + SystemClock).
+  lastUnlockedAt: number;
+  lastUnlockElapsed: number;
+  lastUnlockBoot: number;
+  bootCount: number;
+  elapsedRealtime: number;
 }
 
 export interface OemProfile {
@@ -62,6 +69,14 @@ export function getDeviceInfo(): Promise<{ manufacturer: string; model: string; 
 }
 export function lockNow(): Promise<boolean> {
   return native.lockNow();
+}
+/** Pins the foreground activity into kiosk mode (requires DO + lock-task permit). */
+export function enterLockTask(): Promise<boolean> {
+  return native.enterLockTask();
+}
+/** Unpins the foreground activity when the phone is unlocked again. */
+export function exitLockTask(): Promise<boolean> {
+  return native.exitLockTask();
 }
 export function executeAuthorizedLock(commandId: string): Promise<LockResult> {
   return native.executeAuthorizedLock(commandId);

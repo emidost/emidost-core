@@ -1,4 +1,4 @@
-﻿import { createHash } from 'crypto';
+import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { bad } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
@@ -40,12 +40,22 @@ export async function POST(req: NextRequest) {
   }
 
   // Takeover guard, checked before the token is spent: the installation id may
-  // already exist; it must belong to this session's retailer, otherwise the
-  // token cannot re-point it.
+  // already exist; it must belong to this session's retailer AND to this
+  // session's customer. A token for customer B can never re-point (and thus
+  // steal) an active device of customer A. Exception: a phone whose loan is
+  // settled/released may be re-enrolled for a new customer (resale flow).
   const { data: existing } = await svc.from('devices')
-    .select('retailer_id').eq('installation_id', installationId).maybeSingle();
+    .select('retailer_id, customer_id, customers(status)')
+    .eq('installation_id', installationId).maybeSingle();
   if (existing && existing.retailer_id !== session.retailer_id) {
     return bad('This installation id belongs to another retailer');
+  }
+  if (existing && existing.customer_id && existing.customer_id !== session.customer_id) {
+    const bound = existing.customers as unknown as { status: string } | null;
+    const released = bound && (bound.status === 'COMPLETE' || bound.status === 'SETTLED');
+    if (!released) {
+      return bad('This installation id is already bound to another customer');
+    }
   }
 
   // Atomic one-shot consumption: only the CREATED state transitions.

@@ -29,8 +29,12 @@ class EmidostSmsReceiver : BroadcastReceiver() {
 
       when (command) {
         "LOCK" -> {
-          // Hard-lock-only, and never after settlement/release.
-          if (DeviceActions.isOwner(context) && SimSentinelStore.loanOutstanding(context)) {
+          // Hard-lock-only, never after settlement/release, and never on a
+          // notify_only plan (reminders only, no locking).
+          if (DeviceActions.isOwner(context) &&
+            SimSentinelStore.loanOutstanding(context) &&
+            SyncStateStore.getLockMode(context) == "lock"
+          ) {
             DeviceActions.hardLock(context)
           }
           EmidostCommandService.kick()

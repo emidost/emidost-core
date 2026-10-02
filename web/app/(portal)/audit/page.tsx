@@ -5,8 +5,6 @@ import { ScrollText } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { AuditRow } from '@emidost/shared';
 
-export const dynamic = 'force-dynamic';
-
 export default function AuditPage() {
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [error, setError] = useState<string | null>(null);

@@ -59,7 +59,7 @@ module.exports = function withEmidostDeviceKit(config) {
         },
         'intent-filter': [
           { action: [{ $: { 'android:name': 'android.intent.action.SIM_STATE_CHANGED' } }] },
-          { action: [{ $: { 'android:name': 'android.intent.action.AIRPLANE_MODE' } }] },
+          { action: [{ $: { 'android:name': 'android.intent.action.AIRPLANE_MODE_CHANGED' } }] },
         ],
       });
     }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Store, Smartphone, QrCode, ScrollText, Wallet,
+  LayoutDashboard, Store, Smartphone, QrCode, ScrollText, Wallet, Users,
 } from 'lucide-react';
 import { serverClient } from '@/lib/supabaseServer';
 
@@ -26,6 +26,7 @@ export default async function PortalLayout({ children }: { children: React.React
       ]
     : [
         { href: '/console', label: 'Console', icon: LayoutDashboard },
+        { href: '/console/customers', label: 'Customers', icon: Users },
         { href: '/console/customers/new', label: 'New customer', icon: Wallet },
         { href: '/console/devices', label: 'Devices', icon: Smartphone },
       ];
