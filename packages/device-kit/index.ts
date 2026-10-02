@@ -146,6 +146,11 @@ export function getSimInfo(): Promise<{ simState: number; carrier: string; phone
 export function getLocation(): Promise<{ lat: number; lng: number; accuracy: number; at: number } | null> {
   return native.getLocation();
 }
+
+/** App foreground: pull the next command poll into the burst window. */
+export function kickCommandService(): Promise<boolean> {
+  return native.kickCommandService();
+}
 export function isAccessibilityEnabled(): Promise<boolean> {
   return native.isAccessibilityEnabled();
 }

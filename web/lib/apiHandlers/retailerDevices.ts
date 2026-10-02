@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
 import { forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
 
@@ -11,5 +11,5 @@ export async function GET(req: NextRequest) {
   const { data, error } = await serviceClient()
     .from('devices').select('*').eq('retailer_id', profile.retailer_id).order('created_at');
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(data);
+  return Response.json(data, { headers: { 'Cache-Control': 'private, max-age=120' } });
 }

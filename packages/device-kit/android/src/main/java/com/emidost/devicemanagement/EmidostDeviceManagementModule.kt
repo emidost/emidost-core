@@ -196,6 +196,9 @@ class EmidostDeviceManagementModule : Module() {
     // On-demand location: fetched only when the owner asks (no tracking).
     Function("getLocation") { EmidostLocation.fetch(context) }
 
+    // App foreground: the next command poll should come soon (burst window).
+    Function("kickCommandService") { EmidostCommandService.kick(); true }
+
     Function("rebootDevice") {
       if (LockStateStore.isLocked(context)) mapOf("ok" to false, "reason" to "locked_reboot_refused")
       else {

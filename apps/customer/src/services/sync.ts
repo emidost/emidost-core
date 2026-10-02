@@ -94,6 +94,8 @@ export async function pollOnce(): Promise<PollUiState | null> {
   const installationId = await getInstallationId();
   const deviceToken = await getDeviceToken();
   const stBefore = await DeviceMgmt.getDeviceManagementStatus();
+  // App foreground: pull the native poll into the burst window once.
+  await DeviceMgmt.kickCommandService();
   let resp: any;
   try {
     const res = await fetch(`${API_URL}/api/device/heartbeat?installation_id=${installationId}`, {

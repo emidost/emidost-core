@@ -30,16 +30,19 @@ class EmidostCommandService : Service() {
 
   companion object {
     private const val NOTIFICATION_ID = 4401
-    // Idle polling is deliberately SLOW: the lock runs entirely on-device, and
-    // SMS is the instant command channel. The network is only used to fetch
-    // commands and to report location when the owner asks for it.
-    private const val POLL_SECONDS = 300L
-    private const val BURST_SECONDS = 6L
+    // 2k-device free-tier budget: idle poll is 2 HOURS (12 req/day/device).
+    // SMS is the instant command channel; a 15 s burst runs for 10 minutes
+    // after any command, SMS event, or app foreground. The lock itself is
+    // fully local and never depends on these polls.
+    private const val POLL_SECONDS = 7200L
+    private const val BURST_SECONDS = 15L
     private const val REASSERT_MS = 120_000L
-    private const val BURST_WINDOW_MS = 60_000L
+    private const val BURST_WINDOW_MS = 10 * 60_000L
 
     @Volatile var running: Boolean = false
       private set
+
+    @Volatile private var burstUntil: Long = 0L
 
     fun start(context: Context) {
       val intent = Intent(context, EmidostCommandService::class.java)
@@ -51,11 +54,15 @@ class EmidostCommandService : Service() {
         }
       } catch (_: Exception) {}
     }
+
+    /** A local event (SMS command, app foreground) wants the next poll soon. */
+    fun kick() {
+      burstUntil = System.currentTimeMillis() + BURST_WINDOW_MS
+    }
   }
 
   private var executor: ScheduledExecutorService? = null
   private var scheduled = false
-  @Volatile private var burstUntil: Long = 0L
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -96,8 +103,11 @@ class EmidostCommandService : Service() {
 
   private fun scheduleNext(ex: ScheduledExecutorService) {
     if (ex.isShutdown) return
-    val fast = LockStateStore.isLocked(this) || System.currentTimeMillis() < burstUntil
-    val delay = if (fast) BURST_SECONDS else POLL_SECONDS
+    // Fast only during a burst window; the lock state itself never drives
+    // network polls (enforcement is local). +-20% jitter spreads the fleet.
+    val fast = System.currentTimeMillis() < burstUntil
+    var delay = if (fast) BURST_SECONDS else POLL_SECONDS
+    delay = (delay * (0.8 + Math.random() * 0.4)).toLong()
     try {
       ex.schedule({
         try { tick() } catch (_: Throwable) {}

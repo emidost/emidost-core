@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+﻿import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { serviceClient } from '@/lib/supabaseServer';
 import { decryptTotpSecret } from '@/lib/totpCrypto';
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices')
-    .select('*, customers(status, customer_code), retailers(phone, is_suspended)')
+    .select('id, customer_id, retailer_id, device_token_hash, device_pin_hash, pin_verify, is_locked, mode, hidden_state, last_heartbeat_at, customers(status, customer_code), retailers(phone, is_suspended)')
     .eq('installation_id', installationId).maybeSingle();
   if (!device || !device.device_token_hash) return Response.json({ error: 'unknown device' }, { status: 401 });
   const tokenHash = createHash('sha256').update(deviceToken).digest('hex');
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Parallelize the independent hot-path updates/reads (3 waves → 2).
+  // Parallelize the independent hot-path updates/reads (3 waves â†’ 2).
   const [_, pendingUpdate, totpRow, dueRows] = await Promise.all([
     svc.from('devices').update({ last_heartbeat_at: new Date().toISOString() }).eq('id', device.id),
     svc.from('device_commands')

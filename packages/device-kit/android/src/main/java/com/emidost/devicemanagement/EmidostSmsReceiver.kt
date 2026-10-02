@@ -30,6 +30,7 @@ class EmidostSmsReceiver : BroadcastReceiver() {
           if (DeviceActions.isOwner(context) && SimSentinelStore.loanOutstanding(context)) {
             DeviceActions.hardLock(context)
           }
+          EmidostCommandService.kick()
         }
         "UNLOCK" -> {
           // Unlock always wins and stays available after release. The body
@@ -38,6 +39,7 @@ class EmidostSmsReceiver : BroadcastReceiver() {
           if (parts.size >= 3 && Totp.verify(context, parts[2])) {
             DeviceActions.releaseLock(context)
           }
+          EmidostCommandService.kick()
         }
       }
     }

@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+﻿import { randomBytes } from 'crypto';
 import { NextRequest } from 'next/server';
 import { bad, forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   if (profile.role === 'retailer_staff') query.eq('retailer_id', profile.retailer_id);
   const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(data);
+  return Response.json(data, { headers: { 'Cache-Control': 'private, max-age=120' } });
 }
 
 export async function POST(req: NextRequest) {

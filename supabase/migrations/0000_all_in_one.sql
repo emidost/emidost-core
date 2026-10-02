@@ -579,3 +579,34 @@ create policy releases_read on public.release_events for select
       or (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'none') = 'retailer_staff'
           and customer_id in (select id from public.customers
               where retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid)));
+
+-- emidost 0006 â€” retention (keeps the free 500 MB DB from filling up).
+-- Prunes acked commands, their acks, and old audit rows. Uses pg_cron when the
+-- extension is available; the plain statements can also be run manually.
+
+-- One-off cleanup (safe to run anytime).
+delete from public.device_command_acks
+ where received_at < now() - interval '30 days';
+delete from public.device_commands
+ where status in ('EXECUTED','SUPERSEDED','CANCELLED','FAILED','EXPIRED')
+   and created_at < now() - interval '60 days';
+delete from public.audit_log
+ where created_at < now() - interval '90 days';
+
+-- Scheduled cleanup if pg_cron is enabled (create extension via dashboard if
+-- missing; this block is harmless either way).
+do $$
+declare
+  has_cron boolean;
+begin
+  select exists(select 1 from pg_extension where extname = 'pg_cron') into has_cron;
+  if has_cron then
+    perform cron.schedule(
+      'emidost-retention',
+      '0 3 * * *',
+      $$delete from public.device_command_acks where received_at < now() - interval '30 days';
+        delete from public.device_commands where status in ('EXECUTED','SUPERSEDED','CANCELLED','FAILED','EXPIRED') and created_at < now() - interval '60 days';
+        delete from public.audit_log where created_at < now() - interval '90 days';$$
+    );
+  end if;
+end $$;
