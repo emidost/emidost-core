@@ -4,6 +4,16 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-02 offline + lock-mode wave (push 4dec110)
+
+- `0007_offline_lock.sql`: `customers.lock_mode` ('lock' | 'notify_only', default lock) + index. All-in-one rebuilt (7 migrations).
+- Heartbeat now delivers lock_mode, emi_amount/months/due_day, retailer_name - the phone's full offline copy.
+- Customer app: caches the whole server state locally; falls back to it when offline; 5-day no-internet watchdog hard-locks locally (lock plans only; notify_only never locks, reminders only). SMS path untouched.
+- Retailer app + web console: "Phone lock plan" choice at customer creation; cards show the plan chip.
+- Owner portal dashboard redesigned: gradient stat cards with sheen hover, animated 4-step guide, quick actions, honest note; reduced-motion safe.
+- Worker redeployed (heartbeat fields live). Checks: web/shared/device-kit/customer/retailer/owner/workers tsc 0, tests 6/6.
+- User action: run the single 0000_all_in_one.sql in a NEW query tab.
+
 ## 2026-10-02 security + SQL hardening wave (Claude + Codex audit, auto-approved)
 
 Both CLI agents audited (17 + 31 findings, merged). Implemented (push a6a6302):
