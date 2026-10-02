@@ -26,7 +26,11 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 }
 
 const ACCOUNTS = [
-  { email: 'owner@emidost.in', password: 'Owner@Pass123', role: 'owner', name: 'Owner', phone: '917003617074', retailer: null },
+  // The owner login ID is your admin ID. Set the password with OWNER_PASSWORD
+  // (node scripts/create_accounts.mjs) or change it afterwards with
+  // `node scripts/set_owner.mjs --password "..."`; the fallback below is the
+  // documented default and must be changed before launch.
+  { email: process.env.OWNER_EMAIL ?? 'dip@emidost.in', password: process.env.OWNER_PASSWORD ?? 'Owner@Pass123', role: 'owner', name: 'Owner', phone: '917003617074', retailer: null },
   { email: 'retailer@emidost.in', password: 'Retailer@Pass123', role: 'retailer_staff', name: 'Demo Retailer', phone: '919800000001', retailer: 'Demo Phone House' },
   { email: 'customer@emidost.in', password: 'Customer@Pass123', role: 'customer', name: 'Demo Customer', phone: '919800000002', retailer: null },
 ];
@@ -78,6 +82,10 @@ async function main() {
     id: ownerUser.id, role: 'owner', full_name: ACCOUNTS[0].name, phone: ACCOUNTS[0].phone, is_suspended: false,
   });
   console.log('owner:', ownerUser.email, ownerProfile[0].id);
+  if (!process.env.OWNER_PASSWORD) {
+    console.log('  note: the owner password is the documented default. Change it with:');
+    console.log('        node scripts/set_owner.mjs --password "YourPassword"');
+  }
 
   // 2. Retailer row (owner_id = owner profile)
   const retailerRow = await rest('retailers', 'POST', {

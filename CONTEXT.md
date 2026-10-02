@@ -43,7 +43,7 @@ github.com/emidost/emidost).
 - Database: schema applied (tables verified). Indexes in
   `supabase/migrations/0002_perf_indexes.sql` (part of the all-in-one).
 - Accounts (no customer login exists; customers are retailer-created):
-  - Owner: owner@emidost.in / Owner@Pass123 (role owner)
+  - Owner: dip@emidost.in (role owner; password chosen by the owner via scripts/set_owner.mjs)
   - Retailer: retailer@emidost.in / Retailer@Pass123 (retailer_staff, bound to
     "Demo Phone House" with 10 credits, 50 lock allowances)
   - Demo customer row: Samsung Galaxy A15, 12 months, Rs 2,400/month, due day 5

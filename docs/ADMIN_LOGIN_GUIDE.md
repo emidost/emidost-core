@@ -46,7 +46,7 @@ It reads the keys from `web/.env.local` and creates:
 
 | Role | Login ID | Password | Notes |
 |---|---|---|---|
-| **Owner (admin)** | `owner@emidost.in` | `Owner@Pass123` | full portal access |
+| **Owner (admin)** | `dip@emidost.in` | **yours to choose** | full portal access |
 | Retailer staff | `retailer@emidost.in` | `Retailer@Pass123` | bound to "Demo Phone House" |
 | Demo customer row | (no login) | (no login) | customers never have logins |
 
@@ -54,12 +54,40 @@ It also writes the JWT `app_metadata` claims (`role`, `retailer_id`) that RLS
 reads, gives the demo retailer 10 device credits and 50 lock allowances, and
 adds one demo customer plus its EMI schedule.
 
+### Choose the owner password
+
+The admin password is not stored in the repo. Set it with:
+
+```powershell
+node scripts/set_owner.mjs --password "YourStrongPassword"
+```
+
+`set_owner.mjs` is idempotent: it creates the owner if missing, renames a
+legacy `owner@emidost.in` to `dip@emidost.in` (keeping the same user id, so
+every `retailer.owner_id` link survives), merges the `owner` claim, ensures the
+profile row, and updates the password only when you pass one. Run it with no
+arguments to just verify the account:
+
+```powershell
+node scripts/set_owner.mjs
+# owner login : dip@emidost.in
+# role claim  : owner
+# password    : unchanged
+```
+
+On a fresh project you can also pass `OWNER_PASSWORD` to the bootstrap script:
+`$env:OWNER_PASSWORD="YourStrongPassword"; node scripts/create_accounts.mjs`
+
 Notes:
 - The script is **one-shot**: re-running fails on the duplicate email
   (`422 ... already registered`). To add more accounts, use the portal
   (Part 5) or the admin API.
-- **Change both passwords immediately after the first login** (Part 6). They
-  are documented defaults and therefore public.
+- The owner account in this project is **already live as `dip@emidost.in`**
+  (renamed from the legacy `owner@emidost.in` with the same user id).
+  Until you run `set_owner.mjs --password`, it still has the documented
+  default password, so set yours before launch.
+- **Change the retailer password** after the first login too; it is documented
+  and therefore public.
 
 ## Part 4. Log in to the admin portal
 
