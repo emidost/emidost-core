@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
@@ -157,48 +157,53 @@ function Retailers() {
   }
 
   return (
-    <ScrollView style={s.page}>
+    <View style={s.page}>
       <Text style={s.title}>Retailers</Text>
       {err && <Text style={s.error}>{err}</Text>}
-      {rows.map((r) => (
-        <View key={r.id} style={s.card}>
-          <Text style={s.cardTitle}>{r.name} · {r.phone}</Text>
-          <Text style={s.muted}>
-            <Coins size={12} /> {r.credits_balance} slots · <Lock size={12} /> {r.lock_allowances} locks
-          </Text>
-          <View style={s.chipRow}>
-            <Chip tone={r.is_suspended ? colors.textMid : colors.accentTeal} label={r.is_suspended ? 'Suspended' : 'Active'} />
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-            <TouchableOpacity style={s.smallBtn} onPress={() => suspend(r)}>
-              {r.is_suspended ? <CircleCheck color="#16A34A" size={14} /> : <Ban color="#DC2626" size={14} />}
-              <Text style={s.smallBtnText}>{r.is_suspended ? 'Resume' : 'Suspend'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.smallBtn} onPress={() => { setTopupFor(r.id); setAllowFor(null); }}>
-              <Wallet size={14} color={ACCENT} />
-              <Text style={s.smallBtnText}>Credits</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.smallBtn} onPress={() => { setAllowFor(r.id); setTopupFor(null); }}>
-              <Lock size={14} color={ACCENT} />
-              <Text style={s.smallBtnText}>Allowances</Text>
-            </TouchableOpacity>
-          </View>
-          {topupFor === r.id && (
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <TextInput style={[s.input, { flex: 1 }]} placeholder="Slots to add" keyboardType="numeric" value={topupValue} onChangeText={setTopupValue} />
-              <TouchableOpacity style={s.smallBtn} onPress={() => giveCredits(r)}><Text style={s.smallBtnText}>Add</Text></TouchableOpacity>
+      <FlatList
+        data={rows}
+        keyExtractor={(r) => r.id}
+        renderItem={({ item: r }) => (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>{r.name} · {r.phone}</Text>
+            <Text style={s.muted}>
+              <Coins size={12} /> {r.credits_balance} slots · <Lock size={12} /> {r.lock_allowances} locks
+            </Text>
+            <View style={s.chipRow}>
+              <Chip tone={r.is_suspended ? colors.textMid : colors.accentTeal} label={r.is_suspended ? 'Suspended' : 'Active'} />
             </View>
-          )}
-          {allowFor === r.id && (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <TextInput style={[s.input, { flex: 1 }]} placeholder="New total" keyboardType="numeric" value={allowValue} onChangeText={setAllowValue} />
-              <TouchableOpacity style={s.smallBtn} onPress={() => setAllowances(r)}><Text style={s.smallBtnText}>Set</Text></TouchableOpacity>
+              <TouchableOpacity style={s.smallBtn} onPress={() => suspend(r)}>
+                {r.is_suspended ? <CircleCheck color="#16A34A" size={14} /> : <Ban color="#DC2626" size={14} />}
+                <Text style={s.smallBtnText}>{r.is_suspended ? 'Resume' : 'Suspend'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.smallBtn} onPress={() => { setTopupFor(r.id); setAllowFor(null); }}>
+                <Wallet size={14} color={ACCENT} />
+                <Text style={s.smallBtnText}>Credits</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.smallBtn} onPress={() => { setAllowFor(r.id); setTopupFor(null); }}>
+                <Lock size={14} color={ACCENT} />
+                <Text style={s.smallBtnText}>Allowances</Text>
+              </TouchableOpacity>
             </View>
-          )}
-        </View>
-      ))}
-      {rows.length === 0 && <Text style={s.muted}>No retailers yet.</Text>}
-    </ScrollView>
+            {topupFor === r.id && (
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TextInput style={[s.input, { flex: 1 }]} placeholder="Slots to add" keyboardType="numeric" value={topupValue} onChangeText={setTopupValue} />
+                <TouchableOpacity style={s.smallBtn} onPress={() => giveCredits(r)}><Text style={s.smallBtnText}>Add</Text></TouchableOpacity>
+              </View>
+            )}
+            {allowFor === r.id && (
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TextInput style={[s.input, { flex: 1 }]} placeholder="New total" keyboardType="numeric" value={allowValue} onChangeText={setAllowValue} />
+                <TouchableOpacity style={s.smallBtn} onPress={() => setAllowances(r)}><Text style={s.smallBtnText}>Set</Text></TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+        ListEmptyComponent={<Text style={s.muted}>No retailers yet.</Text>}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      />
+    </View>
   );
 }
 
@@ -250,15 +255,21 @@ function Audit() {
     })();
   }, []);
   return (
-    <ScrollView style={s.page}>
+    <View style={s.page}>
       <Text style={s.title}>Audit</Text>
-      {rows.map((r) => (
-        <View key={r.id} style={s.card}>
-          <Text style={s.cardTitle}>{r.event}</Text>
-          <Text style={s.muted}>{new Date(r.created_at).toLocaleString()}</Text>
-        </View>
-      ))}
-    </ScrollView>
+      <FlatList
+        data={rows}
+        keyExtractor={(r) => r.id}
+        renderItem={({ item: r }) => (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>{r.event}</Text>
+            <Text style={s.muted}>{new Date(r.created_at).toLocaleString()}</Text>
+          </View>
+        )}
+        ListEmptyComponent={<Text style={s.muted}>No audit events yet.</Text>}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      />
+    </View>
   );
 }
 

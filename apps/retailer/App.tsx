@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, FlatList, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
@@ -136,31 +136,36 @@ function Customers() {
     api.listCustomers().then(setRows).catch(() => {});
   }, []);
   return (
-    <ScrollView style={s.page}>
+    <View style={s.page}>
       <Text style={s.title}>Customers</Text>
-      {rows.map((c) => (
-        <View key={c.id} style={s.card}>
-          <Text style={s.cardTitle}>{c.name}</Text>
-          <Text style={s.muted}>{c.phone} · {c.brand} {c.model} · IMEI {c.imei}</Text>
-          <Text style={s.muted}>
-            {c.emi_months} months · Rs {Number(c.emi_amount).toFixed(0)}/month · due day {c.emi_due_day}
-          </Text>
-          <View style={s.chipRow}>
-            <Chip
-              tone={c.status === 'NPA' ? colors.danger : c.status === 'RUNNING' ? colors.accentTeal : colors.textMid}
-              label={c.status === 'NPA' ? 'Missed payment' : c.status === 'RUNNING' ? 'On time' : c.status === 'COMPLETE' ? 'Paid' : c.status === 'SETTLED' ? 'Settled' : c.status}
-            />
-            <Chip
-              tone={c.lock_mode === 'notify_only' ? colors.textMid : colors.accentTeal}
-              label={c.lock_mode === 'notify_only' ? 'Reminders only' : 'Lock plan'}
-            />
+      <FlatList
+        data={rows}
+        keyExtractor={(c) => c.id}
+        renderItem={({ item: c }) => (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>{c.name}</Text>
+            <Text style={s.muted}>{c.phone} · {c.brand} {c.model} · IMEI {c.imei}</Text>
+            <Text style={s.muted}>
+              {c.emi_months} months · Rs {Number(c.emi_amount).toFixed(0)}/month · due day {c.emi_due_day}
+            </Text>
+            <View style={s.chipRow}>
+              <Chip
+                tone={c.status === 'NPA' ? colors.danger : c.status === 'RUNNING' ? colors.accentTeal : colors.textMid}
+                label={c.status === 'NPA' ? 'Missed payment' : c.status === 'RUNNING' ? 'On time' : c.status === 'COMPLETE' ? 'Paid' : c.status === 'SETTLED' ? 'Settled' : c.status}
+              />
+              <Chip
+                tone={c.lock_mode === 'notify_only' ? colors.textMid : colors.accentTeal}
+                label={c.lock_mode === 'notify_only' ? 'Reminders only' : 'Lock plan'}
+              />
+            </View>
+            {(c.status === 'RUNNING' || c.status === 'NPA') && <SetupCode customerId={c.id} />}
+            <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
           </View>
-          {(c.status === 'RUNNING' || c.status === 'NPA') && <SetupCode customerId={c.id} />}
-          <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
-        </View>
-      ))}
-      {rows.length === 0 && <Text style={s.muted}>No customers yet.</Text>}
-    </ScrollView>
+        )}
+        ListEmptyComponent={<Text style={s.muted}>No customers yet.</Text>}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      />
+    </View>
   );
 }
 
@@ -363,24 +368,29 @@ function Devices() {
   }
 
   return (
-    <ScrollView style={s.page}>
+    <View style={s.page}>
       <Text style={s.title}>Devices</Text>
       {err && <Text style={s.error}>{err}</Text>}
-      {rows.map((d) => (
-        <View key={d.id} style={s.card}>
-          <Text style={s.cardTitle}>{d.manufacturer} {d.model}</Text>
-          <View style={s.chipRow}>
-            <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode === 'device_owner' ? 'Device owner' : d.mode === 'device_admin' ? 'Device admin' : 'Not enrolled'} />
-            <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
+      <FlatList
+        data={rows}
+        keyExtractor={(d) => d.id}
+        renderItem={({ item: d }) => (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>{d.manufacturer} {d.model}</Text>
+            <View style={s.chipRow}>
+              <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode === 'device_owner' ? 'Device owner' : d.mode === 'device_admin' ? 'Device admin' : 'Not enrolled'} />
+              <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
+            </View>
+            <TouchableOpacity style={[s.button, { marginTop: 8 }]} onPress={() => toggle(d)}>
+              {d.is_locked ? <LockOpen color="#fff" size={16} /> : <Lock color="#fff" size={16} />}
+              <Text style={s.buttonText}>{d.is_locked ? 'Unlock' : 'Lock'}</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={[s.button, { marginTop: 8 }]} onPress={() => toggle(d)}>
-            {d.is_locked ? <LockOpen color="#fff" size={16} /> : <Lock color="#fff" size={16} />}
-            <Text style={s.buttonText}>{d.is_locked ? 'Unlock' : 'Lock'}</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-      {rows.length === 0 && <Text style={s.muted}>No devices yet.</Text>}
-    </ScrollView>
+        )}
+        ListEmptyComponent={<Text style={s.muted}>No devices yet.</Text>}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      />
+    </View>
   );
 }
 

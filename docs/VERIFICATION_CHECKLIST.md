@@ -70,9 +70,9 @@ Every item carries one of four states:
 ## G. Performance
 | # | Item | State | Evidence |
 |---|---|---|---|
-| G1 | 13 hot-path indexes | CODE (apply on the new DB) | 0002_perf_indexes.sql |
+| G1 | 13 hot-path indexes | CODE — applied live via the all-in-one | 0002_perf_indexes.sql |
 | G2 | Heartbeat parallelized (2 waves) + single-flight app loop | CODE | heartbeat route, App.tsx |
-| G3 | FlatList virtualization in retailer/owner lists | Follow-up | noted |
+| G3 | FlatList virtualization in retailer/owner lists | CODE | retailer App.tsx (Customers/Devices) + owner App.tsx (Retailers/Audit) use FlatList with keyExtractor + empty states |
 
 Rate-limit honesty note: the per-IP/per-installation limiter is in-memory
 (per serverless instance) and the cross-instance Supabase limiter fails open
@@ -94,7 +94,7 @@ non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 ## I. Deployment gates (all yours, none done)
 | # | Item | State |
 |---|---|---|
-| I1 | New Supabase project + migration 0001/0002 applied | CRED |
+| I1 | Supabase project + migrations: live DB has 0001–0010 applied (probed 2026-10-03: lock_mode, LOCATION, record_payment, refund RPCs all present). Remaining: run 0011 (or the all-in-one) in a NEW query tab to enable rate_limits RLS | CRED (one query tab left) |
 | I2 | EAS account + first builds (owner/retailer/customer) + Kotlin Gradle pass | CRED |
 | I3 | SMS provider (if SMS commands are used beyond the local receiver) | CRED |
 | I4 | GitHub release hosting for the customer APK (QR download link) | CRED |
