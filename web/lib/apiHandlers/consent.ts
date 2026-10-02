@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 const CONSENT_TEXT = 'This phone is financed on EMI through emidost. Locking, device protection and remote management stay active until the EMI is fully paid. The retailer explained this and I agree.';
 
 /**
- * Consent is a PRECONDITION of enrolment. This route records it; the enrolment
- * route refuses to create a session without a consent record for the customer.
+ * Optional consent record (audit). Counter consent is the business rule, so
+ * the enrolment route does not require one of these rows.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { profile } = await requireActor(req);

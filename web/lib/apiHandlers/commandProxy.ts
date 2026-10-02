@@ -4,7 +4,7 @@ import { serviceClient } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-/** Owner LOCK/UNLOCK (never consumes allowances). */
+/** Owner LOCK/UNLOCK/LOCATION/RELEASE (never consumes allowances). */
 export async function POST(req: NextRequest) {
   const { profile } = await requireActor(req);
   if (!profile) return unauthorized();
@@ -12,14 +12,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const deviceId: string | undefined = body?.device_id;
   const commandType: string | undefined = body?.command_type;
-  if (!deviceId || (commandType !== 'LOCK' && commandType !== 'UNLOCK' && commandType !== 'LOCATION')) {
-    return bad('device_id + command_type (LOCK, UNLOCK or LOCATION) required');
+  if (!deviceId || !['LOCK', 'UNLOCK', 'LOCATION', 'RELEASE'].includes(commandType ?? '')) {
+    return bad('device_id + command_type (LOCK, UNLOCK, LOCATION or RELEASE) required');
   }
 
   const svc = serviceClient();
-  const { data: device } = await svc.from('devices').select('id, retailer_id, customer_id').eq('id', deviceId).maybeSingle();
+  const { data: device } = await svc.from('devices')
+    .select('id, retailer_id, customer_id, customers(status)').eq('id', deviceId).maybeSingle();
   if (!device) return bad('Device not found');
-  const { data: customer } = await svc.from('customers').select('status').eq('id', device.customer_id).maybeSingle();
+  const customer = device.customers as unknown as { status: string } | null;
   if (commandType === 'LOCK' && customer && (customer.status === 'COMPLETE' || customer.status === 'SETTLED')) {
     return bad('This loan is settled. Locking is disabled.');
   }

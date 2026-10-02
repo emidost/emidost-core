@@ -12,7 +12,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const svc = serviceClient();
 
   const { data: retailer, error: rErr } = await svc
-    .from('retailers').select('*').eq('id', params.id).maybeSingle();
+    .from('retailers').select('id').eq('id', params.id).maybeSingle();
   if (rErr || !retailer) return Response.json({ error: 'not found' }, { status: 404 });
 
   const update: Record<string, unknown> = {};
@@ -22,6 +22,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const { data, error } = await svc.from('retailers').update(update).eq('id', params.id).select().single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Handlers and the portal gate on profiles.is_suspended, so the retailer
+  // flag must reach every staff profile or suspension does nothing.
+  if (typeof body.is_suspended === 'boolean') {
+    const { error: pErr } = await svc.from('profiles')
+      .update({ is_suspended: body.is_suspended }).eq('retailer_id', params.id);
+    if (pErr) return Response.json({ error: pErr.message }, { status: 500 });
+  }
 
   await svc.from('audit_log').insert({
     actor_id: profile.id, retailer_id: params.id,

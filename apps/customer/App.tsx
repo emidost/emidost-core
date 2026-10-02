@@ -28,6 +28,10 @@ export default function App() {
   const [retailerPhone, setRetailerPhone] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const inFlight = useRef(false);
+  // The loop reads the latest due through a ref, so a new due amount does not
+  // restart the interval (which used to fire an extra heartbeat each time).
+  const dueRef = useRef(due);
+  dueRef.current = due;
 
   useEffect(() => {
     void (async () => {
@@ -45,7 +49,9 @@ export default function App() {
       inFlight.current = true;
       try {
         const ui = await pollOnce();
+        let latestDue = dueRef.current;
         if (ui) {
+          latestDue = ui.next_due;
           setDue(ui.next_due);
           setOverdueDays(ui.overdue_days);
           setRetailerPhone(ui.retailer_phone);
@@ -53,7 +59,10 @@ export default function App() {
           // Offline: fall back to the synced local copy and run the 5-day
           // no-internet watchdog (lock-enabled plans only).
           const cached = await getCachedState();
-          if (cached?.next_due) setDue({ due_date: cached.next_due, amount_due: cached.next_due_amount ?? 0 });
+          if (cached?.next_due) {
+            latestDue = { due_date: cached.next_due, amount_due: cached.next_due_amount ?? 0 };
+            setDue(latestDue);
+          }
           setOverdueDays(cached?.overdue_days ?? 0);
           setRetailerPhone(cached?.retailer_phone ?? null);
           await enforceOfflineWatchdog();
@@ -62,8 +71,8 @@ export default function App() {
         setLocked(st.enforcedLocked);
         setHidden(st.hidden);
         if (st.enforcedLocked) {
-          await DeviceMgmt.showLockOverlay('Phone locked', due
-            ? `Rs ${Number(due.amount_due).toFixed(0)} due. Call your retailer.`
+          await DeviceMgmt.showLockOverlay('Phone locked', latestDue
+            ? `Rs ${Number(latestDue.amount_due).toFixed(0)} due. Call your retailer.`
             : 'EMI payment required');
         }
       } finally {
@@ -75,7 +84,7 @@ export default function App() {
     // and the native service polls slowly (5 min) for the online fetch path.
     timer.current = setInterval(loop, 60_000);
     return () => { if (timer.current) clearInterval(timer.current); };
-  }, [phase, due?.amount_due]);
+  }, [phase]);
 
   async function speakReminder() {
     if (!due) return;
@@ -173,7 +182,8 @@ function BindScreen({ onBound }: { onBound: () => void }) {
         value={code}
         onChangeText={setCode}
         placeholder="Setup code"
-        autoCapitalize="characters"
+        autoCapitalize="none"
+        autoCorrect={false}
       />
       {error && <Text style={s.error}>{error}</Text>}
       <TouchableOpacity style={s.button} onPress={bind} disabled={busy}>

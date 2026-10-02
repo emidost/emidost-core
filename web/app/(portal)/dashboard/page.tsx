@@ -9,6 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const supabase = serverClient();
+  // Nothing writes OVERDUE, so overdue = unpaid and past its due date.
+  const today = new Date().toISOString().slice(0, 10);
   const [{ count: retailerCount }, { count: deviceCount }, { count: lockedCount }, { count: overdueCount }] =
     await Promise.all([
       supabase.from('retailers').select('id', { count: 'exact', head: true }),
@@ -16,7 +18,8 @@ export default async function DashboardPage() {
       supabase.from('devices').select('id', { count: 'exact', head: true }).eq('is_locked', true),
       supabase.from('emi_schedules')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'OVERDUE'),
+        .in('status', ['PENDING', 'PARTIAL', 'OVERDUE'])
+        .lt('due_date', today),
     ]);
 
   const stats = [

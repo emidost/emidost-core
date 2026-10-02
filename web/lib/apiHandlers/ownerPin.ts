@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Owner sets the per-device management PIN. The plaintext is never stored:
- * bcrypt hash (server-side checks) + pin_verify = sha256(pin + ":" +
- * installation_id) so the phone can verify the PIN offline.
+ * pin_verify = sha256(pin + ":" + installation_id) so the phone can verify
+ * the PIN offline. A 4-8 digit PIN is brute-forceable from this hash, so it
+ * must never leave the service role except to the device itself.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { profile } = await requireActor(req);

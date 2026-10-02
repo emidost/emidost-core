@@ -36,44 +36,29 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return bad('This loan is settled. No further payments are needed.');
   }
 
-  const { data, error } = await svc.from('payments').insert({
-    customer_id: customer.id, retailer_id: customer.retailer_id,
-    amount, method: body.method ?? 'cash',
-    receipt_no: body.receipt_no ?? null, recorded_by: profile.id,
-  }).select().single();
-  if (error || !data) return Response.json({ error: error?.message ?? 'payment insert failed' }, { status: 500 });
+  // One transaction in SQL (0010 record_payment): the payment row and the
+  // oldest-first schedule settlement commit together, serialized per customer.
+  const receiptNo = typeof body.receipt_no === 'string' ? body.receipt_no : null;
+  const { data: rows, error } = await svc.rpc('record_payment', {
+    cid: customer.id, amt: amount,
+    pay_method: typeof body.method === 'string' ? body.method : 'cash',
+    receipt: receiptNo, recorder: profile.id,
+  });
+  const result = Array.isArray(rows) ? rows[0] : rows;
+  if (error || !result) return Response.json({ error: error?.message ?? 'payment failed' }, { status: 500 });
 
-  // Settle the oldest unpaid schedule rows up to the paid amount (DB-truth basis).
-  const { data: schedules } = await svc.from('emi_schedules')
-    .select('*').eq('customer_id', customer.id).in('status', ['PENDING', 'OVERDUE', 'PARTIAL'])
-    .order('due_date');
-  let remaining = amount;
-  for (const s of schedules ?? []) {
-    if (remaining <= 0) break;
-    const need = Number(s.amount_due) - Number(s.amount_paid ?? 0);
-    if (need <= 0) continue;
-    if (remaining >= need) {
-      await svc.from('emi_schedules')
-        .update({ status: 'PAID', amount_paid: Number(s.amount_due) }).eq('id', s.id);
-      remaining -= need;
-    } else {
-      await svc.from('emi_schedules')
-        .update({ status: 'PARTIAL', amount_paid: Number(s.amount_paid ?? 0) + remaining }).eq('id', s.id);
-      remaining = 0;
-    }
-  }
-
-  // Everything paid → the loan completes; the release command is the owner's call.
-  const { data: left } = await svc.from('emi_schedules')
-    .select('id').eq('customer_id', customer.id).in('status', ['PENDING', 'PARTIAL', 'OVERDUE']);
-  if ((left ?? []).length === 0) {
-    await svc.from('customers').update({ status: 'COMPLETE' }).eq('id', customer.id);
-    await svc.from('release_events').insert({ customer_id: customer.id, triggered_by: 'payment' });
+  // Everything paid: the loan completes and the device credit is freed.
+  // The phone releases itself on its next sync of loan_status.
+  if (result.completed) {
+    const { data: device } = await svc.from('devices').select('id').eq('customer_id', customer.id).maybeSingle();
+    if (device) await svc.rpc('release_device_credit', { rid: customer.retailer_id, did: device.id });
   }
 
   await svc.from('audit_log').insert({
     actor_id: profile.id, retailer_id: customer.retailer_id,
-    event: 'PAYMENT_RECORDED', detail: { customer_id: customer.id, amount, receipt_no: data.receipt_no },
+    event: 'PAYMENT_RECORDED', detail: { customer_id: customer.id, amount, receipt_no: receiptNo },
   });
-  return Response.json(data, { status: 201 });
+  return Response.json({
+    id: result.payment_id, customer_id: customer.id, amount, receipt_no: receiptNo, completed: result.completed,
+  }, { status: 201 });
 }

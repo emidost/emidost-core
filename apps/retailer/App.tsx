@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
@@ -26,8 +26,9 @@ const supabase = createClient(
   },
 );
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 const api = createApi({
-  baseUrl: process.env.EXPO_PUBLIC_API_URL ?? '',
+  baseUrl: API_URL,
   getToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
 });
 
@@ -152,11 +153,58 @@ function Customers() {
               label={c.lock_mode === 'notify_only' ? 'Reminders only' : 'Lock plan'}
             />
           </View>
+          {(c.status === 'RUNNING' || c.status === 'NPA') && <SetupCode customerId={c.id} />}
           <PaymentRow customerId={c.id} onDone={() => api.listCustomers().then(setRows).catch(() => {})} />
         </View>
       ))}
       {rows.length === 0 && <Text style={s.muted}>No customers yet.</Text>}
     </ScrollView>
+  );
+}
+
+/**
+ * Mints the one-time enrolment token the customer phone types on its bind
+ * screen. Valid 15 minutes; shown once (only its hash is stored).
+ */
+function SetupCode({ customerId }: { customerId: string }) {
+  const [code, setCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function create() {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const session = await api.createEnrolment(customerId, {});
+      setCode(session.token);
+      setExpiresAt(session.expires_at);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not create a setup code');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={{ marginTop: 10 }}>
+      {code ? (
+        <View>
+          <Text style={s.label}>Setup code (type it on the customer phone)</Text>
+          <Text selectable style={{ fontFamily: 'monospace', fontSize: 15, marginTop: 4 }}>{code}</Text>
+          {expiresAt && (
+            <Text style={s.muted}>Valid until {new Date(expiresAt).toLocaleTimeString()}</Text>
+          )}
+        </View>
+      ) : (
+        <TouchableOpacity style={s.button} onPress={create} disabled={busy}>
+          <Hash color="#fff" size={16} />
+          <Text style={s.buttonText}>{busy ? 'Creating…' : 'Create setup code'}</Text>
+        </TouchableOpacity>
+      )}
+      {err && <Text style={s.error}>{err}</Text>}
+    </View>
   );
 }
 
@@ -226,7 +274,7 @@ function NewCustomer({ onDone }: { onDone: () => void }) {
         emi_amount: parseFloat(form.emi_amount),
         emi_due_day: parseInt(form.emi_due_day, 10),
       });
-      setMsg('Customer added. Record consent in the portal next, then enrol the phone.');
+      setMsg('Customer added. Create a setup code on their card, then enrol the phone.');
       setTimeout(onDone, 1500);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Save failed');
@@ -349,7 +397,7 @@ function Enrol() {
     <ScrollView style={s.page}>
       <Text style={s.title}>Enrol a phone</Text>
       <Text style={s.muted}>
-        1. Record consent in the portal. 2. Factory-reset the customer phone, skip every account, set no PIN.
+        1. Take the customer's consent at the counter and create a setup code on their customer card. 2. Factory-reset the customer phone, skip every account, set no PIN.
         3. Generate the QR in the portal (Enrolment QR page) and scan it from the setup wizard after 6 taps.
         4. Or use wireless pairing: Developer options → Wireless debugging → Pair with pairing code, then type the code in the customer app.
       </Text>
@@ -363,7 +411,7 @@ function Enrol() {
         ))}
         <Text style={[s.muted, { marginTop: 10 }]}>{hint}</Text>
       </View>
-      <TouchableOpacity style={s.button} onPress={() => {}}>
+      <TouchableOpacity style={s.button} onPress={() => { if (API_URL) void Linking.openURL(`${API_URL}/qr`); }}>
         <QrCode color="#fff" size={16} />
         <Text style={s.buttonText}>Open portal QR page</Text>
       </TouchableOpacity>

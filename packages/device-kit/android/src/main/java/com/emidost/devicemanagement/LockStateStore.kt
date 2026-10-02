@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
 
 /**
  * Persisted lock state. Lives in SharedPreferences so it survives reboot and
@@ -38,7 +39,18 @@ object LockStateStore {
   fun getLastUnlockedAt(c: Context): Long = prefs(c).getLong("last_unlocked_at", 0L)
 
   fun setLastUnlockElapsed(c: Context, elapsed: Long) {
-    prefs(c).edit().putLong("last_unlock_elapsed", elapsed).apply()
+    // elapsedRealtime restarts at zero on every boot, so remember which boot
+    // the watermark belongs to.
+    prefs(c).edit()
+      .putLong("last_unlock_elapsed", elapsed)
+      .putInt("last_unlock_boot", bootCount(c))
+      .apply()
+  }
+
+  private fun bootCount(c: Context): Int = try {
+    Settings.Global.getInt(c.contentResolver, Settings.Global.BOOT_COUNT)
+  } catch (_: Exception) {
+    -1
   }
 
   fun getLastUnlockElapsed(c: Context): Long = prefs(c).getLong("last_unlock_elapsed", 0L)
@@ -60,10 +72,21 @@ object LockStateStore {
     if (lastUnlockElapsed <= 0L) return false
     if (commandCreatedServerMs <= 0L || serverNowMs <= 0L) return true
     val elapsedDelta = SystemClock.elapsedRealtime() - lastUnlockElapsed
+    val unlockBoot = prefs(c).getInt("last_unlock_boot", -1)
+    val sameBoot = unlockBoot != -1 && unlockBoot == bootCount(c)
     // Map the unlock to server time using the server's clock, not the device
     // wall clock (which the customer can change). A LOCK created after the
     // unlock is fresh and applies; anything older is stale and must not run.
-    val unlockAtServerTime = serverNowMs - elapsedDelta
+    // After a reboot the monotonic delta is meaningless (it can go negative and
+    // mark every later LOCK stale), so fall back to the wall-clock unlock time
+    // corrected by the current server/device skew.
+    val unlockAtServerTime = if (sameBoot && elapsedDelta >= 0) {
+      serverNowMs - elapsedDelta
+    } else {
+      val wall = getLastUnlockedAt(c)
+      if (wall <= 0L) return true
+      wall + (serverNowMs - System.currentTimeMillis())
+    }
     return commandCreatedServerMs <= unlockAtServerTime
   }
 

@@ -16,9 +16,11 @@ class EmidostSmsReceiver : BroadcastReceiver() {
 
     val messages = messagesFrom(intent.extras) ?: return
     for (msg in messages) {
-      val sender = msg.originatingAddress ?: continue
+      val sender = msg.originatingAddress
+      if (sender == null) continue
       if (!SmsCommandStore.senderAllowed(context, sender)) continue
-      val body = msg.messageBody?.trim() ?: continue
+      val body = msg.messageBody?.trim()
+      if (body == null) continue
       val parts = body.split(Regex("\\s+"))
       if (parts.size < 2) continue
       val command = parts[0].uppercase()

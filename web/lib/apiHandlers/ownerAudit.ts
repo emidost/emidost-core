@@ -11,5 +11,5 @@ export async function GET(req: NextRequest) {
   const { data, error } = await serviceClient()
     .from('audit_log').select('*').order('created_at', { ascending: false }).limit(500);
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(data, { headers: { 'Cache-Control': 'private, max-age=60' } });
+  return Response.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
 }

@@ -44,7 +44,10 @@ export async function POST(req: NextRequest) {
   const customers = device.customers as unknown as { status: string } | null;
   const settled = customers?.status === 'COMPLETE' || customers?.status === 'SETTLED';
   if (command.command_type === 'LOCK' && ackStatus === 'EXECUTED' && settled) {
-    await svc.from('device_commands').update({ status: 'SUPERSEDED', acked_at: new Date().toISOString() }).eq('id', command.id);
+    const { data: superseded } = await svc.from('device_commands')
+      .update({ status: 'SUPERSEDED', acked_at: new Date().toISOString() })
+      .eq('id', command.id).in('status', ['PENDING', 'RECEIVED']).select('id').maybeSingle();
+    if (superseded) await refundLockAllowance(svc, device.retailer_id);
     return Response.json({ ok: false, reason: 'settled_loan' });
   }
 
@@ -58,17 +61,10 @@ export async function POST(req: NextRequest) {
   if (updErr) return Response.json({ error: 'ack failed' }, { status: 500 });
   if (!transitioned) return Response.json({ ok: true, already: 'terminal' });
 
-  // Terminal LOCK failures refund the allowance (debited at queue time).
-  if (command.command_type === 'LOCK' && (ackStatus === 'FAILED' || ackStatus === 'EXPIRED')) {
-    const rid = device.retailer_id;
-    if (rid) {
-      const { data: refunded } = await svc.rpc('increment_allowance', { rid });
-      if (refunded != null) {
-        await svc.from('credit_ledger').insert({
-          retailer_id: rid, kind: 'slot_refund', delta: 1, balance_after: Number(refunded),
-        });
-      }
-    }
+  // Only an executed LOCK spends the allowance debited at queue time; failed,
+  // expired and superseded (unlock-wins) locks are refunded.
+  if (command.command_type === 'LOCK' && ackStatus !== 'EXECUTED') {
+    await refundLockAllowance(svc, device.retailer_id);
   }
 
   if (ackStatus === 'EXECUTED' && command.command_type === 'LOCK') {
@@ -79,20 +75,11 @@ export async function POST(req: NextRequest) {
   }
   if (ackStatus === 'EXECUTED' && command.command_type === 'RELEASE') {
     await svc.from('devices').update({ is_locked: false, hidden_state: 'visible' }).eq('id', device.id);
-    // Release refunds the device credit exactly once (release_events is unique per customer).
-    const { data: rel } = await svc.from('release_events')
-      .insert({ customer_id: device.customer_id, triggered_by: 'command_release' })
-      .select('id').maybeSingle();
-    if (rel) {
-      const rid = device.retailer_id;
-      if (rid) {
-        const { data: refunded } = await svc.rpc('refund_device_credit', { rid });
-        if (refunded != null) {
-          await svc.from('credit_ledger').insert({
-            retailer_id: rid, kind: 'slot_freed', delta: 1, balance_after: Number(refunded),
-          });
-        }
-      }
+    await svc.from('release_events').insert({ customer_id: device.customer_id, triggered_by: 'admin' });
+    // Frees the device credit at most once per device (guarded in SQL by the
+    // slot_freed ledger row; 0010_credit_lifecycle.sql).
+    if (device.retailer_id) {
+      await svc.rpc('release_device_credit', { rid: device.retailer_id, did: device.id });
     }
   }
 
@@ -108,4 +95,14 @@ export async function POST(req: NextRequest) {
     command_id: command.id, ack_status: ackStatus, reason: body.reason ?? null,
   });
   return Response.json({ ok: true, status: ackStatus });
+}
+
+async function refundLockAllowance(svc: ReturnType<typeof serviceClient>, rid: string | null): Promise<void> {
+  if (!rid) return;
+  const { data: refunded } = await svc.rpc('increment_allowance', { rid });
+  if (refunded != null) {
+    await svc.from('credit_ledger').insert({
+      retailer_id: rid, kind: 'lock_refund', delta: 1, balance_after: Number(refunded),
+    });
+  }
 }

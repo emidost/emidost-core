@@ -35,29 +35,31 @@ export async function POST(req: NextRequest) {
   // Device-reported live state. Promotion to device_owner requires an open
   // enrolment session for this customer (the client cannot self-promote).
   const body = await req.json().catch(() => ({}));
-  if (body?.mode === 'device_admin') {
-    await svc.from('devices').update({ mode: body.mode }).eq('id', device.id);
+  // The phone reports DeviceActions.mode() in upper case (DEVICE_OWNER).
+  const reportedMode = typeof body?.mode === 'string' ? body.mode.toLowerCase() : '';
+  if (reportedMode === 'device_admin' && device.mode !== 'device_admin') {
+    await svc.from('devices').update({ mode: reportedMode }).eq('id', device.id);
   }
-  if (body?.mode === 'device_owner') {
-    const { data: openSession } = await svc.from('enrollment_sessions')
+  if (reportedMode === 'device_owner' && device.mode !== 'device_owner') {
+    const { data: openSessions } = await svc.from('enrollment_sessions')
       .select('id').eq('customer_id', device.customer_id)
       .in('state', ['created', 'installed', 'connected', 'owner_verified', 'access_verified', 'finalizing'])
-      .maybeSingle();
-    if (openSession) {
+      .limit(1);
+    if (openSessions && openSessions.length > 0) {
       await svc.from('devices').update({ mode: 'device_owner' }).eq('id', device.id);
       const { data: activated } = await svc.from('enrollment_sessions')
         .update({ state: 'active' })
         .eq('customer_id', device.customer_id)
         .in('state', ['installed', 'connected', 'finalizing'])
-        .select('id').maybeSingle();
+        .select('id');
       // A real activation consumes one device credit, exactly once (CAS above).
-      if (activated) {
+      if (activated && activated.length > 0) {
         const rid = device.retailer_id;
         if (rid) {
           const { data: balance } = await svc.rpc('consume_device_credit', { rid });
           if (balance != null) {
             await svc.from('credit_ledger').insert({
-              retailer_id: rid, kind: 'slot_consumed', delta: -1, balance_after: Number(balance),
+              retailer_id: rid, kind: 'slot_consumed', delta: -1, balance_after: Number(balance), device_id: device.id,
             });
           }
         }
@@ -65,12 +67,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Parallelize the independent hot-path updates/reads (3 waves â†’ 2).
-  const [_, pendingUpdate, totpRow, dueRows] = await Promise.all([
+  // One parallel wave: the pending select includes both PENDING and RECEIVED,
+  // so it does not need to wait for the mark-RECEIVED update.
+  const [, pendingRes, totpRow, dueRows] = await Promise.all([
     svc.from('devices').update({ last_heartbeat_at: new Date().toISOString() }).eq('id', device.id),
     svc.from('device_commands')
-      .update({ status: 'RECEIVED' })
-      .eq('device_id', device.id).eq('status', 'PENDING'),
+      .select('id, command_type, payload, created_at, status')
+      .eq('device_id', device.id).in('status', ['PENDING', 'RECEIVED']).order('created_at'),
     svc.from('totp_secrets').select('secret_enc').eq('device_id', device.id).maybeSingle(),
     device.customer_id
       ? svc.from('emi_schedules')
@@ -78,10 +81,17 @@ export async function POST(req: NextRequest) {
           .in('status', ['PENDING', 'PARTIAL', 'OVERDUE']).order('due_date').limit(1)
       : Promise.resolve({ data: null }),
   ]);
-
-  const { data: pendingRows } = await svc.from('device_commands')
-    .select('id, command_type, payload, created_at, status')
-    .eq('device_id', device.id).in('status', ['PENDING', 'RECEIVED']).order('created_at');
+  const pendingRows = pendingRes.data ?? [];
+  // A suspended retailer cannot issue restrictive commands, but authorized
+  // recovery (UNLOCK/RELEASE) always reaches the device.
+  const deliverable = suspended
+    ? pendingRows.filter((c) => c.command_type === 'UNLOCK' || c.command_type === 'RELEASE')
+    : pendingRows;
+  const toMark = deliverable.filter((c) => c.status === 'PENDING').map((c) => c.id);
+  if (toMark.length > 0) {
+    await svc.from('device_commands').update({ status: 'RECEIVED' })
+      .in('id', toMark).eq('status', 'PENDING');
+  }
 
   const frpAccounts = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
     .split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -94,11 +104,7 @@ export async function POST(req: NextRequest) {
     : 0;
 
   return Response.json({
-    // A suspended retailer cannot issue restrictive commands, but authorized
-    // recovery (UNLOCK/RELEASE) always reaches the device.
-    commands: suspended
-      ? (pendingRows ?? []).filter((c) => c.command_type === 'UNLOCK' || c.command_type === 'RELEASE')
-      : pendingRows ?? [],
+    commands: deliverable,
     device_pin_hash: device.device_pin_hash ?? null,
     pin_verify: device.pin_verify ?? null,
     totp_secret: totpRow?.data?.secret_enc ? decryptTotpSecret(totpRow.data.secret_enc) : null,

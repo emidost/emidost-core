@@ -10,11 +10,14 @@ export async function GET(req: NextRequest) {
   if (!profile) return unauthorized();
   if (profile.role !== 'retailer_staff' && profile.role !== 'owner') return forbidden();
   if (profile.is_suspended) return forbidden();
-  const query = serviceClient().from('customers').select('*').order('created_at');
-  if (profile.role === 'retailer_staff') query.eq('retailer_id', profile.retailer_id);
+  let query = serviceClient().from('customers').select('*').order('created_at');
+  if (profile.role === 'retailer_staff') query = query.eq('retailer_id', profile.retailer_id);
+  // ?id= fetches one customer (detail page) instead of the whole list.
+  const id = req.nextUrl.searchParams.get('id');
+  if (id) query = query.eq('id', id).limit(1);
   const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(data, { headers: { 'Cache-Control': 'private, max-age=120' } });
+  return Response.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 export async function POST(req: NextRequest) {
@@ -32,9 +35,10 @@ export async function POST(req: NextRequest) {
   const emiMonths = parseInt(body.emi_months, 10);
   const emiAmount = parseFloat(body.emi_amount);
   const dueDay = parseInt(body.emi_due_day, 10);
-  if (emiMonths < 1) return bad('EMI months must be at least 1');
-  if (!(emiAmount > 0)) return bad('EMI amount must be positive');
-  if (dueDay < 1 || dueDay > 31) return bad('Due day must be 1-31');
+  // NaN fails every comparison, so check integers explicitly.
+  if (!Number.isInteger(emiMonths) || emiMonths < 1 || emiMonths > 60) return bad('EMI months must be 1-60');
+  if (!Number.isFinite(emiAmount) || !(emiAmount > 0)) return bad('EMI amount must be positive');
+  if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) return bad('Due day must be 1-31');
 
   const svc = serviceClient();
   // Duplicate IMEI within the retailer is rejected.

@@ -23,13 +23,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const svc = serviceClient();
-  const { data: device } = await svc.from('devices').select('id, retailer_id, customer_id, is_locked')
+  const { data: device } = await svc.from('devices')
+    .select('id, retailer_id, customer_id, customers(status)')
     .eq('id', params.id).maybeSingle();
   if (!device || device.retailer_id !== profile.retailer_id) return bad('Device not found');
   if (!device.customer_id) return bad('Device is not bound to a customer');
 
   // Paid loans can never be locked again; UNLOCK/RELEASE stay available.
-  const { data: customer } = await svc.from('customers').select('status').eq('id', device.customer_id).maybeSingle();
+  const customer = device.customers as unknown as { status: string } | null;
   if (commandType === 'LOCK' && customer && (customer.status === 'COMPLETE' || customer.status === 'SETTLED')) {
     return bad('This loan is settled. Locking is disabled.');
   }

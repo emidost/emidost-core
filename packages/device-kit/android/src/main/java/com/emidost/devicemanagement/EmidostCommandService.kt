@@ -166,7 +166,8 @@ class EmidostCommandService : Service() {
     val commands = resp.optJSONArray("commands") ?: return
     if (commands.length() > 0) burstUntil = System.currentTimeMillis() + BURST_WINDOW_MS
     for (i in 0 until commands.length()) {
-      val cmd = commands.optJSONObject(i) ?: continue
+      val cmd = commands.optJSONObject(i)
+      if (cmd == null) continue
       val status = cmd.optString("status", "")
       if (status != "PENDING" && status != "RECEIVED") continue
       val id = cmd.optString("id", "")

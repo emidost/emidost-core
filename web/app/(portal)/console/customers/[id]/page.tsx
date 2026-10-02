@@ -18,7 +18,7 @@ export default function CustomerDetailPage() {
 
   async function load() {
     const [c, p, s] = await Promise.all([
-      fetch(`/api/retailer/customers`).then((r) => r.json()),
+      fetch(`/api/retailer/customers?id=${encodeURIComponent(id)}`).then((r) => r.json()),
       fetch(`/api/retailer/customers/${id}/payments`).then((r) => r.json()),
       fetch(`/api/retailer/customers/${id}/schedules`).then((r) => r.json()),
     ]);

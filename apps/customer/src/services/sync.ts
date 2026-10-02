@@ -76,20 +76,38 @@ export function randomHex(bytes: number): string {
   return Array.from(out).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Identity never changes once minted; keep it in memory after the first read
+// instead of hitting AsyncStorage on every poll and ack.
+let installationIdMem: string | null = null;
+let deviceTokenMem: string | null = null;
+
 export async function getInstallationId(): Promise<string> {
+  if (installationIdMem) return installationIdMem;
   const existing = await AsyncStorage.getItem(KEY_INSTALLATION);
-  if (existing) return existing;
+  if (existing) return (installationIdMem = existing);
   const fresh = randomHex(16);
   await AsyncStorage.setItem(KEY_INSTALLATION, fresh);
-  return fresh;
+  return (installationIdMem = fresh);
 }
 
 export async function getDeviceToken(): Promise<string> {
+  if (deviceTokenMem) return deviceTokenMem;
   const existing = await AsyncStorage.getItem(KEY_DEVICE_TOKEN);
-  if (existing) return existing;
+  if (existing) return (deviceTokenMem = existing);
   const fresh = randomHex(32);
   await AsyncStorage.setItem(KEY_DEVICE_TOKEN, fresh);
-  return fresh;
+  return (deviceTokenMem = fresh);
+}
+
+// Last value applied per native setting this process. The poll runs every
+// 60 s; re-applying unchanged policies, SMS config and reminder sets each
+// round is wasted native work. Process restart clears it, so the first poll
+// always applies everything.
+const applied = new Map<string, string>();
+async function applyOnce(key: string, signature: string, fn: () => Promise<unknown>): Promise<void> {
+  if (applied.get(key) === signature) return;
+  await fn();
+  applied.set(key, signature);
 }
 
 export async function isRegistered(): Promise<boolean> {
@@ -108,7 +126,7 @@ export async function registerWithToken(token: string, deviceInfo: { manufacture
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        token,
+        token: token.trim().toLowerCase(),
         installation_id: installationId,
         device_token: deviceToken,
         ...deviceInfo,
@@ -190,37 +208,48 @@ export async function pollOnce(): Promise<PollUiState | null> {
   await markSyncOk();
   // Native mirror: the watchdog must work with the app closed or killed.
   await DeviceMgmt.markSyncOkNative();
-  await DeviceMgmt.setLockModeNative(resp?.lock_mode === 'notify_only' ? 'notify_only' : 'lock');
+  const lockMode = resp?.lock_mode === 'notify_only' ? 'notify_only' : 'lock';
+  await applyOnce('lock_mode', lockMode, () => DeviceMgmt.setLockModeNative(lockMode));
 
   const loanStatus: string = resp?.loan_status ?? '';
   if (loanStatus === 'COMPLETE' || loanStatus === 'SETTLED') {
     // Release-first: unlock, stop the sentinel, clear protection, unhide,
-    // and cancel every reminder.
-    await cancelReminders();
-    await DeviceMgmt.executeAuthorizedUnlock('settled');
-    await DeviceMgmt.setLoanOutstanding(false);
-    await DeviceMgmt.applyFinancingProtection(false, []);
-    await DeviceMgmt.unhideSelf();
+    // and cancel every reminder. Once per process; the native service
+    // repeats the release on its own ticks.
+    await applyOnce('release', 'done', async () => {
+      await cancelReminders();
+      await DeviceMgmt.executeAuthorizedUnlock('settled');
+      await DeviceMgmt.setLoanOutstanding(false);
+      await DeviceMgmt.applyFinancingProtection(false, []);
+      await DeviceMgmt.unhideSelf();
+    });
     return ui;
   }
 
-  // Reminders follow the DB truth while the loan is outstanding.
-  if (ui.next_due) await scheduleReminders(ui.next_due);
-  else await cancelReminders();
+  // Reminders follow the DB truth while the loan is outstanding; the set is
+  // rebuilt only when the next due date or amount changes.
+  const dueSig = ui.next_due ? `${ui.next_due.due_date}|${ui.next_due.amount_due}` : 'none';
+  await applyOnce('reminders', dueSig, () => (ui.next_due ? scheduleReminders(ui.next_due) : cancelReminders()));
 
   if (loanStatus === 'RUNNING' || loanStatus === 'NPA') {
-    await DeviceMgmt.setLoanOutstanding(true);
-    await DeviceMgmt.applyFinancingProtection(true, FRP_ACCOUNTS);
+    await applyOnce('protection', FRP_ACCOUNTS.join(','), async () => {
+      await DeviceMgmt.setLoanOutstanding(true);
+      await DeviceMgmt.applyFinancingProtection(true, FRP_ACCOUNTS);
+    });
   }
 
   if (resp?.retailer_phone && resp?.customer_code) {
-    await DeviceMgmt.configureSmsControl(String(resp.retailer_phone), String(resp.customer_code));
+    const phone = String(resp.retailer_phone);
+    const code = String(resp.customer_code);
+    await applyOnce('sms', `${phone}|${code}`, () => DeviceMgmt.configureSmsControl(phone, code));
   }
   if (resp?.pin_verify) {
-    await DeviceMgmt.setPinVerify(String(resp.pin_verify));
+    const pin = String(resp.pin_verify);
+    await applyOnce('pin_verify', pin, () => DeviceMgmt.setPinVerify(pin));
   }
   if (resp?.totp_secret) {
-    await DeviceMgmt.setTotpSecret(String(resp.totp_secret));
+    const totp = String(resp.totp_secret);
+    await applyOnce('totp', totp, () => DeviceMgmt.setTotpSecret(totp));
   }
 
   // SIM-swap baseline: set exactly once (a replacement SIM must never become
@@ -237,11 +266,8 @@ export async function pollOnce(): Promise<PollUiState | null> {
   }
 
   // Hide "wifi" from the launcher once the phone is an activated Device Owner.
-  if (loanStatus === 'RUNNING' || loanStatus === 'NPA') {
-    const st = await DeviceMgmt.getDeviceManagementStatus();
-    if (st.mode === 'DEVICE_OWNER' && !st.hidden) {
-      await DeviceMgmt.hideSelf();
-    }
+  if ((loanStatus === 'RUNNING' || loanStatus === 'NPA') && stBefore.mode === 'DEVICE_OWNER' && !stBefore.hidden) {
+    await DeviceMgmt.hideSelf();
   }
 
   // Commands: the native hard-lock gate is authoritative. No stale-lock math

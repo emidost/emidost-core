@@ -6,8 +6,8 @@ import { serviceClient } from '@/lib/supabaseServer';
 export const dynamic = 'force-dynamic';
 
 /**
- * Creates an enrolment session. A consent record for the customer MUST exist
- * (precondition). Returns the raw token once; only its sha256 is stored.
+ * Creates an enrolment session (15 min). Consent is taken at the counter; no
+ * consent row is required. Returns the raw token once; only its sha256 is stored.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { profile } = await requireActor(req);
@@ -22,7 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Consent is given directly at the counter; no blocking record is required.
   const body = await req.json().catch(() => ({}));
-  const token = randomBytes(24).toString('hex');
+  // 16 hex chars (64 bits): typed by hand on the phone. Safe because the token
+  // is one-shot, expires in 15 minutes, and register is rate limited.
+  const token = randomBytes(8).toString('hex');
   const { data, error } = await svc.from('enrollment_sessions').insert({
     retailer_id: customer.retailer_id,
     customer_id: customer.id,
