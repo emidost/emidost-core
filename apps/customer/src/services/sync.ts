@@ -309,6 +309,13 @@ export async function pollOnce(): Promise<PollUiState | null> {
       await DeviceMgmt.applyFinancingProtection(false, []);
       await DeviceMgmt.unhideSelf();
       await ack(cmd.id, 'EXECUTED');
+    } else if (cmd.command_type === 'REBOOT') {
+      // Orderly reboot scheduled natively ~5 s out, so this ack lands before
+      // the device goes down. Refused while locked (no reboot escape) and
+      // below API 24.
+      const result = await DeviceMgmt.rebootDevice();
+      if (result.ok) await ack(cmd.id, 'EXECUTED');
+      else await ack(cmd.id, 'FAILED', result.reason ?? 'reboot_refused_while_locked');
     } else if (cmd.command_type === 'LOCATION') {
       // Fetched only when asked; never tracked in the background.
       const loc = await DeviceMgmt.getLocation();

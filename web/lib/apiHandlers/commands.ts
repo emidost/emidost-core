@@ -49,10 +49,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       await svc.from('device_commands').update({ status: 'CANCELLED' }).eq('id', data.id);
       return bad('No lock allowances left. Ask the owner to top up.');
     }
-    await svc.from('credit_ledger').insert({
+    const { error: ledgerErr } = await svc.from('credit_ledger').insert({
       retailer_id: profile.retailer_id, kind: 'lock_consumed', delta: -1,
       balance_after: Number(newBalance), by_profile: profile.id,
     });
+    if (ledgerErr) {
+      // Compensation (honest note): the allowance was already debited; a failed
+      // ledger row would leave it unrecovered. Give the allowance back, cancel
+      // the command, and audit. The refund's own ledger row is best-effort —
+      // the same DB fault that failed the first insert may fail it too.
+      const { data: refunded } = await svc.rpc('increment_allowance', { rid: profile.retailer_id });
+      if (refunded != null) {
+        // Best-effort: the refund ledger row is attempted but never awaited on
+        // failure — supabase-js query builders are thenables, not promises
+        // with .catch, so use the two-arg .then form (workers tsc compiles
+        // this file too).
+        await svc.from('credit_ledger').insert({
+          retailer_id: profile.retailer_id, kind: 'lock_refund', delta: 1,
+          balance_after: Number(refunded), by_profile: profile.id,
+        }).then(() => {}, () => {});
+      }
+      await svc.from('device_commands').update({ status: 'CANCELLED' }).eq('id', data.id);
+      await svc.from('audit_log').insert({
+        actor_id: profile.id, retailer_id: device.retailer_id,
+        event: 'COMMAND_CANCELLED',
+        detail: { device_id: device.id, command_id: data.id, reason: 'ledger insert failed; allowance refunded' },
+      });
+      return Response.json({ error: 'Lock command cancelled: the ledger write failed and the allowance was refunded. Retry the lock.' }, { status: 500 });
+    }
   }
 
   await svc.from('audit_log').insert({

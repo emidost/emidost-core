@@ -4,6 +4,40 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 final fix sweep (claude web/SQL/docs + codex native)
+
+- `commands.ts` compensation: when the `lock_consumed` ledger insert fails AFTER
+  a successful allowance debit, the allowance is refunded (`increment_allowance`
+  + best-effort `lock_refund` row), the command is CANCELLED, and the failure is
+  audited (`COMMAND_CANCELLED`). Closes the "unrecovered debit" residual.
+- `ownerRetailers.ts` rollback deletes are no longer silent: `console.error`
+  on failure, best-effort semantics kept.
+- `web/app/page.tsx` claims self-heal: an owner/staff account whose
+  app_metadata lacks the matching role (or retailer_id) claim gets it backfilled
+  merge-safe via `auth.admin.updateUserById` on the next portal visit, logged,
+  then re-read — closes the "manual-account sees zeros" residual.
+- REBOOT end-to-end: `commandProxy` accepts REBOOT (owner-only; retailer
+  commands route untouched), the owner devices board gains a REBOOT button, and
+  new migration `0012_reboot_command.sql` adds the command_type enum value
+  (all-in-one regenerated). Native semantics (codex): `rebootDevice` schedules
+  the reboot ~5 s out so the EXECUTED ack lands first; refusal while locked is
+  unchanged, reason `locked_reboot_refused`.
+- `docs/FUNCTION_REPORT.md` refreshed to commit `5bd8a8b`: wireless self-pair
+  rows rewritten (EmidostAdbBridge = bundled AOSP adb step runner, CODE +
+  DEVICE; accessibility service captures pairing + connect port; new
+  PairingWalkthrough + WirelessEnrol entries; command service row gains SMS 60 s
+  debounce + simBaselinePresent + REBOOT dispatch), unlockWithCode lag residual
+  marked FIXED (heartbeat `locked` write), commands/commandProxy residuals
+  updated, threat tables updated (spoof-SMS DoS now debounced, portal indicator
+  fixed, new wireless-pairing row), honest-limits rewritten (0011+0012 pending,
+  REBOOT wording, self-pair no longer a skeleton), checklist D4 updated.
+- Fixed-vs-honest split: FIXED in code = allowance compensation, rollback
+  observability, claims self-heal, REBOOT end-to-end (command level), portal
+  lock-indicator lag. HONEST remaining = 0011+0012 not yet applied live,
+  worker redeploy, EAS builds, per-OEM walks (QR + wireless), FRP/user-control
+  OS readback, FGS cap, in-memory limiter.
+- Checks: web tsc 0 · workers tsc 0 · `next build` exit 0 (re-verified).
+
 ## 2026-10-03 function report (lead + claude + codex)
 
 - Claim-by-claim report published at `docs/FUNCTION_REPORT.md`: 113 functions

@@ -4,7 +4,11 @@ import { serviceClient } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-/** Owner LOCK/UNLOCK/LOCATION/RELEASE (never consumes allowances). */
+/**
+ * Owner LOCK/UNLOCK/LOCATION/RELEASE/REBOOT (never consumes allowances).
+ * REBOOT is owner-only by design: the device refuses it while locked
+ * (native guard), so it is a recovery affordance, not a retailer tool.
+ */
 export async function POST(req: NextRequest) {
   const { profile } = await requireActor(req);
   if (!profile) return unauthorized();
@@ -12,8 +16,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const deviceId: string | undefined = body?.device_id;
   const commandType: string | undefined = body?.command_type;
-  if (!deviceId || !['LOCK', 'UNLOCK', 'LOCATION', 'RELEASE'].includes(commandType ?? '')) {
-    return bad('device_id + command_type (LOCK, UNLOCK, LOCATION or RELEASE) required');
+  if (!deviceId || !['LOCK', 'UNLOCK', 'LOCATION', 'RELEASE', 'REBOOT'].includes(commandType ?? '')) {
+    return bad('device_id + command_type (LOCK, UNLOCK, LOCATION, RELEASE or REBOOT) required');
   }
 
   const svc = serviceClient();

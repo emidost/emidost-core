@@ -42,7 +42,7 @@ Every item carries one of four states:
 | D1 | LOCK refused without live Device Owner (server queue, native gate, SMS, SIM, boot) | CODE | command routes, DeviceActions.hardLock, receivers |
 | D2 | Non-DO LOCK acks FAILED (no fake EXECUTED) | CODE | EmidostCommandService returns enforcement result |
 | D3 | Kiosk power menu has no Reboot (GLOBAL_ACTIONS excluded; flags valid: KEYGUARD+SYSTEM_INFO) | CODE + DEVICE | LockPolicies.kt |
-| D4 | REBOOT command refused while locked | CODE | module rebootDevice |
+| D4 | REBOOT command end-to-end (owner board → commandProxy → queue): refused while locked with reason `locked_reboot_refused`; when allowed, the native side schedules the reboot ~5 s out so the EXECUTED ack lands first | CODE + DEVICE | commandProxy + owner devices page + rebootDevice |
 | D5 | 2-min offline re-assert before any network call | CODE | EmidostCommandService.tick |
 | D6 | Boot auto-lock (receiver + HOME takeover + cover), DO-gated | CODE | EmidostBootReceiver |
 | D7 | SIM removal 30 s debounce → hard lock; SIM swap via IMSI/ICCID baseline | CODE + DEVICE | SimSentinelReceiver (baseline may be null on some devices — documented) |

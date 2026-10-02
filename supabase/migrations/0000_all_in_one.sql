@@ -1,6 +1,6 @@
 -- ============================================================================
 -- emidost ALL-IN-ONE (single file). Open a NEW query tab and run this whole file.
--- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011).
+-- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012).
 -- Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
 -- Idempotent: safe to re-run.
 -- ============================================================================
@@ -867,3 +867,11 @@ alter table public.rate_limits enable row level security;
 -- with the service-role key (serviceClient), which keeps working.
 revoke all on function public.rate_limit_hit(text, int, int) from public;
 grant execute on function public.rate_limit_hit(text, int, int) to service_role;
+
+-- emidost 0012 - REBOOT command type (owner-only recovery affordance).
+-- The device refuses REBOOT while locked (native rebootDevice guard, D4);
+-- the owner board queues it for unlocked/stuck phones. Retailer routes never
+-- accept REBOOT, so it cannot consume lock allowances or bypass the DO gate.
+-- Idempotent: ADD VALUE IF NOT EXISTS is safe to re-run.
+
+alter type public.command_type add value if not exists 'REBOOT';

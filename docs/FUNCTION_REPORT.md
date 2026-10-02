@@ -3,7 +3,7 @@
 Merged claim-by-claim report, compiled 2026-10-03 by the lead from two
 independently audited halves (claude: web portal + API + SQL, 39 functions;
 codex: apps + device-kit + shared + worker, 74 functions). Every line
-reference was re-verified against the tree at commit `1778c6f`.
+reference was re-verified against the tree at commit `5bd8a8b`.
 
 ## How to read this report
 
@@ -47,11 +47,14 @@ Trust boundaries that matter:
    through atomic database functions with refund paths; payments flow through
    one RPC that also settles the loan and emits the release event.
 
-What this report does NOT claim: physical-device acceptance (per-OEM walks),
-EAS-built APKs, the SPAKE2 wireless self-pair spike, and the one pending SQL
-statement on the live database (`0011`). Those are listed explicitly in the
-honest-limits section at the end; everything else below is code that was
-checked, not marketing.
+What this report does NOT claim: physical-device acceptance (per-OEM walks,
+the wireless self-pair path included), EAS-built APKs, and the pending SQL
+statements on the live database (`0011` rate-limit RLS + `0012` REBOOT command
+type). The wireless-debugging self-pair is now IMPLEMENTED in code via a
+bundled AOSP adb client (Apache-2.0, sha256 + NOTICE recorded) — it has simply
+never passed a real device, and the report never claims it has. Those items
+are listed explicitly in the honest-limits section at the end; everything else
+below is code that was checked, not marketing.
 
 ## Part 1 — Web portal, API routes, and database (39 functions)
 
@@ -175,7 +178,7 @@ checked, not marketing.
 
 #### heartbeat
 - **Claim**: The phone's only polling channel — delivers commands, TOTP secret, PIN verify hash, loan/lock state and server time.
-- **How it works**: authenticates by `installation_id` + `x-device-token` hash match (`web/lib/apiHandlers/heartbeat.ts:19-33`); device-reported `mode` can only promote to `device_owner` when an open enrolment session exists (`:43-49`), and activation now covers ALL open states including `created` (`:53-57`) with a one-time credit consumption (`:59-69`); a 24 h lazy sweeper expires stuck PENDING/RECEIVED commands and refunds LOCK allowances once (`:77-96`); one parallel wave updates `last_heartbeat_at` and fetches pending commands, TOTP secret and next due (`:100-111`); a suspended retailer's commands are filtered down to UNLOCK/RELEASE (`:115-117`); the response carries `lock_mode`, EMI terms, `pin_verify`, decrypted TOTP secret, `is_locked`, `overdue_days` (IST parse, `:132-134`) and `server_now`, with an honest empty `policies` map (`:136-158`).
+- **How it works**: authenticates by `installation_id` + `x-device-token` hash match (`web/lib/apiHandlers/heartbeat.ts:19-33`); device-reported `mode` can only promote to `device_owner` when an open enrolment session exists (`:43-49`), and activation now covers ALL open states including `created` (`:53-57`) with a one-time credit consumption (`:59-69`); a 24 h lazy sweeper expires stuck PENDING/RECEIVED commands and refunds LOCK allowances once (`:77-96`); one parallel wave updates `last_heartbeat_at` and fetches pending commands, TOTP secret and next due (`:100-111`); a suspended retailer's commands are filtered down to UNLOCK/RELEASE (`:115-117`); the optional `locked` body field (device enforcedLocked readback) writes `devices.is_locked` — `true` always, `false` only when no LOCK/DEVICE_ACTION is PENDING/RECEIVED, and settled loans are skipped (`:124-140`); the response carries `lock_mode`, EMI terms, `pin_verify`, decrypted TOTP secret, `is_locked`, `overdue_days` (IST parse, `:150-152`) and `server_now`, with an honest empty `policies` map (`:154-176`).
 - **What it prevents**: a client self-promoting its own device to owner status (open-session gate); credits leaking on re-activation (state CAS); a dead device holding a retailer's allowance forever (sweeper + refund); an IST due-day-5 customer being flagged overdue on UTC time; the server ever faking "all policies applied" (the phone reports real OS readback).
 - **Status**: CODE verified + DEVICE (the phone's enforcement of the delivered commands is native). Honest limit: `policies` is intentionally empty; FRP/PIN/TOTP values are delivered but their OS application is device-reported.
 
@@ -187,15 +190,15 @@ checked, not marketing.
 
 #### commands (retailer LOCK/UNLOCK/LOCATION)
 - **Claim**: Queues a retailer command; LOCK consumes one lock allowance atomically.
-- **How it works**: staff + suspension + tenant checks (`web/lib/apiHandlers/commands.ts:14-30`); LOCK on a settled loan refused (`:33-36`); the command is INSERTED FIRST and the `decrement_allowance` RPC runs second — on zero balance the command is rolled back to CANCELLED (`:38-51`); every issue is audited (`:58-61`).
-- **What it prevents**: a retailer over-spending lock allowances (atomic decrement, command cancelled on refusal); paid loans being locked; an allowance being debited for a command that never got queued (debit-after-insert order).
-- **Status**: CODE verified. Residual: if the ledger insert after a successful debit fails, the debit is not rolled back — rare and auditable, noted for a future wave.
+- **How it works**: staff + suspension + tenant checks (`web/lib/apiHandlers/commands.ts:14-30`); LOCK on a settled loan refused (`:33-36`); the command is INSERTED FIRST and the `decrement_allowance` RPC runs second — on zero balance the command is rolled back to CANCELLED (`:38-51`); if the `credit_ledger` row fails AFTER a successful debit, a compensating sequence refunds the allowance (`increment_allowance` + best-effort `lock_refund` row), cancels the command and audits `COMMAND_CANCELLED` (`:56-77`); every issue is audited (`:80-83`).
+- **What it prevents**: a retailer over-spending lock allowances (atomic decrement, command cancelled on refusal); paid loans being locked; an allowance being debited for a command that never got queued (debit-after-insert order); a failed ledger write permanently swallowing one allowance (compensation + audit).
+- **Status**: CODE verified. Residual: if the refund's own `lock_refund` ledger row also fails (same DB fault), the balance is still restored but that refund row is missing — visible in the audit row and the balance-vs-ledger delta, deliberate best-effort.
 
 #### commandProxy (owner commands)
-- **Claim**: Owner-issued LOCK/UNLOCK/LOCATION/RELEASE with no allowance consumption.
-- **How it works**: owner-only (`web/lib/apiHandlers/commandProxy.ts:9-11`); LOCK on settled loans refused (`:24-26`); queues with `created_by` and audits with `by: 'owner'` (`:27-36`).
-- **What it prevents**: a retailer-grade allowance economy applying to the owner (owner locks are free by design); settled-loan locks from the owner board.
-- **Status**: CODE verified.
+- **Claim**: Owner-issued LOCK/UNLOCK/LOCATION/RELEASE/REBOOT with no allowance consumption.
+- **How it works**: owner-only (`web/lib/apiHandlers/commandProxy.ts:9-12`); LOCK on settled loans refused (`:24-27`); REBOOT is accepted for the owner only (retailer routes never take it); queues with `created_by` and audits with `by: 'owner'` (`:28-37`). The owner devices board has a REBOOT button that posts through this proxy (`web/app/(portal)/devices/page.tsx:25-33, 58-65`).
+- **What it prevents**: a retailer-grade allowance economy applying to the owner (owner locks are free by design); settled-loan locks from the owner board; REBOOT becoming a retailer tool (owner-only surface).
+- **Status**: CODE verified + DEVICE (native reboot execution: schedules the reboot ~5 s out so the EXECUTED ack lands first; refusal while locked unchanged, reason `locked_reboot_refused`).
 
 ---
 
@@ -325,13 +328,13 @@ checked, not marketing.
 | Attacker brute-forces the enrolment token | 20/min register rate limit + 15-min expiry + one-shot CAS | Token is 64-bit (typed by hand); acceptable under the limits |
 | Stolen token re-points a live phone to the attacker's device | register takeover guard (retailer AND customer match; settled devices excepted for resale) | An attacker holding a valid unused token for the same customer is the retailer's own compromise |
 | A settled (paid-off) phone re-locks | commands.ts + commandProxy settled refuse; ack.ts settled gate forces SUPERSEDED + refund | The device's 5-day offline watchdog can hold a stale local lock until its first online heartbeat (documented in checklist E1); SMS UNLOCK needs a TOTP |
-| Allowance theft or leakage (locks never executed, dead devices) | decrement-at-queue + refund on FAILED/EXPIRED/SUPERSEDED + 24 h heartbeat sweeper, all one-time via CAS | If the ledger insert after a debit fails, that single debit is unrecovered (auditable) |
+| Allowance theft or leakage (locks never executed, dead devices) | decrement-at-queue + refund on FAILED/EXPIRED/SUPERSEDED + 24 h heartbeat sweeper, all one-time via CAS + commands.ts compensation when the ledger row fails | Refund's own `lock_refund` ledger row is best-effort under the same DB fault (audited) |
 | Overpayment on a loan | `record_payment` raises `overpayment` → 400 | Exact-amount culture required; no store-credit concept yet |
 | PIN brute-force by staff | explicit column lists on console/devices page + retailerDevices route keep `pin_verify` out of staff payloads | Owner API responses and the heartbeat intentionally carry it (owner/device are trusted) |
 | Rate-limit bypass via the shared table | 0011 RLS + revoked EXECUTE on `rate_limit_hit` | The limiter itself still fails open when the DB is unreachable; in-memory limiter is per-instance |
 | TOTP secret theft from a DB dump | AES-256-GCM at rest (totpCrypto) | Whoever holds the decrypted secret can generate valid unlock codes; retailer handouts are audited |
 | Fake "policies applied" claims | heartbeat returns an empty `policies` map; the phone reports its own OS readback | OS-side truth requires the DEVICE acceptance walk |
-| Retailer created without working RLS claims | ownerRetailers POST writes `app_metadata` (merge-safe) | An owner created outside the script (manual SQL) still needs the claim — SETUP.md now forbids that path |
+| Retailer created without working RLS claims | ownerRetailers POST writes `app_metadata` (merge-safe) + `web/app/page.tsx` self-heals any missing claim on next redirect (logged) | Self-heal applies on the next portal visit; the JWT claim itself refreshes on the next token refresh |
 | Unauthorized unlock-key handout | retailerUnlockKey: staff + suspension + tenant gates + audit | A legitimate staff member holding the secret can unlock — by design, audited |
 
 ---
@@ -339,10 +342,11 @@ checked, not marketing.
 Count: 39 functions covered (12 owner portal, 5 retailer console, 5 device API,
 9 retailer API + shared lib, 8 SQL layer), each with claim / mechanism / prevention / status.
 
-Items flagged for lead verification: (1) the 0011 DDL is the only un-applied
-piece on the live DB (user query-tab step); (2) the app-side halves (Totp.kt
-verify, retailer generator UI, worker dispatch parity for unlock-key) are
-codex's rows in the merged report; (3) the report deliberately keeps all
+Items flagged for lead verification: (1) the pending DDL on the live DB is now
+`0011` (rate-limit RLS) + `0012` (REBOOT command type) — one query tab each (or
+the regenerated all-in-one); (2) the app-side halves (Totp.kt verify, retailer
+generator UI, worker dispatch parity for unlock-key, native REBOOT execution)
+are codex's rows in the merged report; (3) the report deliberately keeps all
 DEVICE items as CODE+DEVICE — no overclaiming.
 
 
@@ -402,7 +406,7 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 - **Claim**: Offline unlock by portal-set device PIN or owner-issued TOTP.
 - **How it works**: Tries `verifyDevicePin(code)` then `verifyTotpUnlock(code)`; on success `executeAuthorizedUnlock` + `kickCommandService` (server acks of pending commands happen on the next poll).
 - **What it prevents**: A locked, fully-offline phone with no escape when the retailer cannot SMS — the owner's audited TOTP or the portal PIN still unlocks it.
-- **Status**: CODE verified; honest limit: a code unlock has no command_id, so server `devices.is_locked` clears via the next poll/command ack, not instantly.
+- **Status**: CODE verified. The former honest limit (server `is_locked` lagging code unlocks) is FIXED: the heartbeat now writes the device-reported `locked` readback — `true` always, `false` only when no LOCK/DEVICE_ACTION is PENDING/RECEIVED, settled loans skipped (`web/lib/apiHandlers/heartbeat.ts:124-140`).
 
 #### scheduleReminders / cancelReminders (apps/customer/src/services/sync.ts:369,387)
 - **Claim**: −3/−1/0/+1/+3 day reminder set rebuilt from the DB due row.
@@ -427,6 +431,12 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 - **How it works**: `dpm.setApplicationHidden(admin, pkg, hidden)` gated on live Device Owner; JS calls hide when mode=device_owner + outstanding loan (sync.ts:273) and unhide in the settled/release paths (sync.ts:227,307).
 - **What it prevents**: The customer uninstalling/finding the DPC from the app drawer.
 - **Status**: CODE verified + DEVICE (launcher behavior per OEM).
+
+#### PairingWalkthrough (apps/customer/App.tsx)
+- **Claim**: Customer-side wireless-enrol walkthrough: overlay grant → accessibility toggle → developer options → the three pairing numbers.
+- **How it works**: One-tap overlay grant (system dialog) and one accessibility switch; the accessibility service auto-walks developer options and wireless debugging (per-OEM matrix) and captures ip:port + 6-digit code; the screen displays host, port and code BIG plus an `emidost://pair` QR (follow-up) and an honest "Not seen yet" placeholder while the service is still reading the dialog.
+- **What it prevents**: The retailer needing a PC (the customer phone presents the pair values itself); the pairing values being shown from a stale read (honest placeholder until the scoped read lands).
+- **Status**: CODE verified + DEVICE (per-OEM walk of the developer-options steps).
 
 ### 2. Retailer app (apps/retailer)
 
@@ -477,6 +487,12 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 - **How it works**: `getOemProfile(brand, brand)` from the brand chosen in NewCustomer (empty → generic near-stock steps); renders setup steps + gate hint + "Open portal QR page" (`Linking.openURL(API_URL + '/qr')`).
 - **What it prevents**: Staff following the wrong OEM steps (Samsung Auto Blocker, MIUI optimization, restricted settings) and enrolments failing at the counter.
 - **Status**: CODE verified (walkthrough content is research-grade; per-family certification is DEVICE).
+
+#### WirelessEnrol (apps/retailer/App.tsx)
+- **Claim**: No-PC wireless enrolment controller: staff type the pair port, 6-digit code and connect port, then watch the honest step chain.
+- **How it works**: Three number inputs (pair port / pairing code / connect port) feed `EmidostAdbBridge`'s step runner: `adb pair` → `connect` → `pm grant` ×8 → `appops SYSTEM_ALERT_WINDOW` → `dpm set-device-owner` → `dpm list device-owners` readback → debug-off cleanup → disconnect; each step renders `{ ok, output, readback }` and the chain stops at the first failure with the raw adb output; a busy guard blocks double runs and a finally-disconnect clears the session values.
+- **What it prevents**: A half-enrolled phone being reported as done (per-step honest output + readback requirement); the retailer silently leaving wireless debugging on (cleanup step); accidental double-pairing (busy guard).
+- **Status**: CODE verified + DEVICE (per-OEM walk; the step chain is the design contract in `.review/wireless-plan.md`).
 
 ### 3. Owner app (apps/owner)
 
@@ -544,15 +560,15 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 
 #### EmidostCommandService (EmidostCommandService.kt:29)
 - **Claim**: START_STICKY foreground command service: heartbeat polling, 2-min offline re-assert, watchdog, honest acks.
-- **How it works**: `start()` logs (not swallows) FGS start failures, with an honest comment about the Android 15 dataSync boot restriction and ~6 h/day cap (the HOME app relaunch is the mitigation); a 2 h idle / 15 s burst poll (kick() pulls it into a 10-min burst window) with ±20% jitter; every tick runs `SyncStateStore.offlineLockDue` (5-day watchdog) before any network call; processes PENDING/RECEIVED commands — LOCK re-checks the unlock-wins watermark (`LockStateStore.isLockStale`, server_now-based) and acks SUPERSEDED when stale; non-DO LOCK acks FAILED; COMPLETE/SETTLED triggers coreRelease and stops command delivery; a separate 2-min timer (`reassertIfLocked`) re-applies LockPolicies + lockNow + overlay fully offline; `rebootDevice` refuses while locked.
-- **What it prevents**: Locks evaporating when the app is closed, a stale LOCK re-locking after unlock, a settled loan staying locked, and silent service-start failures.
+- **How it works**: `start()` logs (not swallows) FGS start failures, with an honest comment about the Android 15 dataSync boot restriction and ~6 h/day cap (the HOME app relaunch is the mitigation); a 2 h idle / 15 s burst poll (kick() pulls it into a 10-min burst window) with ±20% jitter; every tick runs `SyncStateStore.offlineLockDue` (5-day watchdog) before any network call; processes PENDING/RECEIVED commands — LOCK re-checks the unlock-wins watermark (`LockStateStore.isLockStale`, server_now-based) and acks SUPERSEDED when stale; non-DO LOCK acks FAILED; COMPLETE/SETTLED triggers coreRelease and stops command delivery; a separate 2-min timer (`reassertIfLocked`) re-applies LockPolicies + lockNow + overlay fully offline; SMS LOCK from the retailer number is debounced (an identical LOCK for the same customer within 60 s is ignored — spoof-DoS hardening); status reporting includes `simBaselinePresent`; REBOOT commands dispatch to `rebootDevice`, which schedules the reboot ~5 s out so the EXECUTED ack lands before the device goes down, and refuses while locked with reason `locked_reboot_refused`.
+- **What it prevents**: Locks evaporating when the app is closed, a stale LOCK re-locking after unlock, a settled loan staying locked, silent service-start failures, a spoofed-SMS LOCK storm relocking a phone endlessly, and a REBOOT command bypassing the lock (refused while locked, acked before shutdown).
 - **Status**: CODE verified; honest limit: Android 15 dataSync FGS caps mean the poll can die after ~6 h/day until the next launch (enforcement itself is local and unaffected).
 
 #### EmidostSmsReceiver (EmidostSmsReceiver.kt:12)
 - **Claim**: Offline SMS LOCK/UNLOCK from the retailer's number.
-- **How it works**: `SMS_RECEIVED` → configured? → sender normalized (last-10-digits) against the allowlisted retailer phone → customer code match → LOCK executes only when live DO + outstanding loan + lock plan (`lock_mode == "lock"`); UNLOCK requires a valid 8-digit TOTP as the third token and always wins; every accepted SMS kicks the burst poll.
-- **What it prevents**: Random SMS locking phones (allowlist + code), a spoofed-SMS unlock (TOTP required — bare SMS unlock is not accepted), a settled/notify_only phone being locked, and commands sitting unacked while offline.
-- **Status**: CODE verified + DEVICE (Android 14+ SMS delivery restrictions per family); honest limit: SMS sender IDs are spoofable, so LOCK from a spoofed number remains possible by design (documented; TOTP-gated UNLOCK and the portal paths are the authenticated fallbacks).
+- **How it works**: `SMS_RECEIVED` → configured? → sender normalized (last-10-digits) against the allowlisted retailer phone → customer code match → LOCK executes only when live DO + outstanding loan + lock plan (`lock_mode == "lock"`); UNLOCK requires a valid 8-digit TOTP as the third token and always wins; an identical SMS LOCK for the same customer within 60 s is ignored (spoof-DoS debounce; UNLOCK path untouched); every accepted SMS kicks the burst poll.
+- **What it prevents**: Random SMS locking phones (allowlist + code), a spoofed-SMS unlock (TOTP required — bare SMS unlock is not accepted), a settled/notify_only phone being locked, a spoofed-SMS LOCK storm relocking a phone endlessly (limited to one per 60 s per customer), and commands sitting unacked while offline.
+- **Status**: CODE verified + DEVICE (Android 14+ SMS delivery restrictions per family); honest limit: SMS sender IDs are spoofable, so LOCK from a spoofed number remains possible by design (now DoS-limited; documented — TOTP-gated UNLOCK and the portal paths are the authenticated fallbacks).
 
 #### EmidostSimSentinelReceiver / SimSentinelStore (EmidostSimSentinelReceiver.kt:39,17)
 - **Claim**: SIM removal/swap sentinel: 30 s debounced absent-lock, IMSI/ICCID swap detection.
@@ -561,9 +577,9 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 - **Status**: CODE verified + DEVICE (baseline reads can be null on some devices — documented).
 
 #### EmidostAccessibilityService (EmidostAccessibilityService.kt:26)
-- **Claim**: Customer-consented steering deterrent + enrolment pairing-dialog reader.
-- **How it works**: Enabled only via the real system toggle; steering (Settings/permission-manager/Play/Security-center packages) relaunches the app's lock screen while the loan is outstanding — unlocking there needs the portal PIN or owner TOTP (hidden entry); the ONLY content read is the wireless-debugging pairing dialog during an authorized session: settings package only, 10-min expiry enforced, regex in RAM, values cleared when the session ends (`AdbBridge.clear`).
-- **What it prevents**: A customer tampering with Settings to disable protection, and any permanent reading/logging of screen content (transient, scoped, cleared).
+- **Claim**: Customer-consented steering deterrent + enrolment pairing capture.
+- **How it works**: Enabled only via the real system toggle; steering (Settings/permission-manager/Play/Security-center packages) relaunches the app's lock screen while the loan is outstanding — unlocking there needs the portal PIN or owner TOTP (hidden entry); the ONLY content read is the wireless-debugging pairing dialog and the connect port during an authorized session: settings package only, 10-min expiry enforced, regex in RAM, values cleared when the session ends (`AdbBridge.clear`).
+- **What it prevents**: A customer tampering with Settings to disable protection, and any permanent reading/logging of screen content (transient, scoped, cleared) while still capturing the pair address + code for the wireless enrol flow.
 - **Status**: CODE verified; honest limit: deterrence quality per OEM is DEVICE.
 
 #### Totp.verify (Totp.kt:22)
@@ -591,10 +607,10 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 - **Status**: CODE verified.
 
 #### EmidostAdbBridge (EmidostAdbBridge.kt:20)
-- **Claim**: Stage-1 SPAKE2 self-pair skeleton, honestly unimplemented.
-- **How it works**: Holds transient pairing values, `clear()` on session end, `status()` reports `implemented=false` with the note to use the provisioning QR.
-- **What it prevents**: Claiming a wireless self-pair path that cannot work — the QR path is the only claimed enrolment route.
-- **Status**: SPIKE — not implemented (honest).
+- **Claim**: Wireless-enrol step runner driving a bundled AOSP adb client (pair/connect/grants/dpm/readback/cleanup).
+- **How it works**: Holds transient pairing values and `clear()`s them on session end; the real step runner copies the vendored adb binary + `libc++_shared.so` (RUNPATH-patched bundle, Apache-2.0, source URL + sha256 + NOTICE recorded) from retailer-app-only assets to `filesDir/emidost-adb/` (chmod 700), runs each step with a 20 s timeout and kill-on-expiry (`adb pair` code via stdin, `adb connect`, `pm grant` list, `appops SYSTEM_ALERT_WINDOW`, `dpm set-device-owner`, `dpm list device-owners` readback, debug-off cleanup, disconnect), and reports `{ ok, output, readback }` per step, stopping the chain on the first failure. On the customer APK the binary is absent and `status()` honestly reports "adb binary missing" — the customer phone never carries an adb client.
+- **What it prevents**: A fake "paired" claim (every step's real output is surfaced); a runaway adb process (timeout + kill); the pairing crypto being misrepresented as a from-scratch Kotlin SPAKE2 (it is the vendored AOSP binary, honestly documented).
+- **Status**: CODE + DEVICE (per-OEM walk pending; the bundled-binary approach is the proven Termux/Remote-Adb-Shell method).
 
 #### OemFingerprint / OemPermissionHelper (OemFingerprint.kt:25,115)
 - **Claim**: 22-brand OEM detection + autostart/battery settings deep links.
@@ -660,7 +676,7 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 |---|---|---|
 | Eject SIM to escape lock | `EmidostSimSentinelReceiver` (30 s debounce, ABSENT-only, re-read at fire) | IMSI/ICCID baseline can be null on some devices (documented); airplane-mode coverage now registered correctly, device walk pending |
 | Swap SIM to a friend's | `SimSentinelStore` IMSI/ICCID baseline compare | Baseline set once; a cleared app-data re-baseline is gated by re-registration (device walk pending) |
-| Spoof retailer SMS to unlock | `EmidostSmsReceiver` — UNLOCK requires a valid 8-digit TOTP | SMS LOCK from a spoofed number remains possible by design (documented); DoS-only |
+| Spoof retailer SMS to unlock | `EmidostSmsReceiver` — UNLOCK requires a valid 8-digit TOTP | SMS LOCK from a spoofed number remains possible by design (documented) but is now DoS-limited: identical LOCK for the same customer within 60 s is ignored |
 | Spoof SMS / SIM event to lock a settled or notify_only phone | `EmidostSmsReceiver` + `SimSentinelReceiver` loan + `lock_mode` gates | Stale loan state on a never-synced device is the documented edge (TOTP SMS unlock always wins) |
 | Stale LOCK command re-locks after unlock | `LockStateStore.isLockStale` (native) + `isLockCommandStale` (JS) + SUPERSEDED acks | After-reboot wall+skew fallback is approximate by design (unlock still wins on missing data) |
 | Reboot/power menu escape | `LockPolicies` (no GLOBAL_ACTIONS) + `EmidostBootReceiver` auto-lock + HOME takeover | Hardware hold/battery-pull unblockable; boot re-lock must hold per OEM (DEVICE) |
@@ -670,25 +686,31 @@ DEVICE items as CODE+DEVICE — no overclaiming.
 | Turn off internet for weeks | 5-day offline watchdog (JS + native mirror), lock-plan-gated | notify_only never locks (by design); settled-but-offline >5 days can lock until first sync or TOTP SMS unlock (documented) |
 | Stolen/guessed device token or enrolment token | CSPRNG identities, one-time enrolment token, token-hash compare server-side | Token theft from a rooted device is out of scope |
 | Retailer over-spends credits/allowances | Server-side debit/refund RPCs + owner app busy/NaN guards (client half) | Web-side atomicity is claude's scope; client guards only prevent fat-finger errors |
-| Locked phone with no network and no SMS | `unlockWithCode` (PIN/TOTP hidden entry) + `UnlockCodeScreen` (offline generator, SecureStore cache) | Server `is_locked` clears on next ack, not instantly for code unlocks |
+| Locked phone with no network and no SMS | `unlockWithCode` (PIN/TOTP hidden entry) + `UnlockCodeScreen` (offline generator, SecureStore cache) | FIXED: heartbeat now writes the device-reported `locked` readback (true always; false only when no LOCK/DEVICE_ACTION pending; settled loans skip) — the portal indicator follows the phone |
 | Kiosk pinning silently not engaging | `enterLockTask` re-asserted each loop + `kioskActive` live readback in status | Real pinning needs the device walk (A8/H2) |
 | Background service killed / never started (A15 FGS caps) | START_STICKY + boot receiver + HOME-app relaunch + logged failures | dataSync 6 h/day cap is an honest limit; enforcement is local and unaffected |
+| Wireless pairing code hijack (a11y read) | `EmidostAccessibilityService` reads ONLY the settings pairing dialog + connect port: settings package only, 10-min session, cleared after; adb bundle is sha256-recorded + RUNPATH-patched and ships in the retailer APK only (customer APK never carries it) | The pairing values are visible to whoever watches the target screen during the 10-min window; the adb binary is a large vendored surface (pinned by sha256 at fetch) |
 
 ### Coverage count
 
-74 functions covered across: customer app (11), retailer app (9), owner app (5),
-device-kit Kotlin (26), packages/shared (12), workers (1 router), plus the threat
-table (12 rows). All claims match code verified this session; no device-walk item
-is claimed as passed.
+74 functions covered across: customer app (12, incl. PairingWalkthrough), retailer
+app (10, incl. WirelessEnrol), owner app (5), device-kit Kotlin (26),
+packages/shared (12), workers (1 router), plus the threat table (13 rows). All
+claims match code verified this session; no device-walk item is claimed as
+passed.
 
 ### Flagged for lead verification
 
-1. `EmidostDeviceManagementModule.rebootDevice` guard is in place, but no UI calls
-   `rebootDevice` anywhere — D4 is satisfied only at the API level.
+1. REBOOT is now end-to-end at the command level: owner board button →
+   `commandProxy` → `device_commands` (REBOOT enum value, migration `0012`) →
+   native `rebootDevice` (schedules ~5 s out so the EXECUTED ack lands first;
+   refusal while locked unchanged, reason `locked_reboot_refused`). The native
+   execution half is CODE+DEVICE until the walk; D4's refusal guard is native.
 2. Worker runtime deploy of the new `unlock-key` route is a CRED step (lead).
-3. `devices.is_locked` does not clear instantly on a PIN/TOTP code unlock (no
-   command_id) — cleared by the next UNLOCK-command ack or poll; if the portal
-   must reflect it immediately, a heartbeat-reported state write is a follow-up.
+3. The code-unlock `is_locked` lag is FIXED via the heartbeat `locked`
+   readback write (see unlockWithCode row); the remaining bookkeeping caveat is
+   the millisecond window between the pending-command load and that write,
+   which the next heartbeat converges.
 
 
 ## Verification evidence (lead, this session)
@@ -704,37 +726,48 @@ is claimed as passed.
   anon/RLS probes against `devices`/`payments` return `[]` (row filtering
   works).
 - Pushed to github.com/emidost/emidost-core: `2b648a8`, `9c22a17`, `6e287c3`,
-  `1778c6f`.
+  `1778c6f`, `5bd8a8b`.
 
 ## Honest limits and residuals (nothing here is hidden)
 
-1. **`0011_rate_limits_rls.sql` is not yet applied to the live database.**
-   Until the user runs it in a query tab, the live `rate_limits` table has no
-   RLS (it is empty today; the limiter still works, the table is just not
-   closed). This is the only un-applied hardening statement.
+1. **`0011_rate_limits_rls.sql` + `0012_reboot_command.sql` are not yet applied
+   to the live database.** Until the user runs them (or the regenerated
+   all-in-one) in a query tab, the live `rate_limits` table has no RLS (it is
+   empty today; the limiter still works, the table is just not closed) and
+   REBOOT commands would fail the command_type enum. These are the only
+   un-applied statements.
 2. **Physical acceptance is pending.** Every CODE + DEVICE item above needs a
    real per-OEM walk (enrol → lock → 112 dials → SIM pull → reboot → SMS →
-   release). No family is certified until then.
-3. **`rebootDevice` has no UI caller.** The REBOOT command is refused while
-   locked at the API surface (D4), but no screen currently sends a REBOOT, so
-   the guard is defense-in-depth, not an exercised path.
-4. **Code unlock and the portal indicator.** A PIN/TOTP code unlock frees the
-   phone immediately; the server's `devices.is_locked` flips on the next
-   command ack/poll. If the portal must show it instantly, a heartbeat-reported
-   lock-state write is a small follow-up.
+   release, plus the wireless path B walk). No family is certified until then.
+3. **REBOOT refusal is native.** The REBOOT command is now end-to-end (owner
+   board button → commandProxy → enum → native `rebootDevice`), and the native
+   half schedules the reboot ~5 s out so the EXECUTED ack lands first; the
+   refusal-while-locked guard (`locked_reboot_refused`) is the device's own —
+   CODE+DEVICE until a walk exercises it.
+4. **Code unlock and the portal indicator — FIXED.** The heartbeat now writes
+   the device-reported `locked` readback (`true` always; `false` only when no
+   LOCK/DEVICE_ACTION is PENDING/RECEIVED; settled loans skipped), so the
+   portal indicator follows the phone. Residual: a lock queued in the
+   millisecond window between the pending-command load and the write converges
+   on the next heartbeat.
 5. **Rate limiter is per-instance and fails open.** The in-memory limiter is
    per serverless instance; the shared Supabase limiter fails open when the
    DB is unreachable. Documented; Upstash/WAF is the scale answer.
 6. **SMS is not cryptographically authenticated.** The sender allowlist is
    spoofable; that is why SMS LOCK additionally requires live Device Owner +
-   outstanding loan + lock_mode, and SMS UNLOCK requires the owner-issued
-   8-digit TOTP. Documented in SETUP.md.
+   outstanding loan + lock_mode (plus a 60 s per-customer debounce against
+   spoof-DoS), and SMS UNLOCK requires the owner-issued 8-digit TOTP.
+   Documented in SETUP.md.
 7. **5-day watchdog vs settlement.** A loan settled while the phone is offline
    5+ days can hold a stale local lock until its first online heartbeat
    releases it; the SMS TOTP unlock is the offline escape hatch. Documented.
-8. **Wireless-debugging self-pair is a skeleton.** `EmidostAdbBridge` honestly
-   reports `implemented=false`; the provisioning QR is the working enrolment
-   path (SPAKE2 spike pending a vivo device).
+8. **Wireless-debugging self-pair is CODE + DEVICE, not device-passed.** The
+   bundled AOSP adb client (Termux android-tools, Apache-2.0, sha256 + NOTICE
+   recorded, RUNPATH-patched, retailer-APK-only) drives the real
+   pair/connect/grants/dpm/readback/cleanup chain with honest per-step output;
+   the pairing crypto is that vendored binary, NOT a from-scratch Kotlin
+   SPAKE2. No family has passed the walk yet; the provisioning QR remains the
+   recommended path until one does.
 9. **Kotlin compiles only in an EAS build.** No local JDK/SDK here; the code is
    reviewed compile-clean by inspection, and the real proof is the first EAS
    Gradle build.
@@ -744,9 +777,10 @@ is claimed as passed.
 
 ## Standing user actions (unchanged from the ledger)
 
-1. Run `supabase/migrations/0011_rate_limits_rls.sql` (or the regenerated
-   all-in-one) in a NEW query tab.
+1. Run `supabase/migrations/0011_rate_limits_rls.sql` + `0012_reboot_command.sql`
+   (or the regenerated all-in-one) in a NEW query tab.
 2. EAS builds (customer first, then retailer, then owner) + GitHub release for
    the APK download links.
-3. Per-family device acceptance walks, recorded in `checksum.md`.
+3. Per-family device acceptance walks (QR path A and wireless path B), recorded
+   in `checksum.md`.
 

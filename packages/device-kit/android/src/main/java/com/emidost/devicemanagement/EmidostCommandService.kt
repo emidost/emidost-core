@@ -205,6 +205,15 @@ class EmidostCommandService : Service() {
         "UNLOCK" -> executeUnlock()
         "RELEASE" -> coreRelease()
         "SET_PIN_POLICY" -> executePinPolicy()
+        "REBOOT" -> {
+          // Orderly reboot scheduled ~5 s out so the ack below lands first;
+          // refused while locked (no reboot escape) and below API 24.
+          val scheduled = DeviceActions.scheduleReboot(this)
+          if (scheduled != "SCHEDULED") {
+            ackStatus = "FAILED"
+            extraPayload = JSONObject().put("reason", scheduled)
+          }
+        }
         "LOCATION" -> {
           // Fetched only when asked; nothing is tracked in the background.
           val loc = EmidostLocation.fetch(this)

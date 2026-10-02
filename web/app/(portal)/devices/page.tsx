@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Lock, LockOpen, Smartphone, QrCode } from 'lucide-react';
+import { Lock, LockOpen, Smartphone, QrCode, RotateCw } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { Device } from '@emidost/shared';
 
@@ -22,7 +22,7 @@ export default function DevicesPage() {
     })();
   }, []);
 
-  async function send(deviceId: string, command: 'LOCK' | 'UNLOCK') {
+  async function send(deviceId: string, command: 'LOCK' | 'UNLOCK' | 'REBOOT') {
     const res = await fetch('/api/retailer/devices/command-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -59,6 +59,9 @@ export default function DevicesPage() {
                   <button className="btn sm" onClick={() => send(d.id, d.is_locked ? 'UNLOCK' : 'LOCK')}>
                     {d.is_locked ? <LockOpen size={14} aria-hidden="true" /> : <Lock size={14} aria-hidden="true" />}
                     {d.is_locked ? 'Unlock' : 'Lock'}
+                  </button>{' '}
+                  <button className="btn sm" onClick={() => send(d.id, 'REBOOT')} title="Refused while the phone is locked">
+                    <RotateCw size={14} aria-hidden="true" /> Reboot
                   </button>
                 </td>
               </tr>

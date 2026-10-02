@@ -42,7 +42,9 @@ export async function POST(req: NextRequest) {
     .from('retailers').insert({ name, phone, owner_id: profile.id })
     .select('id, name, phone, credits_balance, lock_allowances, is_suspended').single();
   if (rErr || !retailer) {
-    await svc.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+    // Best-effort rollback, now observable: a failed cleanup leaves an orphan
+    // auth user the owner can see and retry.
+    await svc.auth.admin.deleteUser(authUser.user.id).catch((e) => console.error('[retailer-create] rollback deleteUser failed', e));
     return Response.json({ error: rErr?.message ?? 'retailer insert failed' }, { status: 500 });
   }
 
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
   });
   if (profErr) {
     await svc.from('retailers').delete().eq('id', retailer.id);
-    await svc.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+    await svc.auth.admin.deleteUser(authUser.user.id).catch((e) => console.error('[retailer-create] rollback deleteUser failed', e));
     return Response.json({ error: profErr.message }, { status: 500 });
   }
 
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
   });
   if (claimErr) {
     await svc.from('retailers').delete().eq('id', retailer.id);
-    await svc.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+    await svc.auth.admin.deleteUser(authUser.user.id).catch((e) => console.error('[retailer-create] rollback deleteUser failed', e));
     return Response.json({ error: claimErr.message }, { status: 500 });
   }
 

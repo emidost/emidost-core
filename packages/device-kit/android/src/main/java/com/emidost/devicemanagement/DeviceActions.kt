@@ -5,6 +5,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 
 /**
  * Shared device-action helpers. Hard-lock-only: isOwner() gates everything
@@ -71,5 +73,20 @@ object DeviceActions {
       launch?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       if (launch != null) c.startActivity(launch)
     } catch (_: Exception) {}
+  }
+
+  /**
+   * Orderly reboot with a short delay so the caller can ack EXECUTED before
+   * the device goes down (the command must never be re-executed on the next
+   * boot). Refuses while locked (no reboot escape from the kiosk) and below
+   * API 24. Returns "SCHEDULED" or a refusal reason.
+   */
+  fun scheduleReboot(c: Context, delayMs: Long = 5000L): String {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return "unsupported_api"
+    if (LockStateStore.isLocked(c)) return "locked_reboot_refused"
+    Handler(Looper.getMainLooper()).postDelayed({
+      try { dpm(c).reboot(admin(c)) } catch (_: Exception) {}
+    }, delayMs)
+    return "SCHEDULED"
   }
 }

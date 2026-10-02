@@ -278,13 +278,12 @@ class EmidostDeviceManagementModule : Module() {
     Function("kickCommandService") { EmidostCommandService.kick(); true }
 
     Function("rebootDevice") {
-      // dpm.reboot exists only on API 24+ (minSdk is 23).
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) mapOf("ok" to false, "reason" to "unsupported_api")
-      else if (LockStateStore.isLocked(context)) mapOf("ok" to false, "reason" to "locked_reboot_refused")
-      else {
-        try { DeviceActions.dpm(context).reboot(DeviceActions.admin(context)); mapOf("ok" to true) }
-        catch (_: Exception) { mapOf("ok" to false, "reason" to "exception") }
-      }
+      // Orderly reboot, delayed ~5 s so the caller can ack EXECUTED before
+      // the device goes down. Refused while locked (no reboot escape) and
+      // below API 24 (dpm.reboot is API 24+; minSdk is 23).
+      val result = DeviceActions.scheduleReboot(context)
+      if (result == "SCHEDULED") mapOf("ok" to true)
+      else mapOf("ok" to false, "reason" to result)
     }
 
     Function("setTotpSecret") { secret: String ->
