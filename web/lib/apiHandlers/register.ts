@@ -1,8 +1,8 @@
-import { createHash } from 'crypto';
+﻿import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { bad } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
-import { deviceRateKey, rateLimit } from '@/lib/rateLimit';
+import { deviceRateKey, rateLimit, sharedRateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * session. Consent + session preconditions were enforced at creation time.
  */
 export async function POST(req: NextRequest) {
-  if (!rateLimit(deviceRateKey(req), 20, 60_000)) {
+  if (!rateLimit(deviceRateKey(req), 20, 60_000) || !(await sharedRateLimit(deviceRateKey(req), 20, 60_000))) {
     return Response.json({ error: 'too many requests' }, { status: 429 });
   }
   const body = await req.json().catch(() => ({}));

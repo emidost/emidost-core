@@ -27,3 +27,29 @@ export function deviceRateKey(req: Request): string {
   const installation = new URL(req.url).searchParams.get('installation_id') ?? '';
   return `${ip}:${installation}`;
 }
+
+/**
+ * Cross-instance limiter: one atomic hit-counter in Supabase, shared by the
+ * Worker and Vercel lambdas. Fails open when the DB is unreachable (the local
+ * limiter above still runs first). Uses the service-role key.
+ */
+let svcClient: any = null;
+export async function sharedRateLimit(key: string, limit: number, windowMs: number): Promise<boolean> {
+  try {
+    if (!svcClient) {
+      const { createClient } = await import('@supabase/supabase-js');
+      svcClient = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '',
+        process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+        { auth: { persistSession: false } },
+      );
+    }
+    const { data, error } = await svcClient.rpc('rate_limit_hit', {
+      k: `api:${key}`, lim: limit, win_ms: windowMs,
+    });
+    if (error) return true;
+    return data === true;
+  } catch {
+    return true;
+  }
+}
