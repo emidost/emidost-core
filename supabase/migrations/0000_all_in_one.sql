@@ -1,4 +1,9 @@
-﻿: schema + indexes + hardening. Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
+﻿-- ============================================================================
+-- emidost ALL-IN-ONE (single file). Open a NEW query tab and run this whole file.
+-- Contains: schema, indexes, hardening, location, JWT RLS, retention.
+-- Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
+-- Idempotent: safe to re-run.
+-- ============================================================================
 -- emidost 0001 â€" fresh schema for a NEW Supabase project.
 -- Idempotent: safe to re-run (to_regclass guards).
 -- No secrets: PIN hashes only, token hashes only, audit stores no payload secrets.
@@ -449,7 +454,6 @@ do $$ begin
     check (balance_after >= 0);
 exception when duplicate_object then null; end $$;
 
--- emidost 0004 - location
 -- emidost 0004 â€" on-demand location + fewer network assumptions.
 -- Location is stored only when the device fetches a LOCATION request.
 
