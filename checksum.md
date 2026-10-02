@@ -4,6 +4,15 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 function report (lead + claude + codex)
+
+- Claim-by-claim report published at `docs/FUNCTION_REPORT.md`: 113 functions
+  (39 web/API/SQL + 74 apps/native/shared/worker), each with Claim / How it
+  works (file refs) / What it prevents / Status, plus two threat tables
+  (15 + 12 abuse vectors → blocking function → honest residual), verification
+  evidence, honest limits, and standing user actions. Drafts kept in
+  `.review/`.
+
 ## 2026-10-03 offline unlock — retailer Authenticator-style TOTP generator
 
 - Design contract: `.review/offline-unlock-plan.md`. The phone already verifies
