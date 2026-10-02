@@ -2,6 +2,7 @@
   "expo": {
     "name": "wifi",
     "slug": "emidost-customer",
+    "owner": "emidosts-team",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -10,7 +11,11 @@
       "@emidost/device-kit",
       [
         "expo-notifications",
-        { "sounds": ["./assets/reminder.wav"] }
+        {
+          "sounds": [
+            "./assets/reminder.wav"
+          ]
+        }
       ]
     ],
     "android": {
@@ -33,6 +38,11 @@
         "CALL_PHONE",
         "INTERNET"
       ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "350e3d8b-b969-417a-a4df-b5f03a5794dd"
+      }
     }
   }
 }

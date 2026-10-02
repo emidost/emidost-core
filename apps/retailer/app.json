@@ -2,6 +2,7 @@
   "expo": {
     "name": "emidost Retailer",
     "slug": "emidost-retailer",
+    "owner": "emidosts-team",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
