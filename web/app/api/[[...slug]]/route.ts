@@ -35,6 +35,11 @@ import { POST as ackPost } from '@/lib/apiHandlers/ack';
 import { POST as retailerUnlockKeyPost } from '@/lib/apiHandlers/retailerUnlockKey';
 import { POST as customerPhotoPost } from '@/lib/apiHandlers/customerPhoto';
 import { PATCH as customerEscalationPatch } from '@/lib/apiHandlers/customerEscalation';
+import {
+  GET as ownerSalesGet,
+  POST as ownerSalesPost,
+  summaryGET as ownerSalesSummaryGet,
+} from '@/lib/apiHandlers/ownerSales';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +62,9 @@ const ROUTES: RouteDef[] = [
   { segments: 3, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1), patch: (req, ctx) => ownerRetailerPatch(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1) && seg('credits')(p, 3), post: (req, ctx) => ownerCreditsPost(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1) && seg('allowances')(p, 3), post: (req, ctx) => ownerAllowancesPost(req, { params: { id: ctx.params.id } }) },
+  { segments: 4, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1) && seg('sales')(p, 3), post: (req, ctx) => ownerSalesPost(req, { params: { id: ctx.params.id } }) },
+  { segments: 2, match: (p) => seg('owner')(p, 0) && seg('sales')(p, 1), get: ownerSalesGet },
+  { segments: 3, match: (p) => seg('owner')(p, 0) && seg('sales')(p, 1) && seg('summary')(p, 2), get: ownerSalesSummaryGet },
   { segments: 2, match: (p) => seg('owner')(p, 0) && seg('audit')(p, 1), get: ownerAuditGet },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('devices')(p, 1) && seg('totp')(p, 3), post: (req, ctx) => ownerTotpPost(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('devices')(p, 1) && seg('pin')(p, 3), post: (req, ctx) => ownerPinPost(req, { params: { id: ctx.params.id } }) },
@@ -114,6 +122,7 @@ function dispatch(
     if (def.segments === 4 && parts[3] === 'unlock-key') params.id = parts[2];
     if (def.segments === 4 && parts[3] === 'photo') params.id = parts[2];
     if (def.segments === 4 && parts[3] === 'escalation') params.id = parts[2];
+    if (def.segments === 4 && parts[3] === 'sales') params.id = parts[2];
     const handler = method === 'get' ? def.get : method === 'post' ? def.post : def.patch;
     if (handler) return handler(req, { params });
   }

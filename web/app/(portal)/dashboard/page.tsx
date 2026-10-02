@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   // runs UTC, so compute "today" with the IST offset.
   const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
   const today = new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
-  const [{ count: retailerCount }, { count: deviceCount }, { count: lockedCount }, { count: overdueCount }] =
+  const [{ count: retailerCount }, { count: deviceCount }, { count: lockedCount }, { count: overdueCount }, { data: salesRowsRaw }] =
     await Promise.all([
       supabase.from('retailers').select('id', { count: 'exact', head: true }),
       supabase.from('devices').select('id', { count: 'exact', head: true }),
@@ -23,7 +23,20 @@ export default async function DashboardPage() {
         .select('id', { count: 'exact', head: true })
         .in('status', ['PENDING', 'PARTIAL', 'OVERDUE'])
         .lt('due_date', today),
+      // Sales aggregates: fetch the small sales set and sum in JS (sales
+      // volumes are low; the heavy per-retailer breakdown lives in /sales).
+      supabase.from('retailer_sales').select('units, total_amount, amount_paid'),
     ]);
+  const salesRows = (salesRowsRaw ?? []) as Array<{ units: number; total_amount: number; amount_paid: number }>;
+  let unitsSold = 0;
+  let salesCollected = 0;
+  let salesTotal = 0;
+  for (const r of salesRows) {
+    unitsSold += r.units;
+    salesCollected += Number(r.amount_paid);
+    salesTotal += Number(r.total_amount);
+  }
+  const salesOutstanding = Math.round((salesTotal - salesCollected) * 100) / 100;
 
   const stats = [
     { label: 'Retailers', value: retailerCount ?? 0, icon: Store, tone: 'indigo' },
@@ -99,6 +112,20 @@ export default async function DashboardPage() {
         <p className="dash-note">
           <CheckCircle2 size={13} aria-hidden="true" /> Locking is local on each phone; the network only fetches commands and location. SMS works offline.
         </p>
+      </section>
+      <section className="dash-section">
+        <h2 className="dash-h2">Sales</h2>
+        <div className="quick-row">
+          <Link className="quick-card" href="/sales">
+            <LockOpen size={16} aria-hidden="true" /> <span><strong>{unitsSold} locks sold</strong><br />Total units sold to retailers.</span>
+          </Link>
+          <Link className="quick-card" href="/sales">
+            <Coins size={16} aria-hidden="true" /> <span><strong>Rs {salesCollected} collected</strong><br />Payments received against invoices.</span>
+          </Link>
+          <Link className="quick-card" href="/sales">
+            <Wallet size={16} aria-hidden="true" /> <span><strong>Rs {salesOutstanding} outstanding</strong><br />Record a sale and track every retailer.</span>
+          </Link>
+        </div>
       </section>
     </main>
   );

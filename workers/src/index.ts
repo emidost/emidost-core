@@ -33,6 +33,11 @@ import { POST as retailerUnlockKeyPost } from '../../web/lib/apiHandlers/retaile
 import { POST as registerPost } from '../../web/lib/apiHandlers/register';
 import { POST as heartbeatPost } from '../../web/lib/apiHandlers/heartbeat';
 import { POST as ackPost } from '../../web/lib/apiHandlers/ack';
+import {
+  GET as ownerSalesGet,
+  POST as ownerSalesPost,
+  summaryGET as ownerSalesSummaryGet,
+} from '../../web/lib/apiHandlers/ownerSales';
 
 type Handler = (req: NextRequest, ctx: { params: Record<string, string> }) => Promise<Response>;
 
@@ -53,6 +58,9 @@ const ROUTES: RouteDef[] = [
   { segments: 3, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1), patch: (req, ctx) => ownerRetailerPatch(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1) && seg('credits')(p, 3), post: (req, ctx) => ownerCreditsPost(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1) && seg('allowances')(p, 3), post: (req, ctx) => ownerAllowancesPost(req, { params: { id: ctx.params.id } }) },
+  { segments: 4, match: (p) => seg('owner')(p, 0) && seg('retailers')(p, 1) && seg('sales')(p, 3), post: (req, ctx) => ownerSalesPost(req, { params: { id: ctx.params.id } }) },
+  { segments: 2, match: (p) => seg('owner')(p, 0) && seg('sales')(p, 1), get: ownerSalesGet },
+  { segments: 3, match: (p) => seg('owner')(p, 0) && seg('sales')(p, 1) && seg('summary')(p, 2), get: ownerSalesSummaryGet },
   { segments: 2, match: (p) => seg('owner')(p, 0) && seg('audit')(p, 1), get: ownerAuditGet },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('devices')(p, 1) && seg('totp')(p, 3), post: (req, ctx) => ownerTotpPost(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('owner')(p, 0) && seg('devices')(p, 1) && seg('pin')(p, 3), post: (req, ctx) => ownerPinPost(req, { params: { id: ctx.params.id } }) },
@@ -88,7 +96,7 @@ export default {
       if (def.segments !== segs.length || !def.match(segs)) continue;
       if (def.segments === 3 && segs[0] === 'owner' && segs[1] === 'retailers') params.id = segs[2];
       if (def.segments === 4 && ['credits', 'allowances', 'totp', 'pin', 'commands'].includes(segs[3])) params.id = segs[2];
-      if (def.segments === 4 && ['consent', 'enrollment', 'payments', 'schedules', 'photo', 'escalation', 'unlock-key'].includes(segs[3])) params.id = segs[2];
+      if (def.segments === 4 && ['consent', 'enrollment', 'payments', 'schedules', 'photo', 'escalation', 'unlock-key', 'sales'].includes(segs[3])) params.id = segs[2];
       if (def.segments === 3 && segs[0] === 'retailer' && segs[1] === 'enrollments') params.id = segs[2];
       const method = request.method.toLowerCase();
       const handler = method === 'get' ? def.get : method === 'post' ? def.post : method === 'patch' ? def.patch : undefined;

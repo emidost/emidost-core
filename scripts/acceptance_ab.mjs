@@ -74,6 +74,8 @@ const TEST_IMEI = '990000000000001';
 const TEST_INSTALL = 'ab-test-installation';
 const TEST_DEVICE_TOKEN = randomBytes(24).toString('hex');
 const TEST_FCM = 'ExponentPushToken[ab-acceptance-test]';
+const OWNER_EMAIL = process.env.OWNER_EMAIL ?? 'dip@emidost.in';
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD ?? 'Owner@Pass123';
 
 console.log(`\n=== emidost A+B acceptance test ===\nAPI: ${API}\n`);
 
@@ -82,8 +84,8 @@ const health = await api('/api/health');
 check('health endpoint responds 200', health.status === 200, `status ${health.status}`);
 
 // 2. logins
-const ownerToken = await signIn('owner@emidost.in', 'Owner@Pass123');
-check('owner signs in', Boolean(ownerToken));
+const ownerToken = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
+check(`owner signs in (${OWNER_EMAIL})`, Boolean(ownerToken));
 const retailerToken = await signIn('retailer@emidost.in', 'Retailer@Pass123');
 check('retailer signs in', Boolean(retailerToken));
 if (!ownerToken || !retailerToken) { summary(); process.exit(1); }
@@ -239,6 +241,52 @@ check('overpayment rejected with 400', overpay.status === 400, `status ${overpay
 // 15. settled/suspension gates still hold (read-only probes)
 const noAuth = await api('/api/retailer/devices');
 check('unauthenticated retailer route refused', noAuth.status === 401 || noAuth.status === 403, `status ${noAuth.status}`);
+
+// 16. OWNER SALES LEDGER: selling locks/credits to a retailer, and the grants it performs
+const before = (await api('/api/owner/retailers', { token: ownerToken })).json;
+const beforeRow = (before?.retailers ?? before ?? []).find((r) => r.id === device.retailer_id);
+const beforeCredits = beforeRow?.credits_balance ?? null;
+const beforeLocks = beforeRow?.lock_allowances ?? null;
+
+const sale = await api(`/api/owner/retailers/${device.retailer_id}/sales`, {
+  method: 'POST', token: ownerToken,
+  body: { units: 5, unit_price: 100, amount_paid: 300, credits_granted: 5, payment_mode: 'upi', note: 'acceptance test sale' },
+});
+const saleRow = sale.json?.sale ?? sale.json;
+check('sale recorded (201 + invoice)', ok2(sale.status) && Boolean(saleRow?.id), `status ${sale.status}`);
+check('server computes total = units x unit_price', Number(saleRow?.total_amount) === 500, String(saleRow?.total_amount));
+check('invoice number generated', typeof saleRow?.invoice_no === 'string' && saleRow.invoice_no.startsWith('EMD-INV-'), String(saleRow?.invoice_no));
+
+const after = (await api('/api/owner/retailers', { token: ownerToken })).json;
+const afterRow = (after?.retailers ?? after ?? []).find((r) => r.id === device.retailer_id);
+check('sale granted the lock allowances (units)', beforeLocks === null || afterRow?.lock_allowances === beforeLocks + 5, `${beforeLocks} -> ${afterRow?.lock_allowances}`);
+check('sale granted the device credits', beforeCredits === null || afterRow?.credits_balance === beforeCredits + 5, `${beforeCredits} -> ${afterRow?.credits_balance}`);
+
+const ledger = await svc(`credit_ledger?select=kind,delta,sale_id&sale_id=eq.${saleRow?.id}`);
+check('ledger rows carry the sale id (traceable money)', Array.isArray(ledger.json) && ledger.json.length >= 1, `${ledger.json?.length ?? 0} rows`);
+check('ledger rows are kind=sale', Array.isArray(ledger.json) && ledger.json.every((r) => r.kind === 'sale'));
+
+const salesList = await api(`/api/owner/sales?retailer_id=${device.retailer_id}&limit=5`, { token: ownerToken });
+const listRows = salesList.json?.sales ?? salesList.json ?? [];
+check('sales history lists the new sale', Array.isArray(listRows) && listRows.some((s) => s.id === saleRow?.id));
+
+const salesSummary = await api('/api/owner/sales/summary', { token: ownerToken });
+const perRetailer = (salesSummary.json?.per_retailer ?? []).find((r) => r.retailer_id === device.retailer_id);
+check('summary totals include the sale', ok2(salesSummary.status) && Number(salesSummary.json?.units_sold ?? 0) >= 5, `units_sold=${salesSummary.json?.units_sold}`);
+check('summary outstanding = total - paid for the retailer', perRetailer ? Number(perRetailer.balance) >= 200 : false, `balance=${perRetailer?.balance}`);
+
+const badSale = await api(`/api/owner/retailers/${device.retailer_id}/sales`, {
+  method: 'POST', token: ownerToken, body: { units: 0, unit_price: 100 },
+});
+check('invalid sale refused (units must be > 0)', badSale.status === 400, `status ${badSale.status}`);
+const oversold = await api(`/api/owner/retailers/${device.retailer_id}/sales`, {
+  method: 'POST', token: ownerToken, body: { units: 1, unit_price: 100, amount_paid: 500 },
+});
+check('overpayment on a sale refused', oversold.status === 400, `status ${oversold.status}`);
+const staffSale = await api(`/api/owner/retailers/${device.retailer_id}/sales`, {
+  method: 'POST', token: retailerToken, body: { units: 1, unit_price: 100 },
+});
+check('retailer staff cannot record a sale (owner-only)', staffSale.status === 403 || staffSale.status === 401, `status ${staffSale.status}`);
 
 summary();
 process.exit(results.some((r) => !r.ok) ? 1 : 0);

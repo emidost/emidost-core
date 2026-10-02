@@ -66,6 +66,13 @@ github.com/emidost/emidost).
 - Lock allowances = number of lock commands a retailer may execute (one per
   executed LOCK; refused/retried locks consume nothing); owner lock/release
   never consumes.
+- Sales ledger: the owner records each sale of locks to a retailer (units,
+  price per lock, amount paid, device credits granted, payment mode, note) —
+  the sale writes an invoice (`retailer_sales` + `EMD-INV-*`), grants the
+  locks and credits through the same atomic RPCs, and lands a `kind='sale'`
+  ledger row carrying `sale_id`. Totals, per-retailer breakdown and per-sale
+  history live on the Sales page; staff can read their own retailer's
+  purchases.
 - Device board, audit trail, TOTP issue, device PIN set, enrolment QR page.
 
 ### Retailer (Expo app, accent teal #0D9488)

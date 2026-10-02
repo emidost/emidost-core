@@ -200,6 +200,18 @@ below is code that was checked, not marketing.
 - **What it prevents**: an escalation a customer cannot stop when the retailer decides to (dispute, support case, notify_only plan); silent toggles (audited); cross-retailer toggles (tenant check). The phone picks the flag up on its next heartbeat.
 - **Status**: CODE verified. Residual: the flag travels with the heartbeat, so the phone keeps escalating for up to one poll interval after the toggle.
 
+#### ownerSales POST (record a sale)
+- **Claim**: Records the owner's sale of locks to a retailer and grants the balances in the same compensating sequence.
+- **How it works**: owner-only (`web/lib/apiHandlers/ownerSales.ts:21-23`); strict validation — units integer 1..100000, unit_price ≥ 0, amount_paid 0..total (total = units × unit_price computed server-side), credits_granted ≥ 0, payment_mode ∈ {cash,upi,bank,card,credit}, note ≤ 500 chars (`:25-39`); the invoice is server-generated `EMD-INV-<yyyymmdd>-<4 hex>`; effects: sale row insert → `adjust_credits` when credits > 0 → `add_lock_allowances(rid, units)` (one bulk RPC) → two `kind='sale'` credit_ledger rows carrying `sale_id` → `SALE_RECORDED` audit (`:51-115`); any failed step rolls the sale back (credits reversed, allowances subtracted via `sub_lock_allowances`, row deleted, console.error logged).
+- **What it prevents**: a sale that grants money without granting the product (or vice versa — the compensating rollback undoes partial grants); overpaid or negative invoices; forged totals (server computes); untraceable balance changes (sale_id on every ledger row).
+- **Status**: CODE verified. Residual: rollback reversal is best-effort under a DB fault (logged; a follow-up sweep can reconcile).
+
+#### ownerSales GET + summary
+- **Claim**: The sales history (filterable by retailer, limit ≤ 500) and the totals + per-retailer breakdown.
+- **How it works**: owner-only; GET joins `retailers(name)` and orders newest-first (`:119-134`); summary aggregates in JS — sales_count, units_sold, revenue_total, collected, outstanding, per_retailer [{retailer_id, name, units, total, paid, balance, last_sale_at}] sorted by total (`:137-181`). The portal Sales page (band header, record form, totals tiles, filterable table) and the dashboard Sales quick-row load through these routes (`web/app/(portal)/sales/page.tsx`).
+- **What it prevents**: the owner guessing "how much sold, at what price, which retailer" — every number derives from the invoice rows; staff never see other retailers' purchases (the GET is owner-only, staff use their own RLS read).
+- **Status**: CODE verified. Residual: summary aggregation is in JS over the full sales set — fine at retail scale (hundreds of rows), documented.
+
 #### commandProxy (owner commands)
 - **Claim**: Owner-issued LOCK/UNLOCK/LOCATION/RELEASE/REBOOT with no allowance consumption.
 - **How it works**: owner-only (`web/lib/apiHandlers/commandProxy.ts:9-12`); LOCK on settled loans refused (`:24-27`); REBOOT is accepted for the owner only (retailer routes never take it); queues with `created_by` and audits with `by: 'owner'` (`:28-37`). The owner devices board has a REBOOT button that posts through this proxy (`web/app/(portal)/devices/page.tsx:25-33, 58-65`).

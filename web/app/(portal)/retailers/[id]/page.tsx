@@ -2,9 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Coins, Lock, Pencil, Store } from 'lucide-react';
+import { Coins, Lock, Pencil, Store, ReceiptText } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { Retailer } from '@emidost/shared';
+
+type Purchase = {
+  id: string;
+  units: number;
+  unit_price: number;
+  total_amount: number;
+  amount_paid: number;
+  credits_granted: number;
+  invoice_no: string | null;
+  created_at: string;
+};
 
 export default function RetailerEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +24,8 @@ export default function RetailerEditPage() {
   const [phone, setPhone] = useState('');
   const [credits, setCredits] = useState('');
   const [allowances, setAllowances] = useState('');
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [purchasesLoading, setPurchasesLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const supabase = browserClient();
@@ -25,6 +38,10 @@ export default function RetailerEditPage() {
         setName(data.name);
         setPhone(data.phone);
       }
+      const res = await fetch(`/api/owner/sales?retailer_id=${encodeURIComponent(id as string)}&limit=50`);
+      const body = await res.json().catch(() => []);
+      setPurchases((body as Purchase[]) ?? []);
+      setPurchasesLoading(false);
     })();
   }, [id]);
 
@@ -87,6 +104,35 @@ export default function RetailerEditPage() {
           <input className="input" placeholder="New total" value={allowances} onChange={(e) => setAllowances(e.target.value)} />
           <button className="btn primary" onClick={setAllowancesNow}><Lock size={14} aria-hidden="true" /> Set allowances</button>
         </div>
+      </div>
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><ReceiptText size={16} aria-hidden="true" /> Purchases</h2>
+        <table>
+          <thead><tr><th>Date</th><th>Invoice</th><th>Units</th><th>Total</th><th>Paid</th><th>Balance</th></tr></thead>
+          <tbody>
+            {purchasesLoading && (
+              <tr><td colSpan={6}><span className="skeleton-cell" /></td></tr>
+            )}
+            {!purchasesLoading && purchases.map((p) => (
+              <tr key={p.id}>
+                <td>{new Date(p.created_at).toLocaleDateString()}</td>
+                <td>{p.invoice_no ?? '-'}</td>
+                <td>{p.units}</td>
+                <td>Rs {Number(p.total_amount).toFixed(2)}</td>
+                <td>Rs {Number(p.amount_paid).toFixed(2)}</td>
+                <td>Rs {(Number(p.total_amount) - Number(p.amount_paid)).toFixed(2)}</td>
+              </tr>
+            ))}
+            {!purchasesLoading && purchases.length === 0 && (
+              <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>No purchases yet. Record one from the Sales page.</td></tr>
+            )}
+          </tbody>
+        </table>
+        {purchases.length > 0 && (
+          <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+            Outstanding balance: Rs {purchases.reduce((a, p) => a + (Number(p.total_amount) - Number(p.amount_paid)), 0).toFixed(2)}
+          </p>
+        )}
       </div>
     </main>
   );

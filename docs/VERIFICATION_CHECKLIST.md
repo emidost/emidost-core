@@ -119,3 +119,10 @@ non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 | K4 | Overdue day 3+ without payment: GPS once per window (10:00–12:00 and 18:00–20:00, stable random minute) + SMS to the retailer's number with a Google Maps link (https://maps.google.com/?q=lat,lng); gated on escalation_enabled + loan outstanding; applies to notify_only plans too | CODE + DEVICE | native windows (codex). Honest note: sent by the phone itself using the customer's SMS balance (documented) |
 | K5 | Privacy: toggle audited (`ESCALATION_TOGGLED`), escalation delivered via the authenticated heartbeat, consent is the documented counter rule | CODE | customerEscalation.ts + heartbeat escalation_enabled |
 | K6 | Offline + overdue 4 days (no server contact for 4 days while overdue, cached or computed from the IST due date) → local hard lock (`overdue-offline-watchdog-4d`), lock plans only, NOT gated by the kill-switch; the 5-day no-internet watchdog stays as the outer bound | CODE + DEVICE | SyncStateStore.overdueOfflineLockDue + JS mirror. Honest note: a settled-while-offline phone can still hold the stale lock until its first heartbeat; the TOTP SMS unlock always wins |
+
+## L. Owner sales ledger
+| # | Item | State | Evidence |
+|---|---|---|---|
+| L1 | Sale recorded: invoice row (`retailer_sales`, server-generated `EMD-INV-*`, unique), lock allowances granted in bulk (`add_lock_allowances`), device credits granted via `adjust_credits`, `kind='sale'` ledger rows carrying `sale_id`, `SALE_RECORDED` audit; compensating rollback on any failed step (logged) | CODE | 0017_retailer_sales.sql + ownerSales.ts POST |
+| L2 | Totals + per-retailer summary (sales count, units, revenue, collected, outstanding, last sale) and the filterable sales history | CODE | ownerSales.ts GET + summaryGET + web/app/(portal)/sales/page.tsx |
+| L3 | Staff can read their OWN retailer's purchases (RLS with the live suspension guard); owner full access via JWT claim | CODE | 0017 RLS policies |

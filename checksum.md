@@ -4,6 +4,43 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 owner sales ledger
+
+- Business model (user's words): the owner page is about selling locks to a
+  retailer — how much sold, at what price, which retailer — and granting
+  credit that way.
+- **SQL (claude):** `0017_retailer_sales.sql`: `ledger_kind` gains `sale`;
+  new `retailer_sales` table (units > 0, unit_price ≥ 0, amount_paid ≥ 0,
+  credits_granted ≥ 0, payment_mode check, note, server-generated unique
+  `invoice_no`); indexes on (retailer_id, created_at desc) + (created_at desc);
+  `credit_ledger.sale_id` FK (on delete set null); bulk RPCs
+  `add_lock_allowances(rid, n)` and `sub_lock_allowances(rid, n)` (rollback);
+  RLS: owner full via JWT claim, staff SELECT own retailer's sales with the
+  live suspension guard. All-in-one regenerated (header + 0017).
+- **Web (claude):** `ownerSales.ts` — POST /api/owner/retailers/:id/sales
+  (owner-only; strict validation; total computed server-side; compensating
+  sequence sale → adjust_credits → add_lock_allowances → two `kind='sale'`
+  ledger rows with sale_id → SALE_RECORDED audit; rollback reverses grants +
+  deletes the row on failure, logged). GET /api/owner/sales (retailer_id +
+  limit filters, retailers(name) join). GET /api/owner/sales/summary
+  (sales_count, units_sold, revenue_total, collected, outstanding,
+  per_retailer breakdown). All three wired into the web catch-all router AND
+  the workers route table (parity, minimal).
+- **Portal UI:** new owner Sales page (record form with retailer select +
+  price/paid/credits/mode/note, totals tiles Locks sold · Revenue · Collected
+  · Outstanding, filterable history table, busy/loading/empty/error states,
+  premium band design); dashboard gains a compact Sales quick-row (locks
+  sold, collected, outstanding) with links; retailer detail page gains a
+  Purchases table + outstanding balance; owner nav gains Sales (ReceiptText).
+- Docs: CONTEXT §3 owner bullet, checklist section L (L1-L3), FUNCTION_REPORT
+  rows for the three routes, this entry.
+- Checks: web tsc 0 · workers tsc 0 · `next build` exit 0.
+- Business edges decided (flagged): amount_paid may be partial (credit mode =
+  'credit' covers the balance); credits_granted defaults to 0 server-side
+  while the UI defaults to units; rollback reversal is best-effort under a DB
+  fault (logged, reconcilable); summary aggregates in JS (retail scale
+  assumption, documented).
+
 ## 2026-10-03 EAS build root cause: expo-speech was the SDK 50 version
 
 - Three customer builds failed with the same Gradle pair (expo-speech
