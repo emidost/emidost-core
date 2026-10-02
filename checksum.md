@@ -4,6 +4,28 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 premium design wave (claude web + codex apps + lead landing)
+
+- Design rules applied: biswodip-design-review pipeline + taste-skill + no-ai-slop;
+  agent-reach installed at .biswodip/upstream/agent-reach (content tooling).
+- Palette: Ink #0F141C / Paper #F4F1EA ramps everywhere (no pure white or pure
+  black anywhere: portal, three apps, native overlay, landing). Role accents
+  unchanged (indigo/teal/amber are the product identity). Hairlines, focus
+  rings, 44px targets, reduced-motion respected, shimmer/gradients removed.
+- Portal: 12 pages premium cards, icons on every control, skeleton loading +
+  empty states, verb-first labels, zero banned words/em dashes.
+- Apps: shared designTokens gains ink/paper ramps + soft tints; customer lock
+  screen on Ink; retailer device quick-action row; owner busy guard; icons +
+  accessibilityLabels everywhere; zero raw white/black hexes in the apps.
+- Native overlay cover aligned to the Ink ramp (#161D29 / #F4F1EA).
+- Landing (D:\emidost2, pushed to github.com/emidost/emidost): full redesign —
+  Ink hero with the real locked-screen mockup + owner portal mockup, three
+  role cards, honest certification wording (per-family walk before "working"),
+  fabricated testimonial removed, 3 download cards (owner/retailer/customer),
+  Sora/Inter fonts, lucide icons; builds exit 0.
+- Checks: web/shared/device-kit/customer/retailer/owner/workers tsc 0 · tests
+  13/13 · next build 14/14 · landing build 0.
+
 ## 2026-10-03 final fix sweep (claude web/SQL/docs + codex native)
 
 - `commands.ts` compensation: when the `lock_consumed` ledger insert fails AFTER

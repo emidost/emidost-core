@@ -13,11 +13,11 @@ import {
   type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
-  Banknote, BellRing, CalendarDays, Coins, Hash, IndianRupee, KeyRound, Lock, LockOpen, LogIn, QrCode,
+  ArrowLeft, Banknote, BellRing, CalendarDays, Coins, Copy, Hash, IndianRupee, KeyRound, Lock, LockOpen, LogIn, Play, QrCode,
   Settings2, Smartphone, Store, UserPlus, Wallet,
 } from 'lucide-react-native';
 
-const ACCENT = '#0D9488';
+const ACCENT = colors.accentTeal;
 const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
@@ -106,7 +106,7 @@ function TabButton(props: { icon: typeof Wallet; label: string; active: boolean;
   const I = props.icon;
   return (
     <TouchableOpacity style={[s.tab, props.active && s.tabActive]} onPress={props.onPress}>
-      <I size={18} color={props.active ? ACCENT : '#6B7280'} />
+      <I size={18} color={props.active ? ACCENT : colors.textMid} />
       <Text style={[s.tabLabel, props.active && { color: ACCENT }]}>{props.label}</Text>
     </TouchableOpacity>
   );
@@ -134,7 +134,8 @@ function Login({ onDone }: { onDone: () => void }) {
       <TextInput style={s.input} placeholder="Login ID" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
       {error && <Text style={s.error}>{error}</Text>}
-      <TouchableOpacity style={s.button} onPress={submit} disabled={busy}>
+      <TouchableOpacity style={s.button} onPress={submit} disabled={busy} accessibilityRole="button" accessibilityLabel="Sign in">
+        <LogIn color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
       </TouchableOpacity>
     </View>
@@ -217,7 +218,7 @@ function SetupCode({ customerId }: { customerId: string }) {
         </View>
       ) : (
         <TouchableOpacity style={s.button} onPress={create} disabled={busy}>
-          <Hash color="#fff" size={16} />
+          <Hash color={colors.onAccent} size={16} />
           <Text style={s.buttonText}>{busy ? 'Creating…' : 'Create setup code'}</Text>
         </TouchableOpacity>
       )}
@@ -260,11 +261,11 @@ function PaymentRow({ customerId, onDone }: { customerId: string; onDone: () => 
           onChangeText={setAmount}
         />
         <TouchableOpacity style={[s.button, { marginTop: 0, paddingVertical: 10 }]} onPress={record} disabled={busy}>
-          <Banknote size={14} color="#fff" />
+          <Banknote size={14} color={colors.onAccent} />
           <Text style={s.buttonText}>{busy ? '…' : 'Record'}</Text>
         </TouchableOpacity>
       </View>
-      {msg && <Text style={{ color: '#16A34A', fontSize: 12, marginTop: 4 }}>{msg}</Text>}
+      {msg && <Text style={{ color: colors.success, fontSize: 12, marginTop: 4 }}>{msg}</Text>}
       {err && <Text style={s.error}>{err}</Text>}
     </View>
   );
@@ -304,7 +305,7 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
   return (
     <ScrollView style={s.page}>
       <Text style={s.title}>New customer</Text>
-      {msg && <Text style={{ color: '#16A34A' }}>{msg}</Text>}
+      {msg && <Text style={{ color: colors.success }}>{msg}</Text>}
       {err && <Text style={s.error}>{err}</Text>}
       <Field label="Name" value={form.name} onChange={set('name')} icon={UserPlus} />
       <Field label="Phone number" value={form.phone} onChange={set('phone')} icon={Smartphone} />
@@ -317,27 +318,28 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
 
       <Text style={[s.label, { marginTop: 14 }]}>Phone lock plan</Text>
       <TouchableOpacity
-        style={[s.choice, form.lock_mode === 'lock' && { borderColor: ACCENT, backgroundColor: '#F0FDFA' }]}
+        style={[s.choice, form.lock_mode === 'lock' && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
         onPress={() => set('lock_mode')('lock')}
       >
-        <Lock size={14} color={form.lock_mode === 'lock' ? ACCENT : '#6B7280'} />
+        <Lock size={14} color={form.lock_mode === 'lock' ? ACCENT : colors.textMid} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontWeight: '700' }}>Lock on missed payment</Text>
-          <Text style={{ color: '#6B7280', fontSize: 12 }}>Locks the phone when overdue or 5 days offline.</Text>
+          <Text style={{ color: colors.textMid, fontSize: 12 }}>Locks the phone when overdue or 5 days offline.</Text>
         </View>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[s.choice, form.lock_mode === 'notify_only' && { borderColor: ACCENT, backgroundColor: '#F0FDFA' }]}
+        style={[s.choice, form.lock_mode === 'notify_only' && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
         onPress={() => set('lock_mode')('notify_only')}
       >
-        <BellRing size={14} color={form.lock_mode === 'notify_only' ? ACCENT : '#6B7280'} />
+        <BellRing size={14} color={form.lock_mode === 'notify_only' ? ACCENT : colors.textMid} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontWeight: '700' }}>Never lock, only reminders</Text>
-          <Text style={{ color: '#6B7280', fontSize: 12 }}>Due and overdue notices only. The phone never locks.</Text>
+          <Text style={{ color: colors.textMid, fontSize: 12 }}>Due and overdue notices only. The phone never locks.</Text>
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity style={s.button} onPress={save} disabled={busy}>
+      <TouchableOpacity style={s.button} onPress={save} disabled={busy} accessibilityRole="button" accessibilityLabel="Add customer">
+        <UserPlus color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>{busy ? 'Adding…' : 'Add customer'}</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -349,7 +351,7 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 }}>
-        <I size={12} color="#6B7280" />
+        <I size={12} color={colors.textMid} />
         <Text style={s.label}>{props.label}</Text>
       </View>
       <TextInput
@@ -392,19 +394,26 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
               <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode === 'device_owner' ? 'Device owner' : d.mode === 'device_admin' ? 'Device admin' : 'Not enrolled'} />
               <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
             </View>
-            <TouchableOpacity style={[s.button, { marginTop: 8 }]} onPress={() => toggle(d)}>
-              {d.is_locked ? <LockOpen color="#fff" size={16} /> : <Lock color="#fff" size={16} />}
-              <Text style={s.buttonText}>{d.is_locked ? 'Unlock' : 'Lock'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.outlineBtn, { marginTop: 8 }]}
-              onPress={() => onUnlockCode(d)}
-              accessibilityRole="button"
-              accessibilityLabel="Offline unlock code"
-            >
-              <KeyRound size={14} color={ACCENT} />
-              <Text style={s.outlineBtnText}>Offline unlock code</Text>
-            </TouchableOpacity>
+            <View style={s.quickRow}>
+              <TouchableOpacity
+                style={[s.button, { marginTop: 0, flex: 1 }]}
+                onPress={() => toggle(d)}
+                accessibilityRole="button"
+                accessibilityLabel={d.is_locked ? 'Unlock device' : 'Lock device'}
+              >
+                {d.is_locked ? <LockOpen color={colors.onAccent} size={16} /> : <Lock color={colors.onAccent} size={16} />}
+                <Text style={s.buttonText}>{d.is_locked ? 'Unlock' : 'Lock'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.outlineBtn, { marginTop: 0, flex: 1 }]}
+                onPress={() => onUnlockCode(d)}
+                accessibilityRole="button"
+                accessibilityLabel="Offline unlock code"
+              >
+                <KeyRound size={14} color={ACCENT} />
+                <Text style={s.outlineBtnText}>Offline unlock code</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
         ListEmptyComponent={<Text style={s.muted}>No devices yet.</Text>}
@@ -503,7 +512,8 @@ function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => 
   return (
     <View style={s.page}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to devices">
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to devices" style={s.backBtn}>
+          <ArrowLeft color={ACCENT} size={18} />
           <Text style={s.backText}>Back</Text>
         </TouchableOpacity>
         <Text style={s.title}>Offline unlock code</Text>
@@ -513,7 +523,8 @@ function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => 
       {error ? (
         <View style={s.card}>
           <Text style={s.muted}>{error}</Text>
-          <TouchableOpacity style={s.button} onPress={onClose}>
+          <TouchableOpacity style={s.button} onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to devices">
+            <ArrowLeft color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>Back to devices</Text>
           </TouchableOpacity>
         </View>
@@ -534,7 +545,7 @@ function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => 
             <>
               <View style={s.ringWrap}>
                 <Svg width={110} height={110} viewBox="0 0 110 110">
-                  <Circle cx={55} cy={55} r={R} stroke="#E5E7EB" strokeWidth={6} fill="none" />
+                  <Circle cx={55} cy={55} r={R} stroke={colors.border} strokeWidth={6} fill="none" />
                   <Circle
                     cx={55} cy={55} r={R}
                     stroke={ACCENT} strokeWidth={6} fill="none"
@@ -547,7 +558,8 @@ function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => 
               <Text style={s.muted}>New code in {secondsLeft}s</Text>
             </>
           )}
-          <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={copyCode} accessibilityRole="button">
+          <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={copyCode} accessibilityRole="button" accessibilityLabel="Copy code">
+            <Copy color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>{copied ? 'Copied' : 'Copy code'}</Text>
           </TouchableOpacity>
           <Text style={[s.muted, { textAlign: 'center', marginTop: 12 }]}>
@@ -591,8 +603,8 @@ function Enrol({ brand, onWirelessEnrol }: { brand: string; onWirelessEnrol: () 
         ))}
         <Text style={[s.muted, { marginTop: 10 }]}>{hint}</Text>
       </View>
-      <TouchableOpacity style={s.button} onPress={() => { if (API_URL) void Linking.openURL(`${API_URL}/qr`); }}>
-        <QrCode color="#fff" size={16} />
+      <TouchableOpacity style={s.button} onPress={() => { if (API_URL) void Linking.openURL(`${API_URL}/qr`); }} accessibilityRole="button" accessibilityLabel="Open portal QR page">
+        <QrCode color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>Open portal QR page</Text>
       </TouchableOpacity>
       <TouchableOpacity
@@ -694,7 +706,8 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
   return (
     <View style={s.page}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to enrol">
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to enrol" style={s.backBtn}>
+          <ArrowLeft color={ACCENT} size={18} />
           <Text style={s.backText}>Back</Text>
         </TouchableOpacity>
         <Text style={s.title}>Wireless enrol</Text>
@@ -705,14 +718,15 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
       <TextInput style={s.input} placeholder="Connect port (40051)" value={connectPort} onChangeText={setConnectPort} keyboardType="numeric" />
       <TextInput style={s.input} placeholder="6-digit pairing code" value={code} onChangeText={setCode} keyboardType="numeric" maxLength={6} />
       {err && <Text style={s.error}>{err}</Text>}
-      <TouchableOpacity style={s.button} onPress={run} disabled={busy}>
+      <TouchableOpacity style={s.button} onPress={run} disabled={busy} accessibilityRole="button" accessibilityLabel="Start wireless enrol">
+        <Play color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>{busy ? 'Running…' : 'Start'}</Text>
       </TouchableOpacity>
 
       <View style={s.card}>
         {steps.map((st, i) => (
           <View key={st.label} style={{ marginTop: i === 0 ? 0 : 8 }}>
-            <Text style={[s.stepLabel, st.status === 'failed' && { color: '#DC2626' }, st.status === 'ok' && { color: '#16A34A' }]}>
+            <Text style={[s.stepLabel, st.status === 'failed' && { color: colors.danger }, st.status === 'ok' && { color: colors.success }]}>
               {st.label}{st.status === 'running' ? '…' : ''} {st.status === 'ok' ? 'ok' : st.status === 'failed' ? 'failed' : ''}
             </Text>
             {!!st.output && <Text style={s.stepOutput}>{st.output}</Text>}
@@ -724,39 +738,43 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
 }
 
 const s = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#F6F7F9' },
-  page: { flex: 1, backgroundColor: '#F6F7F9', padding: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.bg },
+  page: { flex: 1, backgroundColor: colors.bg, padding: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   headerTitle: { fontWeight: '700', fontSize: 16, flex: 1 },
-  headerMeta: { color: '#6B7280', fontSize: 12 },
-  tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#fff' },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 2 },
-  tabActive: { backgroundColor: '#F0FDFA' },
-  tabLabel: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
+  headerMeta: { color: colors.textMid, fontSize: 12 },
+  tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 2 },
+  tabActive: { backgroundColor: colors.tealSoft },
+  tabLabel: { fontSize: 11, color: colors.textMid, fontWeight: '600' },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  card: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', padding: 14, marginTop: 10 },
+  card: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 10 },
   cardTitle: { fontWeight: '700', fontSize: 15 },
-  muted: { color: '#6B7280', fontSize: 13, marginTop: 2 },
-  label: { fontSize: 12, fontWeight: '600', color: '#6B7280' },
-  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 10, fontSize: 15, marginTop: 4, backgroundColor: '#fff' },
-  error: { color: '#DC2626', marginTop: 8 },
+  muted: { color: colors.textMid, fontSize: 13, marginTop: 2 },
+  label: { fontSize: 12, fontWeight: '600', color: colors.textMid },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: 6, padding: 10, fontSize: 15, marginTop: 4, backgroundColor: colors.surface },
+  error: { color: colors.danger, marginTop: 8 },
   button: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT, borderRadius: 8, padding: 14, marginTop: 12 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  buttonText: { color: colors.onAccent, fontWeight: '700', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, marginTop: 6 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, marginTop: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
-  chipText: { fontSize: 12, fontWeight: '600', color: '#1A1D21' },
+  chipText: { fontSize: 12, fontWeight: '600', color: colors.textHi },
 
   // Offline unlock code screen.
-  outlineBtn: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: ACCENT, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14 },
+  outlineBtn: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: ACCENT, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14 },
   outlineBtnText: { color: ACCENT, fontWeight: '600', fontSize: 14 },
   backText: { color: ACCENT, fontSize: 15, fontWeight: '600' },
-  codeLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280' },
+  codeLabel: { fontSize: 12, fontWeight: '600', color: colors.textMid },
   bigCode: { fontSize: 56, fontWeight: '700', color: ACCENT, fontVariant: ['tabular-nums'], letterSpacing: 2, marginTop: 8 },
   ringWrap: { marginTop: 12 },
 
   // Wireless enrol steps.
-  stepLabel: { fontSize: 13, fontWeight: '600', color: '#1A1D21' },
-  stepOutput: { fontSize: 12, color: '#6B7280', marginTop: 2, fontFamily: 'monospace' },
+  stepLabel: { fontSize: 13, fontWeight: '600', color: colors.textHi },
+  stepOutput: { fontSize: 12, color: colors.textMid, marginTop: 2, fontFamily: 'monospace' },
+
+  // Premium layout helpers.
+  quickRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingRight: 8 },
 });

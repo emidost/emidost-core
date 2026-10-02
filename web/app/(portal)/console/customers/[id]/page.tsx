@@ -41,20 +41,20 @@ export default function CustomerDetailPage() {
 
   return (
     <main className="page" style={{ maxWidth: 720 }}>
-      <h1 className="page-title"><ReceiptText size={20} /> {customer?.name ?? 'Customer'}</h1>
+      <h1 className="page-title"><ReceiptText size={20} aria-hidden="true" /> {customer?.name ?? 'Customer'}</h1>
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
       {err && <p style={{ color: 'var(--danger)' }}>{err}</p>}
 
       <div className="card">
-        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><Banknote size={16} /> Record payment</h2>
+        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><Banknote size={16} aria-hidden="true" /> Record payment</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <input className="input" type="number" min={0} placeholder="Amount (Rs)" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          <button className="btn primary" onClick={record}>Record</button>
+          <button className="btn primary" onClick={record}><Banknote size={14} aria-hidden="true" /> Record payment</button>
         </div>
       </div>
 
       <div className="card" style={{ marginTop: 12 }}>
-        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><CalendarDays size={16} /> Schedule</h2>
+        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><CalendarDays size={16} aria-hidden="true" /> Schedule</h2>
         <table>
           <thead><tr><th>Due</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>
@@ -71,7 +71,7 @@ export default function CustomerDetailPage() {
       </div>
 
       <div className="card" style={{ marginTop: 12 }}>
-        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><ReceiptText size={16} /> Payments</h2>
+        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><ReceiptText size={16} aria-hidden="true" /> Payments</h2>
         <table>
           <thead><tr><th>Date</th><th>Amount</th><th>Receipt</th><th></th></tr></thead>
           <tbody>

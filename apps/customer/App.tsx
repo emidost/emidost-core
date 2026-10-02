@@ -3,10 +3,10 @@ import {
   AccessibilityInfo, ActivityIndicator, Animated, Easing, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { KeyRound, Lock, PhoneCall, ShieldCheck, Siren, Smartphone } from 'lucide-react-native';
+import { KeyRound, Lock, PhoneCall, Settings2, ShieldCheck, Siren, Smartphone, RefreshCw, CircleCheck } from 'lucide-react-native';
 import * as DeviceMgmt from '@emidost/device-kit';
 import {
-  getOemProfile, dueReminderCopy, lockScreenCopy, locked as LOCKED, type CopyLang,
+  colors, getOemProfile, dueReminderCopy, lockScreenCopy, locked as LOCKED, type CopyLang,
 } from '@emidost/shared';
 import * as Speech from 'expo-speech';
 import * as Notifications from 'expo-notifications';
@@ -15,7 +15,7 @@ import {
   getCachedState, enforceOfflineWatchdog, unlockWithCode,
 } from './src/services/sync';
 
-const ACCENT = '#D97706';
+const ACCENT = colors.accentAmber;
 
 export default function App() {
   const [phase, setPhase] = useState<'loading' | 'bind' | 'active'>('loading');
@@ -198,15 +198,17 @@ function BindScreen({ onBound }: { onBound: () => void }) {
         autoCorrect={false}
       />
       {error && <Text style={s.error}>{error}</Text>}
-      <TouchableOpacity style={s.button} onPress={bind} disabled={busy}>
-        <KeyRound color="#fff" size={16} />
+      <TouchableOpacity style={s.button} onPress={bind} disabled={busy} accessibilityRole="button" accessibilityLabel="Bind this phone">
+        <KeyRound color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>{busy ? 'Binding…' : 'Bind this phone'}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={s.linkRow}
         onPress={() => setShowWalkthrough(true)}
         accessibilityRole="button"
+        accessibilityLabel="Wireless pairing walkthrough"
       >
+        <Settings2 color={ACCENT} size={16} />
         <Text style={s.linkText}>Wireless pairing walkthrough</Text>
       </TouchableOpacity>
     </View>
@@ -308,11 +310,13 @@ function PairingWalkthrough({ onDone }: { onDone: () => void }) {
         <View style={s.card}>
           <Text style={s.cardTitle}>Step 1: allow the lock overlay</Text>
           <Text style={s.muted}>The lock screen covers other apps while the EMI is unpaid. Allow drawing over other apps.</Text>
-          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openOverlaySettings()}>
+          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openOverlaySettings()} accessibilityRole="button" accessibilityLabel="Open overlay permission">
+            <Settings2 color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>Open overlay permission</Text>
           </TouchableOpacity>
           <Text style={s.muted}>{overlayOk ? 'Overlay allowed.' : 'Waiting for the permission…'}</Text>
-          <TouchableOpacity style={s.button} onPress={() => setStep(2)} disabled={!overlayOk}>
+          <TouchableOpacity style={s.button} onPress={() => setStep(2)} disabled={!overlayOk} accessibilityRole="button" accessibilityLabel="Continue">
+            <CircleCheck color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>Continue</Text>
           </TouchableOpacity>
         </View>
@@ -322,11 +326,13 @@ function PairingWalkthrough({ onDone }: { onDone: () => void }) {
         <View style={s.card}>
           <Text style={s.cardTitle}>Step 2: turn on emidost protection</Text>
           <Text style={s.muted}>Open accessibility settings and switch on emidost protection. It reads only the pairing code during this walkthrough.</Text>
-          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openAccessibilitySettings()}>
+          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openAccessibilitySettings()} accessibilityRole="button" accessibilityLabel="Open accessibility settings">
+            <Settings2 color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>Open accessibility settings</Text>
           </TouchableOpacity>
           <Text style={s.muted}>{a11yOk ? 'Service is on.' : 'Waiting for the switch…'}</Text>
-          <TouchableOpacity style={s.button} onPress={() => setStep(3)} disabled={!a11yOk}>
+          <TouchableOpacity style={s.button} onPress={() => setStep(3)} disabled={!a11yOk} accessibilityRole="button" accessibilityLabel="Continue">
+            <CircleCheck color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>Continue</Text>
           </TouchableOpacity>
         </View>
@@ -336,7 +342,8 @@ function PairingWalkthrough({ onDone }: { onDone: () => void }) {
         <View style={s.card}>
           <Text style={s.cardTitle}>Step 3: start wireless pairing</Text>
           <Text style={s.muted}>Open developer options, tap Wireless debugging, then Pair device with pairing code. The numbers appear here.</Text>
-          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openDevelopmentSettings()}>
+          <TouchableOpacity style={s.button} onPress={() => void DeviceMgmt.openDevelopmentSettings()} accessibilityRole="button" accessibilityLabel="Open developer options">
+            <Settings2 color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>Open developer options</Text>
           </TouchableOpacity>
           <Text style={s.muted}>Watching for the pairing code…</Text>
@@ -375,7 +382,10 @@ function PairingWalkthrough({ onDone }: { onDone: () => void }) {
               setExpired(false);
               setStep(3);
             }}
+            accessibilityRole="button"
+            accessibilityLabel={expired ? 'Start again' : 'Clear and pair again'}
           >
+            <RefreshCw color={colors.onAccent} size={16} />
             <Text style={s.buttonText}>{expired ? 'Start again' : 'Clear and pair again'}</Text>
           </TouchableOpacity>
         </View>
@@ -545,7 +555,9 @@ function LockedScreen(props: {
         style={s.payBtn}
         onPress={() => { if (props.retailerPhone) void DeviceMgmt.showCallOverlay('Call to pay', props.retailerPhone, props.retailerPhone); }}
         accessibilityRole="button"
+        accessibilityLabel={copy.actions.payNow}
       >
+        <PhoneCall color={colors.textHi} size={18} />
         <Text style={s.payBtnText}>{copy.actions.payNow}</Text>
       </TouchableOpacity>
 
@@ -588,26 +600,26 @@ function Diagnostics({ hidden }: { hidden: boolean }) {
 }
 
 const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F6F7F9', padding: 16 },
+  page: { flex: 1, backgroundColor: colors.bg, padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
-  card: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', padding: 16, marginTop: 12 },
-  cardTitle: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginBottom: 4 },
+  card: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 12 },
+  cardTitle: { fontSize: 12, fontWeight: '600', color: colors.textMid, marginBottom: 4 },
   amount: { fontSize: 26, fontWeight: '700' },
-  muted: { color: '#6B7280', fontSize: 13, marginTop: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 8, padding: 14, marginTop: 12 },
+  muted: { color: colors.textMid, fontSize: 13, marginTop: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderRadius: 8, padding: 14, marginTop: 12 },
   rowText: { fontSize: 15, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 12, fontSize: 16, marginTop: 16, backgroundColor: '#fff' },
-  error: { color: '#DC2626', marginTop: 8 },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: 6, padding: 12, fontSize: 16, marginTop: 16, backgroundColor: colors.surface },
+  error: { color: colors.danger, marginTop: 8 },
   button: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT, borderRadius: 8, padding: 14, marginTop: 12 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  buttonText: { color: colors.onAccent, fontWeight: '700', fontSize: 15 },
 
   // Pairing walkthrough.
   linkRow: { alignItems: 'center', marginTop: 16 },
   linkText: { color: ACCENT, fontSize: 14, fontWeight: '600', marginTop: 8 },
-  pairLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 12 },
-  pairBig: { fontSize: 34, fontWeight: '700', color: '#1A1D21', fontVariant: ['tabular-nums'], marginTop: 4 },
-  pairMid: { fontSize: 24, fontWeight: '700', color: '#1A1D21', fontVariant: ['tabular-nums'], marginTop: 4 },
+  pairLabel: { fontSize: 12, fontWeight: '600', color: colors.textMid, marginTop: 12 },
+  pairBig: { fontSize: 34, fontWeight: '700', color: colors.textHi, fontVariant: ['tabular-nums'], marginTop: 4 },
+  pairMid: { fontSize: 24, fontWeight: '700', color: colors.textHi, fontVariant: ['tabular-nums'], marginTop: 4 },
   pairCode: { fontSize: 56, fontWeight: '700', color: ACCENT, fontVariant: ['tabular-nums'], letterSpacing: 6, marginTop: 4 },
 
   // Lock screen (dark = locked).
@@ -628,7 +640,7 @@ const s = StyleSheet.create({
   codeBtn: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: LOCKED.border, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20, marginTop: 10 },
   codeBtnText: { color: LOCKED.textHi, fontSize: 14, fontWeight: '600' },
   payBtn: { backgroundColor: LOCKED.amberHi, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: 420 },
-  payBtnText: { color: '#1A1D21', fontSize: 17, fontWeight: '700' },
+  payBtnText: { color: colors.textHi, fontSize: 17, fontWeight: '700' },
   outlineBtn: { flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: LOCKED.border, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: 420, marginTop: 12 },
   outlineBtnText: { color: LOCKED.textHi, fontSize: 15, fontWeight: '600' },
   linkBtn: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, marginTop: 8 },

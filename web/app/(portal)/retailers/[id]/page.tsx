@@ -64,7 +64,7 @@ export default function RetailerEditPage() {
 
   return (
     <main className="page" style={{ maxWidth: 640 }}>
-      <h1 className="page-title"><Store size={20} /> {row?.name ?? 'Retailer'}</h1>
+      <h1 className="page-title"><Store size={20} aria-hidden="true" /> {row?.name ?? 'Retailer'}</h1>
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
       {err && <p style={{ color: 'var(--danger)' }}>{err}</p>}
       <div className="card">
@@ -72,20 +72,20 @@ export default function RetailerEditPage() {
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
         <label className="label">Phone (SMS lock/unlock sender)</label>
         <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <button className="btn primary" style={{ marginTop: 12 }} onClick={save}><Pencil size={14} /> Save</button>
+        <button className="btn primary" style={{ marginTop: 12 }} onClick={save}><Pencil size={14} aria-hidden="true" /> Save changes</button>
       </div>
       <div className="card" style={{ marginTop: 12 }}>
-        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><Coins size={16} /> Credits (device slots): {row?.credits_balance ?? 0}</h2>
+        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><Coins size={16} aria-hidden="true" /> Credits (device slots): {row?.credits_balance ?? 0}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <input className="input" placeholder="Number to add" value={credits} onChange={(e) => setCredits(e.target.value)} />
-          <button className="btn primary" onClick={giveCredits}>Add credits</button>
+          <button className="btn primary" onClick={giveCredits}><Coins size={14} aria-hidden="true" /> Add credits</button>
         </div>
       </div>
       <div className="card" style={{ marginTop: 12 }}>
-        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><Lock size={16} /> Lock allowances: {row?.lock_allowances ?? 0}</h2>
+        <h2 style={{ margin: '0 0 8px', fontSize: 15 }}><Lock size={16} aria-hidden="true" /> Lock allowances: {row?.lock_allowances ?? 0}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <input className="input" placeholder="New total" value={allowances} onChange={(e) => setAllowances(e.target.value)} />
-          <button className="btn primary" onClick={setAllowancesNow}>Set</button>
+          <button className="btn primary" onClick={setAllowancesNow}><Lock size={14} aria-hidden="true" /> Set allowances</button>
         </div>
       </div>
     </main>

@@ -49,14 +49,14 @@ export default async function DashboardPage() {
           </p>
         </div>
         <Link className="btn primary" href="/retailers">
-          <UserPlus size={16} /> Add retailer
+          <UserPlus size={16} aria-hidden="true" /> Add retailer
         </Link>
       </header>
 
       <section className="stat-grid" aria-label="Portfolio summary">
         {stats.map((s, i) => (
           <div className={`stat-card tone-${s.tone}`} style={{ animationDelay: `${i * 70}ms` }} key={s.label}>
-            <span className="stat-icon"><s.icon size={20} /></span>
+            <span className="stat-icon"><s.icon size={20} aria-hidden="true" /></span>
             <div className="stat-num">{s.value}</div>
             <div className="stat-label">{s.label}</div>
             <span className="stat-sheen" aria-hidden="true" />
@@ -70,11 +70,11 @@ export default async function DashboardPage() {
           {steps.map((st, i) => (
             <div className="step-card" style={{ animationDelay: `${200 + i * 90}ms` }} key={st.title}>
               <span className="step-badge">{i + 1}</span>
-              <st.icon size={18} className="step-ic" />
+              <st.icon size={18} className="step-ic" aria-hidden="true" />
               <h3>{st.title}</h3>
               <p>{st.text}</p>
               <Link className="step-link" href={st.href}>
-                Open <ArrowRight size={13} />
+                Open <ArrowRight size={13} aria-hidden="true" />
               </Link>
             </div>
           ))}
@@ -85,17 +85,17 @@ export default async function DashboardPage() {
         <h2 className="dash-h2">Quick actions</h2>
         <div className="quick-row">
           <Link className="quick-card" href="/retailers">
-            <Coins size={16} /> <span><strong>Credits &amp; allowances</strong><br />Top up a retailer's lock budget.</span>
+            <Coins size={16} aria-hidden="true" /> <span><strong>Credits &amp; allowances</strong><br />Top up a retailer's lock budget.</span>
           </Link>
           <Link className="quick-card" href="/console/devices">
-            <Smartphone size={16} /> <span><strong>Devices board</strong><br />Lock, unlock, request location.</span>
+            <Smartphone size={16} aria-hidden="true" /> <span><strong>Devices board</strong><br />Lock, unlock, request location.</span>
           </Link>
           <Link className="quick-card" href="/qr">
-            <QrCode size={16} /> <span><strong>Provisioning QR</strong><br />The checksum-safe enrolment page.</span>
+            <QrCode size={16} aria-hidden="true" /> <span><strong>Provisioning QR</strong><br />The checksum-safe enrolment page.</span>
           </Link>
         </div>
         <p className="dash-note">
-          <CheckCircle2 size={13} /> Locking is local on each phone; the network only fetches commands and location. SMS works offline.
+          <CheckCircle2 size={13} aria-hidden="true" /> Locking is local on each phone; the network only fetches commands and location. SMS works offline.
         </p>
       </section>
     </main>

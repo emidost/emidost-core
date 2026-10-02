@@ -8,6 +8,7 @@ import type { Device } from '@emidost/shared';
 export default function DevicesPage() {
   const [rows, setRows] = useState<Device[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const supabase = browserClient();
 
   useEffect(() => {
@@ -19,6 +20,7 @@ export default function DevicesPage() {
         .order('created_at', { ascending: false });
       if (err) setError(err.message);
       else setRows(data ?? []);
+      setLoading(false);
     })();
   }, []);
 
@@ -34,7 +36,7 @@ export default function DevicesPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title"><Smartphone size={20} /> Devices</h1>
+      <h1 className="page-title"><Smartphone size={20} aria-hidden="true" /> Devices</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       <div className="card">
         <table>
@@ -42,7 +44,13 @@ export default function DevicesPage() {
             <tr><th>Model</th><th>OS</th><th>Mode</th><th>Lock</th><th>Last heartbeat</th><th></th></tr>
           </thead>
           <tbody>
-            {rows.map((d) => (
+            {loading && (
+              <>
+                <tr><td colSpan={2}><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+                <tr><td colSpan={2}><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+              </>
+            )}
+            {!loading && rows.map((d) => (
               <tr key={d.id}>
                 <td>{d.manufacturer} {d.model}</td>
                 <td>{d.os_version}</td>
@@ -66,7 +74,7 @@ export default function DevicesPage() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr>
                 <td className="empty-cell" colSpan={6}>
                   <div className="empty">

@@ -33,10 +33,10 @@ export default async function PortalLayout({ children }: { children: React.React
 
   return (
     <div>
-      <nav className="nav">
+      <nav className="nav" aria-label="Portal">
         {links.map((l) => (
           <Link key={l.href} href={l.href}>
-            <l.icon size={16} /> {l.label}
+            <l.icon size={16} aria-hidden="true" /> {l.label}
           </Link>
         ))}
       </nav>

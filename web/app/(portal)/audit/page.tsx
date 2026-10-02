@@ -20,7 +20,7 @@ export default function AuditPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title"><ScrollText size={20} /> Audit</h1>
+      <h1 className="page-title"><ScrollText size={20} aria-hidden="true" /> Audit</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       <div className="card">
         <table>

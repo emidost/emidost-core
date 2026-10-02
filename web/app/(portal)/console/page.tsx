@@ -29,11 +29,11 @@ export default function ConsolePage() {
 
   return (
     <main className="page">
-      <h1 className="page-title"><Store size={20} /> {retailer?.name ?? 'Console'}</h1>
+      <h1 className="page-title"><Store size={20} aria-hidden="true" /> {retailer?.name ?? 'Console'}</h1>
       <div className="grid cols-3">
-        <div className="card stat"><div className="icon" style={{ background: 'var(--retailer)' }}><Wallet size={18} /></div><div><div className="num">{counts.customers}</div><div className="cap">Customers</div></div></div>
-        <div className="card stat"><div className="icon" style={{ background: 'var(--info)' }}><Smartphone size={18} /></div><div><div className="num">{counts.devices}</div><div className="cap">Devices</div></div></div>
-        <div className="card stat"><div className="icon" style={{ background: 'var(--danger)' }}><Smartphone size={18} /></div><div><div className="num">{counts.locked}</div><div className="cap">Locked now</div></div></div>
+        <div className="card stat"><div className="icon" style={{ background: 'var(--retailer)' }}><Wallet size={18} aria-hidden="true" /></div><div><div className="num">{counts.customers}</div><div className="cap">Customers</div></div></div>
+        <div className="card stat"><div className="icon" style={{ background: 'var(--info)' }}><Smartphone size={18} aria-hidden="true" /></div><div><div className="num">{counts.devices}</div><div className="cap">Devices</div></div></div>
+        <div className="card stat"><div className="icon" style={{ background: 'var(--danger)' }}><Smartphone size={18} aria-hidden="true" /></div><div><div className="num">{counts.locked}</div><div className="cap">Locked now</div></div></div>
       </div>
       <div className="card" style={{ marginTop: 12 }}>
         <p style={{ margin: 0 }}>Credits (device slots): <b>{retailer?.credits_balance ?? 0}</b> · Lock allowances: <b>{retailer?.lock_allowances ?? 0}</b></p>

@@ -36,15 +36,15 @@ export default function NewCustomerPage() {
 
   return (
     <main className="page" style={{ maxWidth: 640 }}>
-      <h1 className="page-title"><UserPlus size={20} /> New customer</h1>
+      <h1 className="page-title"><UserPlus size={20} aria-hidden="true" /> New customer</h1>
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
       {err && <p style={{ color: 'var(--danger)' }}>{err}</p>}
       <form className="card" onSubmit={submit}>
-        <label className="label"><Smartphone size={12} /> Name</label>
+        <label className="label"><Smartphone size={12} aria-hidden="true" /> Name</label>
         <input className="input" value={form.name} onChange={set('name')} required />
         <label className="label">Phone number</label>
         <input className="input" value={form.phone} onChange={set('phone')} required />
-        <label className="label"><Hash size={12} /> IMEI</label>
+        <label className="label"><Hash size={12} aria-hidden="true" /> IMEI</label>
         <input className="input" value={form.imei} onChange={set('imei')} required />
         <label className="label">Brand</label>
         <select className="input" value={form.brand} onChange={set('brand')}>
@@ -52,22 +52,24 @@ export default function NewCustomerPage() {
         </select>
         <label className="label">Model</label>
         <input className="input" value={form.model} onChange={set('model')} required />
-        <label className="label"><CalendarDays size={12} /> EMI months</label>
+        <label className="label"><CalendarDays size={12} aria-hidden="true" /> EMI months</label>
         <input className="input" type="number" min={1} value={form.emi_months} onChange={set('emi_months')} />
-        <label className="label"><IndianRupee size={12} /> EMI amount (per month)</label>
+        <label className="label"><IndianRupee size={12} aria-hidden="true" /> EMI amount (per month)</label>
         <input className="input" type="number" min={0} step="0.01" value={form.emi_amount} onChange={set('emi_amount')} />
         <label className="label">Due day of month (1-31)</label>
         <input className="input" type="number" min={1} max={31} value={form.emi_due_day} onChange={set('emi_due_day')} />
         <label className="label" style={{ marginTop: 14 }}>Phone lock plan</label>
-        <label className="choice" style={{ borderColor: form.lock_mode === 'lock' ? 'var(--teal)' : 'var(--line)' }}>
+        <label className="choice" style={{ borderColor: form.lock_mode === 'lock' ? 'var(--accent-teal)' : 'var(--border)' }}>
           <input type="radio" name="lock_mode" checked={form.lock_mode === 'lock'} onChange={() => setForm((f) => ({ ...f, lock_mode: 'lock' }))} />
           <span><strong>Lock on missed payment</strong><br />Locks the phone when overdue or 5 days offline.</span>
         </label>
-        <label className="choice" style={{ borderColor: form.lock_mode === 'notify_only' ? 'var(--teal)' : 'var(--line)' }}>
+        <label className="choice" style={{ borderColor: form.lock_mode === 'notify_only' ? 'var(--accent-teal)' : 'var(--border)' }}>
           <input type="radio" name="lock_mode" checked={form.lock_mode === 'notify_only'} onChange={() => setForm((f) => ({ ...f, lock_mode: 'notify_only' }))} />
           <span><strong>Never lock, only reminders</strong><br />Due and overdue notices only. The phone never locks.</span>
         </label>
-        <button className="btn teal" style={{ marginTop: 16, width: '100%', justifyContent: 'center' }}>Add customer</button>
+        <button className="btn teal" style={{ marginTop: 16, width: '100%', justifyContent: 'center' }}>
+          <UserPlus size={14} aria-hidden="true" /> Add customer
+        </button>
       </form>
     </main>
   );

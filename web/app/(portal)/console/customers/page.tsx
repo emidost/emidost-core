@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { UserPlus, Users, Smartphone } from 'lucide-react';
+import { UserPlus, Users, Smartphone, ReceiptText } from 'lucide-react';
 import type { Customer } from '@emidost/shared';
 
 export default function ConsoleCustomersPage() {
   const [rows, setRows] = useState<Customer[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void (async () => {
@@ -15,16 +16,17 @@ export default function ConsoleCustomersPage() {
       const body = await res.json().catch(() => []);
       if (!res.ok) setError(body?.error ?? 'Could not load customers');
       else setRows((body as Customer[]) ?? []);
+      setLoading(false);
     })();
   }, []);
 
   return (
     <main className="page">
-      <h1 className="page-title"><Users size={20} /> Customers</h1>
+      <h1 className="page-title"><Users size={20} aria-hidden="true" /> Customers</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       <div style={{ marginBottom: 12 }}>
         <Link className="btn primary" href="/console/customers/new">
-          <UserPlus size={14} /> New customer
+          <UserPlus size={14} aria-hidden="true" /> New customer
         </Link>
       </div>
       <div className="card">
@@ -33,7 +35,13 @@ export default function ConsoleCustomersPage() {
             <tr><th>Name</th><th>Phone</th><th>Phone model</th><th>EMI</th><th>Plan</th><th>Status</th><th></th></tr>
           </thead>
           <tbody>
-            {rows.map((c) => (
+            {loading && (
+              <>
+                <tr><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+                <tr><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+              </>
+            )}
+            {!loading && rows.map((c) => (
               <tr key={c.id}>
                 <td>{c.name}</td>
                 <td>{c.phone}</td>
@@ -50,17 +58,19 @@ export default function ConsoleCustomersPage() {
                   </span>
                 </td>
                 <td>
-                  <Link className="btn sm" href={`/console/customers/${c.id}`}>Payments</Link>
+                  <Link className="btn sm" href={`/console/customers/${c.id}`}>
+                    <ReceiptText size={14} aria-hidden="true" /> Payments
+                  </Link>
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr>
                 <td className="empty-cell" colSpan={7}>
                   <div className="empty">
                     <Users className="empty-icon" size={28} aria-hidden="true" />
                     <p>No customers yet. Add the first financed customer.</p>
-                    <Link className="btn sm" href="/console/customers/new"><UserPlus size={14} /> New customer</Link>
+                    <Link className="btn sm" href="/console/customers/new"><UserPlus size={14} aria-hidden="true" /> New customer</Link>
                   </div>
                 </td>
               </tr>

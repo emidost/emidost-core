@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Store, UserPlus, Ban, CircleCheck, Pencil, Coins } from 'lucide-react';
+import { Store, UserPlus, Ban, CircleCheck, Pencil, Coins, RefreshCw } from 'lucide-react';
 import { browserClient } from '@/lib/supabaseClient';
 import type { Retailer } from '@emidost/shared';
 
@@ -12,13 +12,16 @@ export default function RetailersPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', login_id: '', password: '' });
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const supabase = browserClient();
 
   async function load() {
+    setLoading(true);
     const { data, error: err } = await supabase.from('retailers').select('*').order('created_at');
     if (err) setError(err.message);
     else setRows(data ?? []);
+    setLoading(false);
   }
   useEffect(() => { void load(); }, []);
 
@@ -62,14 +65,15 @@ export default function RetailersPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title"><Store size={20} /> Retailers</h1>
+      <h1 className="page-title"><Store size={20} aria-hidden="true" /> Retailers</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       {msg && <p style={{ color: 'var(--ok)' }}>{msg}</p>}
 
       <div className="card" style={{ maxWidth: 560, marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 15 }}><UserPlus size={16} /> New retailer account</h2>
+          <h2 style={{ margin: 0, fontSize: 15 }}><UserPlus size={16} aria-hidden="true" /> New retailer account</h2>
           <button className="btn sm" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? <CircleCheck size={14} aria-hidden="true" /> : <UserPlus size={14} aria-hidden="true" />}
             {showForm ? 'Close' : 'Add retailer'}
           </button>
         </div>
@@ -84,6 +88,7 @@ export default function RetailersPage() {
             <label className="label">Password (8+ characters)</label>
             <input className="input" type="password" value={form.password} onChange={set('password')} minLength={8} required />
             <button className="btn primary" style={{ marginTop: 12 }} disabled={busy}>
+              {busy ? <RefreshCw size={14} aria-hidden="true" /> : <UserPlus size={14} aria-hidden="true" />}
               {busy ? 'Creating…' : 'Create retailer'}
             </button>
           </form>
@@ -99,7 +104,13 @@ export default function RetailersPage() {
             <tr><th>Name</th><th>Phone</th><th>Credits</th><th>Lock allowances</th><th>Status</th><th></th></tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {loading && (
+              <>
+                <tr><td colSpan={2}><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+                <tr><td colSpan={2}><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+              </>
+            )}
+            {!loading && rows.map((r) => (
               <tr key={r.id}>
                 <td>{r.name}</td>
                 <td>{r.phone}</td>
@@ -119,12 +130,13 @@ export default function RetailersPage() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr>
                 <td className="empty-cell" colSpan={6}>
                   <div className="empty">
                     <UserPlus className="empty-icon" size={28} aria-hidden="true" />
-                    <p>No retailers yet. Add one from the owner app or API.</p>
+                    <p>No retailers yet. Add the first retailer above.</p>
+                    <button className="btn sm" onClick={() => setShowForm(true)}><UserPlus size={14} aria-hidden="true" /> Add retailer</button>
                   </div>
                 </td>
               </tr>

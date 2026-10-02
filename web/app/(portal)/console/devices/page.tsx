@@ -8,6 +8,7 @@ import type { Device } from '@emidost/shared';
 export default function ConsoleDevicesPage() {
   const [rows, setRows] = useState<Device[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const supabase = browserClient();
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export default function ConsoleDevicesPage() {
         .eq('retailer_id', profile.retailer_id);
       if (err) setError(err.message);
       else setRows(data ?? []);
+      setLoading(false);
     })();
   }, []);
 
@@ -39,13 +41,19 @@ export default function ConsoleDevicesPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title"><Smartphone size={20} /> Devices</h1>
+      <h1 className="page-title"><Smartphone size={20} aria-hidden="true" /> Devices</h1>
       {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       <div className="card">
         <table>
           <thead><tr><th>Model</th><th>Mode</th><th>Lock</th><th></th></tr></thead>
           <tbody>
-            {rows.map((d) => (
+            {loading && (
+              <>
+                <tr><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+                <tr><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td><span className="skeleton-cell" /></td><td /></tr>
+              </>
+            )}
+            {!loading && rows.map((d) => (
               <tr key={d.id}>
                 <td>{d.manufacturer} {d.model}</td>
                 <td><span className={`chip ${d.mode === 'device_owner' ? 'ok' : 'muted'}`}>{d.mode}</span></td>
@@ -58,7 +66,7 @@ export default function ConsoleDevicesPage() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr>
                 <td className="empty-cell" colSpan={4}>
                   <div className="empty">

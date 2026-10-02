@@ -6,35 +6,61 @@
 // constants. The module stays free of DOM-only types so it type-checks under the
 // apps' ES2020 lib as well as the web DOM lib.
 
-/** Light surface roles (portal web, retailer/owner apps, unlocked device cards). */
-export const colors = {
-  bg: '#F6F7F9',
-  surface: '#FFFFFF',
-  surfaceHi: '#EEF0F4',
-  border: '#E5E7EB',
+/**
+ * Surface ramps (premium redesign). Ink = dark/locked (never #000);
+ * Paper = light/free (never #FFF). Cards sit one step above their ground.
+ */
+export const ink = {
+  bg: '#0F141C',
+  card: '#161D29',
+  cardHi: '#1D2634',
+  hairline: 'rgba(244, 241, 234, 0.14)',
+  textHi: '#F4F1EA',
+  textMid: '#A6AEBE',
+  textLow: '#6C7686',
+} as const;
+
+export const paper = {
+  bg: '#F4F1EA',
+  card: '#FBF9F4',
+  hairline: 'rgba(15, 20, 28, 0.12)',
   textHi: '#1A1D21',
   textMid: '#6B7280',
   textLow: '#9CA3AF',
+} as const;
+
+/** Light surface roles (portal web, retailer/owner apps, unlocked device cards). */
+export const colors = {
+  bg: paper.bg,
+  surface: paper.card,
+  surfaceHi: '#ECE8DE',
+  border: paper.hairline,
+  textHi: paper.textHi,
+  textMid: paper.textMid,
+  textLow: paper.textLow,
   accentIndigo: '#4F46E5',
   accentTeal: '#0D9488',
   accentAmber: '#D97706',
+  indigoSoft: '#ECEFFB',
+  tealSoft: '#E9F5F2',
+  amberSoft: '#FBF1E2',
   danger: '#DC2626',
-  onAccent: '#FFFFFF',
+  success: '#16A34A',
+  onAccent: '#F4F1EA',
 } as const;
 
 /**
- * Dark = locked roles. Dark surface means locked or restricted. Used by the
- * customer lock screen and locked device cards. Text on `bg`/`surface` holds a
- * contrast ratio of at least 7:1 (white on #0E1116 is about 18:1).
+ * Dark = locked roles (the Ink ramp). Dark surface means locked or restricted.
+ * Used by the customer lock screen and locked device cards.
  */
 export const locked = {
-  bg: '#0E1116',
-  surface: '#161A20',
-  surfaceHi: '#1E242C',
-  border: '#2A313A',
-  textHi: '#FFFFFF',
-  textMid: '#C7CDD6',
-  textLow: '#9099A6',
+  bg: ink.bg,
+  surface: ink.card,
+  surfaceHi: ink.cardHi,
+  border: ink.hairline,
+  textHi: ink.textHi,
+  textMid: ink.textMid,
+  textLow: ink.textLow,
   ring: '#FBBF24',
   amber: '#D97706',
   amberHi: '#F59E0B',
@@ -174,6 +200,8 @@ export function withReducedMotion<T>(normal: T, reduced: T, prefersReduced = pre
 /** Aggregate token object, convenient for a single import. */
 export const designTokens = {
   colors,
+  ink,
+  paper,
   locked,
   gradients,
   statusColors,

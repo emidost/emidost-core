@@ -44,19 +44,20 @@ object EmidostOverlay {
 
         val root = LinearLayout(ctx).apply {
           orientation = LinearLayout.VERTICAL
-          setBackgroundColor(Color.parseColor("#1A1D21"))
+          // Ink ramp surface (matches the redesigned lock screen; never pure black)
+          setBackgroundColor(Color.parseColor("#161D29"))
           gravity = Gravity.CENTER
           setPadding(48, 48, 48, 48)
         }
         val titleView = TextView(ctx).apply {
           text = title
-          setTextColor(Color.WHITE)
+          setTextColor(Color.parseColor("#F4F1EA"))
           textSize = 26f
           gravity = Gravity.CENTER
         }
         val bodyView = TextView(ctx).apply {
           text = body
-          setTextColor(Color.parseColor("#D1D5DB"))
+          setTextColor(Color.parseColor("#A6AEBE"))
           textSize = 16f
           gravity = Gravity.CENTER
           setPadding(0, 24, 0, 24)
@@ -67,8 +68,8 @@ object EmidostOverlay {
         if (mode == "call" && extra != null) {
           val call = Button(ctx).apply {
             text = "Show call screen"
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#3B5BDB"))
+            setTextColor(Color.parseColor("#F4F1EA"))
+            setBackgroundColor(Color.parseColor("#4F46E5"))
           }
           call.setOnClickListener {
             dismissInternal(ctx)
@@ -87,8 +88,8 @@ object EmidostOverlay {
         if (mode == "lock") {
           val emergency = Button(ctx).apply {
             text = "Emergency 112"
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.parseColor("#DC2626"))
+            setTextColor(Color.parseColor("#F4F1EA"))
+            setBackgroundColor(Color.parseColor("#B91C1C"))
           }
           emergency.setOnClickListener {
             dismissInternal(ctx)
