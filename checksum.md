@@ -4,6 +4,15 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-02 security + SQL hardening wave (Claude + Codex audit, auto-approved)
+
+Both CLI agents audited (17 + 31 findings, merged). Implemented (push a6a6302):
+- SQL `0003_hardening.sql`: actor helpers → SECURITY DEFINER (fixes recursive RLS), `adjust_credits` atomic RPC, `emi_schedules.amount_paid`, 5 new indexes, positive-amount + non-negative-balance constraints. All-in-one regenerated to include hardening; published-password seed file removed (accounts = admin API script only).
+- Web: enrolment token consumed atomically (state created→installed, no replay/repointing); register checks retailer suspension + rejects settled-loan re-enrolment; heartbeat no longer trusts client `mode` for owner promotion (open session required) and keeps UNLOCK/RELEASE flowing when the retailer is suspended; allowance debit moved AFTER command insert (rollback on failure); UNLOCK allowed on settled loans; payments rejected on settled loans + `amount_paid` allocation; customer creation generates the full repayment schedule (with rollback on failure); retailer creation upserts the staff profile (new auth schema has no trigger); rate limiting on register/heartbeat/ack (in-memory, 429); TOTP key throws in production when unset.
+- Mobile: device tokens via expo-crypto CSPRNG (no Math.random); SIM baseline set exactly once (replacement SIM can't silently become baseline); SIM receiver validates actions + locks only on confirmed ABSENT (UNKNOWN no longer false-locks); SMS UNLOCK now requires a valid TOTP as the authenticated factor; lock overlay gains an Emergency 112 button; LockPolicies missing ComponentName/Intent imports fixed.
+- Verified: web/shared/device-kit/customer/retailer/owner tsc all 0 · stale tests 6/6.
+- Remaining honest notes: per-IP rate limiter is in-memory (swap for Upstash at scale); SPAKE2 spike, device acceptance, Kotlin EAS compile still pending (documented elsewhere).
+
 ## 2026-10-02 fix wave (plan-robustly-then-fix)
 
 - **Landing design pass applied** (spec §5-6): headline "Sell phones on EMI. Get paid on time.", trust section with 3 clearly-marked-for-replacement quotes + verifiable strip, locked→paid hero cycle (6s CSS, reduced-motion off). Pushed to the landing repo.
