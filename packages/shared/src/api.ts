@@ -85,7 +85,7 @@ export function createApi({ baseUrl, getToken }: ApiClientOptions) {
       }),
     getEnrolment: (sessionId: string) => req<EnrolmentSession>(`/api/retailer/enrollments/${sessionId}`),
     listDevices: () => req<Device[]>('/api/retailer/devices'),
-    sendCommand: (deviceId: string, commandType: 'LOCK' | 'UNLOCK', payload: Record<string, unknown> = {}) =>
+    sendCommand: (deviceId: string, commandType: 'LOCK' | 'UNLOCK' | 'ALERT', payload: Record<string, unknown> = {}) =>
       req<DeviceCommand>(`/api/retailer/devices/${deviceId}/commands`, {
         method: 'POST', body: JSON.stringify({ command_type: commandType, payload }),
       }),

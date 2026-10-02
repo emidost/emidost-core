@@ -4,6 +4,62 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 overdue escalation wave — lead supplement (native half + 4-day rule)
+
+- Codex native half landed: OverdueAlerter 30-min loop + bn/hi TTS x3 +
+  volume max + DISALLOW_ADJUST_VOLUME (cleared on settlement); day-3+ location
+  SMS windows (10:00-12:00, 18:00-20:00, seeded minute, maps link, SEND_SMS
+  gated); ALERT dispatch native + JS + retailer quick-action button; due-day
+  10:00/14:00/20:00 schedule; worker PATCH parity.
+- 4-day offline-overdue rule (user delta): SyncStateStore.overdueOfflineLockDue
+  + JS mirror — lock plan + outstanding + overdue >= 1 (server or local IST
+  from the cached due date) + >= 4 days since sync → local hard lock
+  'overdue-offline-watchdog-4d'; NOT gated by the kill-switch (that toggle
+  stops alerts + location SMS, never locks); 5-day no-internet watchdog stays
+  the outer bound; settled-while-offline residual documented with the TOTP SMS
+  escape. Checklist K6 added.
+- Checks after the wave: all 7 tsc surfaces 0 · tests 13/13 · next build
+  14/14 (lead re-verified before commit).
+
+## 2026-10-03 overdue escalation — server + SQL half
+
+- Plan: `.review/escalation-plan.md` (lead decision from the user spec).
+  Rules: due day 3 notifications at 10:00/14:00/20:00 local (surrounding days
+  keep the −3/−1/+1/+3 reminders); overdue days 1–5 every 30 min a
+  notification + "EMI is overdue" in bn then hi ×3 via app-level TTS (plays
+  muted/DND; media volume maxed + DISALLOW_ADJUST_VOLUME while overdue,
+  cleared on payment; hardware-mute honest limit); day 3+ GPS once per window
+  (10:00–12:00, 18:00–20:00) + SMS with a Google Maps link from the phone
+  itself (customer SMS balance, documented; notify_only included);
+  kill-switch + ALERT command.
+- **SQL (claude):** `0015_escalation.sql` adds
+  `customers.overdue_escalation_enabled boolean not null default true` and the
+  `ALERT` command_type enum value. All-in-one regenerated (header + 0015).
+- **Web (claude):** commands.ts accepts ALERT (staff + suspension + tenant
+  gates; NO allowance debit; refused on settled loans exactly like LOCK);
+  new `PATCH /api/retailer/customers/:id/escalation`
+  (`web/lib/apiHandlers/customerEscalation.ts`) toggles the kill-switch
+  (staff-only + suspension + tenant gates, body { enabled: boolean }, audit
+  `ESCALATION_TOGGLED`), wired into the catch-all router (PATCH method +
+  params extraction); heartbeat delivers `escalation_enabled` (default true)
+  with the other customer fields in the existing wave; retailerCustomers GET
+  carries the column via select('*') automatically; console customer detail
+  page gained the "Overdue escalation" toggle card (BellRing, busy state,
+  caption "Stops the 30-minute voice alerts and the location SMS when
+  overdue").
+- Docs: checklist section K (K1–K5) + I1 now 0011–0015; CONTEXT.md §4
+  escalation rules block; SETUP.md acceptance line; FUNCTION_REPORT rows
+  (commands ALERT, customerEscalation PATCH, heartbeat escalation_enabled,
+  reminders schedule); this entry.
+- Checks: web tsc 0 · workers tsc 0 · `next build` exit 0.
+- Native/app half (codex, next): due-day schedule, 30-min escalation loop +
+  TTS + volume/DISALLOW_ADJUST_VOLUME, day-3 location SMS windows, ALERT
+  dispatch, retailer quick action, copy.ts bn/hi voice lines.
+- Edges (honest): ALERT shares the settled-loan refusal with LOCK (both use
+  the same gate; UNLOCK/RELEASE stay open); the kill-switch takes effect on
+  the phone's next heartbeat (up to one poll interval); location SMS needs a
+  GPS fix and an SMS-capable SIM on the customer phone.
+
 ## 2026-10-03 customer photo — server + storage half
 
 - Lead decision (user confirmed): the retailer attaches the customer's photo at

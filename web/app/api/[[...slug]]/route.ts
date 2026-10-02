@@ -34,6 +34,7 @@ import { POST as heartbeatPost } from '@/lib/apiHandlers/heartbeat';
 import { POST as ackPost } from '@/lib/apiHandlers/ack';
 import { POST as retailerUnlockKeyPost } from '@/lib/apiHandlers/retailerUnlockKey';
 import { POST as customerPhotoPost } from '@/lib/apiHandlers/customerPhoto';
+import { PATCH as customerEscalationPatch } from '@/lib/apiHandlers/customerEscalation';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +66,7 @@ const ROUTES: RouteDef[] = [
   { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('customers')(p, 1) && seg('payments')(p, 3), get: (req, ctx) => paymentsGet(req, { params: { id: ctx.params.id } }), post: (req, ctx) => paymentsPost(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('customers')(p, 1) && seg('schedules')(p, 3), get: (req, ctx) => schedulesGet(req, { params: { id: ctx.params.id } }) },
   { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('customers')(p, 1) && seg('photo')(p, 3), post: (req, ctx) => customerPhotoPost(req, { params: { id: ctx.params.id } }) },
+  { segments: 4, match: (p) => seg('retailer')(p, 0) && seg('customers')(p, 1) && seg('escalation')(p, 3), patch: (req, ctx) => customerEscalationPatch(req, { params: { id: ctx.params.id } }) },
   { segments: 3, match: (p) => seg('retailer')(p, 0) && seg('enrollments')(p, 1), get: (req, ctx) => enrollmentGet(req, { params: { id: ctx.params.id } }) },
   { segments: 2, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1), get: retailerDevicesGet },
   { segments: 3, match: (p) => seg('retailer')(p, 0) && seg('devices')(p, 1) && seg('command-proxy')(p, 2), post: commandProxyPost },
@@ -111,6 +113,7 @@ function dispatch(
     if (def.segments === 4 && parts[3] === 'commands') params.id = parts[2];
     if (def.segments === 4 && parts[3] === 'unlock-key') params.id = parts[2];
     if (def.segments === 4 && parts[3] === 'photo') params.id = parts[2];
+    if (def.segments === 4 && parts[3] === 'escalation') params.id = parts[2];
     const handler = method === 'get' ? def.get : method === 'post' ? def.post : def.patch;
     if (handler) return handler(req, { params });
   }

@@ -291,6 +291,9 @@ class EmidostDeviceManagementModule : Module() {
       true
     }
     Function("verifyTotpUnlock") { code: String -> Totp.verify(context, code) }
+
+    // ALERT command: one notification + the bn/hi voice pair once.
+    Function("speakAlertOnce") { OverdueAlerter.alertOnce(context) }
   }
 
   private fun isHidden(): Boolean {

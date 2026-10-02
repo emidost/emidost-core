@@ -1,6 +1,6 @@
 -- ============================================================================
 -- emidost ALL-IN-ONE (single file). Open a NEW query tab and run this whole file.
--- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012), FCM wake tokens (0013), customer photos (0014).
+-- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012), FCM wake tokens (0013), customer photos (0014), overdue escalation (0015).
 -- Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
 -- Idempotent: safe to re-run.
 -- ============================================================================
@@ -912,3 +912,17 @@ values ('customer-photos', 'customer-photos', false)
 on conflict (id) do nothing;
 
 -- Deliberately NO storage.objects policies: the bucket is service-role only.
+
+-- emidost 0015 - overdue escalation (kill-switch column + ALERT command type).
+-- overdue_escalation_enabled (default true) is the portal/console kill-switch:
+-- false stops the 30-min voice escalation AND the day-3+ location SMS on the
+-- phone (delivered via heartbeat; audited). ALERT is the retailer's one-shot
+-- bn+hi voice command: it consumes NO lock allowance and is refused on
+-- settled loans exactly like LOCK.
+-- Idempotent: safe to re-run.
+
+do $$ begin
+  alter table public.customers add column if not exists overdue_escalation_enabled boolean not null default true;
+exception when duplicate_column then null; end $$;
+
+alter type public.command_type add value if not exists 'ALERT';

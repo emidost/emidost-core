@@ -102,6 +102,25 @@ github.com/emidost/emidost).
   the real command from Supabase; SMS works fully offline. Supabase stays the
   single source of truth — a forged push can at most trigger one poll, and a
   phone with no push token just rides the poll.
+- Overdue escalation (K section): due day = 3 notifications at 10:00, 14:00,
+  20:00 local (surrounding days keep the 09:00 −3/−1/+1/+3 reminders); overdue
+  days 1–5 = every 30 min one notification + "EMI is overdue" spoken in
+  Bengali then Hindi, 3 times per trigger, via app-level TTS (plays muted/DND;
+  media volume maxed while overdue + DISALLOW_ADJUST_VOLUME, cleared on
+  payment — honest limit: a hardware mute switch still cuts output). Day 3+
+  without payment = GPS once per window (10:00–12:00, 18:00–20:00, stable
+  random minute) and an SMS from the phone itself to the retailer's number
+  with a Google Maps link (https://maps.google.com/?q=lat,lng) — uses the
+  customer's SMS balance, documented; applies to notify_only plans too.
+  Kill-switch: `customers.overdue_escalation_enabled` (default true, audited
+  toggle in the retailer console) stops the voice escalation AND the location
+  SMS. Retailer ALERT command: one-shot bn+hi voice, no allowance, refused on
+  settled loans. Offline + overdue 4 days (no server contact for 4 days while
+  overdue, cached or computed from the IST due date) → the phone hard-locks
+  itself locally ('overdue-offline-watchdog-4d'), lock plans only, NOT gated
+  by the kill-switch (that toggle never disables locks); the 5-day
+  no-internet watchdog remains the outer bound, and the settled-while-offline
+  edge keeps the TOTP SMS unlock escape.
 - LOCK refused everywhere (server, native, SMS, SIM, boot) unless live Device
   Owner (`isDeviceOwnerApp` + readback). Non-DO LOCK acks FAILED, never
   EXECUTED.

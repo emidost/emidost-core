@@ -261,3 +261,7 @@ export function setTotpSecret(secret: string): Promise<boolean> {
 export function verifyTotpUnlock(code: string): Promise<boolean> {
   return native.verifyTotpUnlock(code);
 }
+/** ALERT command: one notification + the bn/hi overdue voice pair once. */
+export function speakAlertOnce(): Promise<boolean> {
+  return native.speakAlertOnce();
+}

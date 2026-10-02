@@ -5,7 +5,7 @@ export type LoanStatus = 'RUNNING' | 'NPA' | 'COMPLETE' | 'SETTLED';
 export type EnrolmentState =
   | 'created' | 'prechecked' | 'paired' | 'connected' | 'installed'
   | 'owner_verified' | 'access_verified' | 'finalizing' | 'active' | 'expired';
-export type CommandType = 'LOCK' | 'UNLOCK' | 'RELEASE' | 'REBOOT' | 'DEVICE_ACTION' | 'SET_PIN_POLICY' | 'LOCATION';
+export type CommandType = 'LOCK' | 'UNLOCK' | 'RELEASE' | 'REBOOT' | 'ALERT' | 'DEVICE_ACTION' | 'SET_PIN_POLICY' | 'LOCATION';
 export type CommandStatus = 'PENDING' | 'RECEIVED' | 'EXECUTED' | 'SUPERSEDED' | 'EXPIRED' | 'CANCELLED' | 'FAILED';
 export type DeviceMode = 'none' | 'device_admin' | 'device_owner';
 export type LedgerKind = 'topup' | 'slot_consumed' | 'slot_freed' | 'lock_consumed' | 'adjust';
@@ -148,6 +148,8 @@ export interface HeartbeatResponse {
   is_locked: boolean;
   /** 24 h signed URL of the customer photo (null when none); cached on-device for offline. */
   photo_url: string | null;
+  /** Portal kill-switch for the 30-min voice escalation + day-3+ location SMS. */
+  escalation_enabled: boolean;
   server_now: string;
   policies: Record<string, boolean>;
 }

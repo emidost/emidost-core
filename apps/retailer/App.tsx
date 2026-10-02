@@ -465,6 +465,7 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
 function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
   const [rows, setRows] = useState<Device[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [alerting, setAlerting] = useState<string | null>(null);
   useEffect(() => { api.listDevices().then(setRows).catch(() => {}); }, []);
 
   async function toggle(d: Device) {
@@ -475,6 +476,19 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
       setRows(list);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Command failed');
+    }
+  }
+
+  async function alert(d: Device) {
+    if (alerting) return;
+    setAlerting(d.id);
+    setErr(null);
+    try {
+      await api.sendCommand(d.id, 'ALERT');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Alert failed');
+    } finally {
+      setAlerting(null);
     }
   }
 
@@ -509,7 +523,17 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
                 accessibilityLabel="Offline unlock code"
               >
                 <KeyRound size={14} color={ACCENT} />
-                <Text style={s.outlineBtnText}>Offline unlock code</Text>
+                <Text style={s.outlineBtnText} numberOfLines={1} adjustsFontSizeToFit>Offline code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.outlineBtn, { marginTop: 0, flex: 1 }]}
+                onPress={() => alert(d)}
+                disabled={alerting === d.id}
+                accessibilityRole="button"
+                accessibilityLabel="Alert the phone"
+              >
+                <BellRing size={14} color={ACCENT} />
+                <Text style={s.outlineBtnText}>{alerting === d.id ? 'Sending…' : 'Alert'}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -23,6 +23,18 @@ const FRP_ACCOUNTS = (process.env.EXPO_PUBLIC_FRP_ACCOUNTS ?? '')
 
 /** No-internet watchdog: a lock-enabled loan locks after 5 days offline. */
 export const OFFLINE_LOCK_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
+/** User rule: an overdue phone auto-blocks after 4 days with no update and no internet. */
+export const OVERDUE_OFFLINE_LOCK_AFTER_MS = 4 * 24 * 60 * 60 * 1000;
+
+/** Whole days since the cached due date, in device-local time; 0 on any parse failure. */
+function daysSinceDue(due: string | null): number {
+  if (!due) return 0;
+  const dueMs = Date.parse(`${due}T00:00:00`);
+  if (!Number.isFinite(dueMs)) return 0;
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return Math.max(0, Math.floor((todayStart - dueMs) / 86_400_000));
+}
 
 /**
  * Customer photo cache. The heartbeat's signed photo_url is downloaded once
@@ -96,8 +108,11 @@ export async function markSyncOk(): Promise<void> {
 
 /**
  * Offline enforcement: with no successful sync for 5 days, a lock-enabled
- * loan hard-locks locally. notify_only plans never lock; they only remind.
- * Returns true when the phone was just locked here.
+ * loan hard-locks locally. User rule: an OVERDUE phone (>= 1 day, from the
+ * cached overdue_days or the cached due date) auto-blocks after 4 days with
+ * no update and no internet. Not gated on escalation_enabled (that stops the
+ * voice alerts + location SMS only, never locks). notify_only plans never
+ * lock; they only remind. Returns true when the phone was just locked here.
  */
 export async function enforceOfflineWatchdog(): Promise<boolean> {
   const st = await getCachedState();
@@ -106,7 +121,13 @@ export async function enforceOfflineWatchdog(): Promise<boolean> {
   if (st.loan_status !== 'RUNNING' && st.loan_status !== 'NPA') return false;
   const last = await getLastSyncOkAt();
   if (last === 0) return false; // never synced yet: no info to enforce
-  if (Date.now() - last < OFFLINE_LOCK_AFTER_MS) return false;
+  const sinceSync = Date.now() - last;
+  const overdue = Math.max(st.overdue_days ?? 0, daysSinceDue(st.next_due ?? null));
+  if (overdue >= 1 && sinceSync >= OVERDUE_OFFLINE_LOCK_AFTER_MS) {
+    await DeviceMgmt.executeAuthorizedLock('overdue-offline-watchdog-4d');
+    return true;
+  }
+  if (sinceSync < OFFLINE_LOCK_AFTER_MS) return false;
   await DeviceMgmt.executeAuthorizedLock('offline-watchdog');
   return true;
 }
@@ -357,6 +378,11 @@ export async function pollOnce(): Promise<PollUiState | null> {
       const result = await DeviceMgmt.rebootDevice();
       if (result.ok) await ack(cmd.id, 'EXECUTED');
       else await ack(cmd.id, 'FAILED', result.reason ?? 'reboot_refused_while_locked');
+    } else if (cmd.command_type === 'ALERT') {
+      // One notification + the bn/hi overdue voice pair once.
+      const ok = await DeviceMgmt.speakAlertOnce();
+      if (ok) await ack(cmd.id, 'EXECUTED');
+      else await ack(cmd.id, 'FAILED', 'alert_failed');
     } else if (cmd.command_type === 'LOCATION') {
       // Fetched only when asked; never tracked in the background.
       const loc = await DeviceMgmt.getLocation();
@@ -414,24 +440,29 @@ async function ensureReminderChannel(): Promise<void> {
 }
 
 /**
- * Schedule the −3/−1/0/+1/+3 reminder set from the next due date. Previous
- * scheduled reminders are replaced, so the set always matches the DB.
+ * Schedule the −3/−1/0/+1/+3 reminder set from the next due date. The due day
+ * itself fires THREE times (10:00, 14:00, 20:00 local); the surrounding days
+ * stay at 09:00. Previous scheduled reminders are replaced, so the set always
+ * matches the DB.
  */
 export async function scheduleReminders(nextDue: HeartbeatNextDue | null): Promise<void> {
   await ensureReminderChannel();
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (!nextDue) return;
   const amount = `Rs ${Number(nextDue.amount_due ?? 0).toFixed(0)}`;
-  const due = new Date(`${nextDue.due_date}T09:00:00`);
+  const dueDay = new Date(`${nextDue.due_date}T00:00:00`);
   const offsets = [-3, -1, 0, 1, 3];
   for (const off of offsets) {
-    const at = new Date(due.getTime() + off * 86_400_000);
-    if (at.getTime() < Date.now()) continue;
-    const copy = dueReminderCopy(nextDue.due_date, amount, Math.max(0, off));
-    await Notifications.scheduleNotificationAsync({
-      content: { title: 'EMI reminder', body: copy.en, sound: 'default' },
-      trigger: { date: at, channelId: 'emidost-reminders' },
-    });
+    const hours = off === 0 ? [10, 14, 20] : [9];
+    for (const h of hours) {
+      const at = new Date(dueDay.getTime() + off * 86_400_000 + h * 3_600_000);
+      if (at.getTime() < Date.now()) continue;
+      const copy = dueReminderCopy(nextDue.due_date, amount, Math.max(0, off));
+      await Notifications.scheduleNotificationAsync({
+        content: { title: 'EMI reminder', body: copy.en, sound: 'default' },
+        trigger: { date: at, channelId: 'emidost-reminders' },
+      });
+    }
   }
 }
 

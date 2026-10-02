@@ -35,6 +35,15 @@ export function dueReminderCopy(due: string, amount: string, daysOverdue: number
   };
 }
 
+/** Overdue escalation voice lines (30-min audio alerts + retailer ALERT command). */
+export function overdueVoiceCopy(): { bn: string; hi: string; en: string } {
+  return {
+    en: 'Your EMI is overdue.',
+    bn: 'আপনার EMI বকেয়া আছে',
+    hi: 'आपकी EMI बकाया है',
+  };
+}
+
 export type CopyLang = 'en' | 'bn' | 'hi';
 
 export interface LockCopyParams {

@@ -95,7 +95,7 @@ non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 ## I. Deployment gates (all yours, none done)
 | # | Item | State |
 |---|---|---|
-| I1 | Supabase project + migrations: live DB has 0001–0010 applied (probed 2026-10-03: lock_mode, LOCATION, record_payment, refund RPCs all present). Remaining: run 0011 + 0012 + 0013 (or the all-in-one) in a NEW query tab to enable rate_limits RLS, the REBOOT enum and the FCM token columns | CRED (one query tab left) |
+| I1 | Supabase project + migrations: live DB has 0001–0010 applied (probed 2026-10-03: lock_mode, LOCATION, record_payment, refund RPCs all present). Remaining: run 0011–0015 (or the all-in-one) in a NEW query tab to enable rate_limits RLS, the REBOOT/ALERT enums, the FCM token columns, the photo bucket and the escalation column | CRED (one query tab left) |
 | I2 | EAS account + first builds (owner/retailer/customer) + Kotlin Gradle pass | CRED |
 | I3 | SMS provider (if SMS commands are used beyond the local receiver) | CRED |
 | I4 | GitHub release hosting for the customer APK (QR download link) | CRED |
@@ -109,3 +109,13 @@ non-service roles (0011). Swap the in-memory limiter for Upstash before scale.
 | J3 | Wake-only: the push payload is data-only `{ type: 'kick' }` with no command content; Supabase stays the source of truth | CODE | web/lib/fcm.ts sendKick |
 | J4 | Fallback intact: heartbeat poll + SMS unchanged; a phone with no token rides polling; RELEASE clears the token | CODE | heartbeat.ts, ack.ts RELEASE branch |
 | J5 | Real-device wake latency (data-only background delivery on OEMs without Play Services) | DEVICE | per-family walk |
+
+## K. Overdue escalation
+| # | Item | State | Evidence |
+|---|---|---|---|
+| K1 | Due-day schedule: 3 notifications at 10:00, 14:00, 20:00 local; surrounding days keep the −3/−1/+1/+3 reminders | CODE | customer app schedule (codex) |
+| K2 | Overdue days 1–5: every 30 min one notification + "EMI is overdue" in Bengali then Hindi, 3 times per trigger, via app-level TTS; media volume maxed while overdue with DISALLOW_ADJUST_VOLUME (cleared on payment) | CODE + DEVICE | native escalation loop (codex). Honest limit: a hardware mute switch still cuts output; DND access is optional per OEM |
+| K3 | Portal kill-switch (`customers.overdue_escalation_enabled`, default true, audited) + retailer ALERT command (one-shot bn+hi voice, no allowance, refused on settled loans) | CODE | 0015_escalation.sql + customerEscalation PATCH + console toggle + commands.ts ALERT |
+| K4 | Overdue day 3+ without payment: GPS once per window (10:00–12:00 and 18:00–20:00, stable random minute) + SMS to the retailer's number with a Google Maps link (https://maps.google.com/?q=lat,lng); gated on escalation_enabled + loan outstanding; applies to notify_only plans too | CODE + DEVICE | native windows (codex). Honest note: sent by the phone itself using the customer's SMS balance (documented) |
+| K5 | Privacy: toggle audited (`ESCALATION_TOGGLED`), escalation delivered via the authenticated heartbeat, consent is the documented counter rule | CODE | customerEscalation.ts + heartbeat escalation_enabled |
+| K6 | Offline + overdue 4 days (no server contact for 4 days while overdue, cached or computed from the IST due date) → local hard lock (`overdue-offline-watchdog-4d`), lock plans only, NOT gated by the kill-switch; the 5-day no-internet watchdog stays as the outer bound | CODE + DEVICE | SyncStateStore.overdueOfflineLockDue + JS mirror. Honest note: a settled-while-offline phone can still hold the stale lock until its first heartbeat; the TOTP SMS unlock always wins |

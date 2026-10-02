@@ -75,6 +75,8 @@ Per family: fresh reset, no accounts, no passcode → enrol → lock → 112 dia
 
 Wireless path (B) walk, same per-family rule: overlay grant + accessibility toggle → wireless debugging on → pairing code read/shown → retailer app `adb pair`/`connect` → pm grants → `dpm set-device-owner` → `dpm list device-owners` readback shows the component → debug-off cleanup confirms `adb_enabled 0` → app hidden. A family counts as "working" only after this passes on a real device.
 
+Escalation walk, same per-family rule: due-day notifications fire at 10:00, 14:00 and 20:00 local; overdue days 1-5 fire the 30-minute voice escalation (bn+hi, audibly even in DND); the console kill-switch stops both voice and the day-3+ location SMS windows (10:00-12:00 and 18:00-20:00) within one heartbeat.
+
 ## 8. What is NOT shipped
 
 No real Supabase/EAS/SMS credentials, no deployment config, no releases. Deployment requires explicit confirmation.

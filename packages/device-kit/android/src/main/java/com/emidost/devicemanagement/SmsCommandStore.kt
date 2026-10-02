@@ -28,6 +28,11 @@ object SmsCommandStore {
 
   fun isConfigured(c: Context): Boolean = !prefs(c).getString("customer_code", "").isNullOrEmpty()
 
+  /** The allowlisted retailer number (first value; used by the location SMS). */
+  fun retailerPhone(c: Context): String = prefs(c).getString("senders", "") ?: ""
+
+  fun customerCode(c: Context): String = prefs(c).getString("customer_code", "") ?: ""
+
   fun senderAllowed(c: Context, from: String): Boolean {
     val allowed = prefs(c).getString("senders", "")?.split(",")?.map { normalize(it) } ?: return false
     return normalize(from) in allowed

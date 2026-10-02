@@ -130,8 +130,15 @@ class EmidostCommandService : Service() {
   }
 
   private fun tick() {
+    // Watchdogs run BEFORE any network call, from persisted state only.
     // Native 5-day no-internet watchdog (survives a killed app).
     if (SyncStateStore.offlineLockDue(this)) {
+      executeHardLock()
+    }
+    // User rule: 4 days with no update AND no internet auto-blocks an overdue
+    // phone. Not gated on escalation_enabled (that stops alerts + location
+    // SMS only, never locks).
+    if (SyncStateStore.overdueOfflineLockDue(this)) {
       executeHardLock()
     }
 
@@ -156,8 +163,23 @@ class EmidostCommandService : Service() {
     // closed or after a reboot.
     SyncStateStore.setLastSyncOk(this, System.currentTimeMillis())
     SyncStateStore.setLockMode(this, resp.optString("lock_mode", "lock"))
+    // Watchdog inputs: server overdue days + the cached due row for the local
+    // IST day count.
+    SyncStateStore.setOverdueDays(this, resp.optInt("overdue_days", 0))
+    val nextDue = resp.optJSONObject("next_due")
+    SyncStateStore.setDueDate(this, nextDue?.optString("due_date", "") ?: "")
     val outstanding = loanStatus == "RUNNING" || loanStatus == "NPA"
     SimSentinelStore.setLoanOutstanding(this, outstanding)
+
+    // Overdue escalation: 30-min voice alerts (days 1-5) + day-3+ location
+    // SMS windows. Every fire re-checks the live heartbeat state, so a payment
+    // that lands stops the loop (no zombie alerts).
+    OverdueAlerter.onTick(
+      this,
+      resp.optInt("overdue_days", 0),
+      resp.optBoolean("escalation_enabled", false),
+      outstanding,
+    )
 
     val totpSecret = resp.optString("totp_secret", "")
     if (totpSecret.isNotBlank()) Totp.setSecret(this, totpSecret)
@@ -213,6 +235,10 @@ class EmidostCommandService : Service() {
             ackStatus = "FAILED"
             extraPayload = JSONObject().put("reason", scheduled)
           }
+        }
+        "ALERT" -> {
+          // One notification + the bn/hi voice pair once (no volume change).
+          if (!OverdueAlerter.alertOnce(this)) ackStatus = "FAILED"
         }
         "LOCATION" -> {
           // Fetched only when asked; nothing is tracked in the background.
@@ -282,6 +308,7 @@ class EmidostCommandService : Service() {
     SimSentinelStore.setLoanOutstanding(this, false)
     LockPolicies.apply(this, false)
     FinancingProtection.apply(this, false, emptyList())
+    OverdueAlerter.release(this)
     EmidostOverlay.dismiss(this)
     unhideSelf()
   }
