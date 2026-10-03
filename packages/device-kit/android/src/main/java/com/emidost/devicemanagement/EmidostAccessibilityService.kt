@@ -46,7 +46,14 @@ class EmidostAccessibilityService : AccessibilityService() {
     val deterrentActive = SimSentinelStore.loanOutstanding(this)
 
     when (e.eventType) {
-      AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> onWindowChanged(e, deterrentActive)
+      AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+        // The pairing dialog appears as a new window (a state change), with the
+        // IP, port and code already drawn. Read it here too, not only on
+        // content-changed - otherwise the values present when the dialog opens
+        // are never captured and the automatic read silently does nothing.
+        if (enrolmentSessionActive) maybeReadPairingDialog(e)
+        onWindowChanged(e, deterrentActive)
+      }
       AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
         if (enrolmentSessionActive) maybeReadPairingDialog(e)
       }
@@ -86,10 +93,17 @@ class EmidostAccessibilityService : AccessibilityService() {
       setEnrolmentSession(false)
       return
     }
-    val pkg = e.packageName?.toString() ?: return
-    if (pkg != "com.android.settings") return
+    val eventPkg = e.packageName?.toString()
+    // Read the whole active window, not just the node that changed: the pairing
+    // dialog's "IP address & Port" line and the 6-digit code live in separate
+    // text views, and a content-changed event's source is only the changed
+    // subtree, so collecting from it alone usually misses one or both values.
+    val root = rootInActiveWindow ?: e.source ?: return
+    val rootPkg = root.packageName?.toString()
+    // Consent rule: only ever read the Settings app's wireless-debugging screen.
+    if (eventPkg != "com.android.settings" && rootPkg != "com.android.settings") return
     val text = StringBuilder()
-    collectText(e.source, text)
+    collectText(root, text)
     val content = text.toString()
     val pair = Regex("""(\d{1,3}(?:\.\d{1,3}){3}):(\d{4,5})""").find(content)
     // The 6-digit pairing code may render with spaces or dashes between
