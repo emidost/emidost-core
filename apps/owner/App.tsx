@@ -30,7 +30,7 @@ const api = createApi({
   getToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
 });
 
-type Tab = 'retailers' | 'new' | 'audit';
+type Tab = 'retailers' | 'new' | 'audit' | 'applink';
 
 export default function App() {
   const [session, setSession] = useState<boolean | null>(null);
@@ -55,10 +55,12 @@ export default function App() {
       {tab === 'retailers' && <Retailers />}
       {tab === 'new' && <NewRetailer onDone={() => setTab('retailers')} />}
       {tab === 'audit' && <Audit />}
+      {tab === 'applink' && <AppLink />}
       <View style={s.tabs}>
         <TabButton icon={Store} label="Retailers" active={tab === 'retailers'} onPress={() => setTab('retailers')} />
         <TabButton icon={UserPlus} label="New" active={tab === 'new'} onPress={() => setTab('new')} />
         <TabButton icon={ScrollText} label="Audit" active={tab === 'audit'} onPress={() => setTab('audit')} />
+        <TabButton icon={Smartphone} label="App link" active={tab === 'applink'} onPress={() => setTab('applink')} />
       </View>
     </View>
   );
@@ -311,6 +313,51 @@ function Audit() {
         contentContainerStyle={{ paddingBottom: 16 }}
       />
     </View>
+  );
+}
+
+function AppLink() {
+  const [url, setUrl] = useState('');
+  const [sha, setSha] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const c = await api.getCustomerApkConfig();
+        setUrl(c.customer_apk_url ?? '');
+        setSha(c.customer_apk_sha256 ?? '');
+      } catch { /* first run: nothing set yet */ }
+    })();
+  }, []);
+
+  async function save() {
+    if (busy) return;
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      await api.setCustomerApkConfig({ customer_apk_url: url.trim(), customer_apk_sha256: sha.trim() });
+      setMsg('Saved. Retailers use this for the enrolment QR.');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Save failed'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <ScrollView style={s.page}>
+      <View style={s.band}><Text style={s.title}>Customer app link</Text></View>
+      <Text style={s.muted}>The retailer app builds the enrolment QR from these: the customer APK download URL and its signing SHA-256 (from eas credentials).</Text>
+      {msg && <Text style={{ color: colors.success, marginTop: 8 }}>{msg}</Text>}
+      {err && <Text style={s.error}>{err}</Text>}
+      <Text style={s.label}>Customer APK URL (public https)</Text>
+      <TextInput style={s.input} value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} placeholder="https://.../emidost-customer.apk" />
+      <Text style={s.label}>Signing SHA-256 (64 hex)</Text>
+      <TextInput style={s.input} value={sha} onChangeText={setSha} autoCapitalize="none" autoCorrect={false} placeholder="64 hex chars" />
+      <TouchableOpacity style={s.button} onPress={save} disabled={busy} accessibilityRole="button" accessibilityLabel="Save app link">
+        <Smartphone color={colors.onAccent} size={16} />
+        <Text style={s.buttonText}>{busy ? 'Saving…' : 'Save'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
