@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   // Explicit columns: pin_verify and device_token_hash must not reach retailers.
   const { data, error } = await serviceClient()
     .from('devices')
-    .select('id, customer_id, retailer_id, installation_id, manufacturer, model, os_version, mode, is_locked, hidden_state, last_heartbeat_at, last_location, last_location_at, created_at')
+    .select('id, customer_id, retailer_id, installation_id, manufacturer, model, os_version, mode, is_locked, hidden_state, last_heartbeat_at, last_location, last_location_at, sim_info, created_at')
     .eq('retailer_id', profile.retailer_id).order('created_at');
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json(data, { headers: { 'Cache-Control': 'private, no-store' } });

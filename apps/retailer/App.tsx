@@ -633,6 +633,9 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
               <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode === 'device_owner' ? 'Device owner' : d.mode === 'device_admin' ? 'Device admin' : 'Not enrolled'} />
               <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
             </View>
+            {d.sim_info && (
+              <Text style={s.muted}>SIM: {d.sim_info.carrier || 'unknown'} · {d.sim_info.phoneNumber || 'number n/a'}</Text>
+            )}
             <View style={s.quickRow}>
               <TouchableOpacity
                 style={[s.button, { marginTop: 0, flex: 1 }]}

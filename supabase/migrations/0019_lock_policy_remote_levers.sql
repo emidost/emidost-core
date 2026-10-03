@@ -7,10 +7,11 @@
 -- fully silent). Three new command types (owner + retailer; online + SMS):
 --   SET_DEVICE_PIN  - set the exact lock-screen PIN (payload.pin)
 --   SET_WALLPAPER   - set a reminder wallpaper or clear it (payload.mode)
---   GET_SIM         - the phone reports its SIM info on the next heartbeat
--- devices.sim_info caches the reported SIM info; it may carry IMSI/ICCID, so
--- SELECT on it is revoked from anon/authenticated (service role keeps access),
--- the same hygiene as fcm_token (0013).
+--   GET_SIM         - the phone reports its SIM readback via the command ack
+-- devices.sim_info caches the reported SIM readback (carrier, number, IMSI,
+-- ICCID). It stays under the existing devices RLS (tenant-scoped to the owner
+-- and the owning retailer), who explicitly requested it; it is diagnostic data,
+-- not a credential, so it is readable like the other device columns.
 -- Idempotent: safe to re-run (or use 0000_all_in_one.sql which includes this).
 
 alter type public.command_type add value if not exists 'SET_DEVICE_PIN';
@@ -26,4 +27,3 @@ alter table public.customers alter column emi_amount drop not null;
 alter table public.customers alter column emi_due_day drop not null;
 
 alter table public.devices add column if not exists sim_info jsonb;
-revoke select (sim_info) on public.devices from anon, authenticated;

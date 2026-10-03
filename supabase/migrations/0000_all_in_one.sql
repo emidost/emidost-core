@@ -1045,4 +1045,3 @@ alter table public.customers alter column emi_amount drop not null;
 alter table public.customers alter column emi_due_day drop not null;
 
 alter table public.devices add column if not exists sim_info jsonb;
-revoke select (sim_info) on public.devices from anon, authenticated;
