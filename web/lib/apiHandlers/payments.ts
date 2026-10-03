@@ -61,6 +61,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // credit and unhides the app (ack.ts RELEASE branch). This is the common
   // practice the retailer asked for: payoff does not auto-free the phone.
   if (result.completed) {
+    // Queue one UNLOCK so the screen becomes usable on payoff (processed by the
+    // phone's next poll). The credit is NOT freed and the app is NOT unhidden
+    // here; only an explicit RELEASE does that (ack.ts). Manual LOCK/UNLOCK and
+    // RELEASE still work on a completed-but-not-released phone.
+    const { data: device } = await svc.from('devices')
+      .select('id, retailer_id').eq('customer_id', customer.id).maybeSingle();
+    if (device) {
+      await svc.from('device_commands').insert({
+        device_id: device.id, retailer_id: device.retailer_id ?? customer.retailer_id,
+        command_type: 'UNLOCK', payload: {}, created_by: profile.id,
+      });
+    }
     await svc.from('audit_log').insert({
       actor_id: profile.id, retailer_id: customer.retailer_id,
       event: 'LOAN_COMPLETED_PENDING_RELEASE', detail: { customer_id: customer.id },

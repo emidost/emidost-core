@@ -155,10 +155,11 @@ class EmidostCommandService : Service() {
       ?: return
 
     val loanStatus = resp.optString("loan_status", "")
-    if (loanStatus == "COMPLETE" || loanStatus == "SETTLED") {
-      coreRelease()
-      return
-    }
+    // Payoff is NOT auto-release. COMPLETE/SETTLED stops all automatic locking
+    // (outstanding=false below gates the watchdogs, SIM sentinel and alerter)
+    // and the server queues a one-time UNLOCK, but the device stays managed and
+    // hidden until the explicit RELEASE command. coreRelease() runs ONLY for
+    // RELEASE now, so the tick continues to process queued commands below.
 
     // Full offline capability, native side: install the server truth so SMS
     // unlock, offline TOTP, the watchdog and protection all work with the app

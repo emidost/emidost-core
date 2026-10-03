@@ -5,7 +5,7 @@ import * as DeviceMgmt from '@emidost/device-kit';
 import * as Notifications from 'expo-notifications';
 import * as FileSystem from 'expo-file-system';
 import {
-  dueReminderCopy, isLockCommandStale, isoToEpochMillis,
+  dueReminderCopy, isLockCommandStale, isoToEpochMillis, wallpaperReminderCopy,
   type HeartbeatNextDue, type HeartbeatRequest, type HeartbeatResponse,
 } from '@emidost/shared';
 import { getPushToken, pushProjectId } from './push';
@@ -303,17 +303,15 @@ export async function pollOnce(): Promise<PollUiState | null> {
 
   const loanStatus: string = resp.loan_status ?? '';
   if (loanStatus === 'COMPLETE' || loanStatus === 'SETTLED') {
-    // Release-first: unlock, stop the sentinel, clear protection, unhide,
-    // and cancel every reminder. Once per process; the native service
-    // repeats the release on its own ticks.
-    await applyOnce('release', 'done', async () => {
+    // Payoff is NOT auto-release. Stop all automatic locking and reminders,
+    // but stay Device-Owner managed and hidden until the retailer sends
+    // RELEASE. The server queues a one-time UNLOCK (processed in the command
+    // loop below) so the screen becomes usable; manual LOCK/UNLOCK/RELEASE
+    // still flow. Falls through to the command loop (does not return).
+    await applyOnce('completed', 'done', async () => {
       await cancelReminders();
-      await DeviceMgmt.executeAuthorizedUnlock('settled');
       await DeviceMgmt.setLoanOutstanding(false);
-      await DeviceMgmt.applyFinancingProtection(false, []);
-      await DeviceMgmt.unhideSelf();
     });
-    return ui;
   }
 
   // Reminders follow the DB truth while the loan is outstanding; the set is
@@ -414,6 +412,25 @@ export async function pollOnce(): Promise<PollUiState | null> {
       // Fetched only when asked; never tracked in the background.
       const loc = await DeviceMgmt.getLocation();
       await ack(cmd.id, 'EXECUTED', undefined, { location: loc ?? {} });
+    } else if (cmd.command_type === 'SET_DEVICE_PIN') {
+      // Set the exact lock-screen PIN; honest ok/fail from the OS.
+      const pin = String((cmd.payload as { pin?: unknown })?.pin ?? '');
+      const r = await DeviceMgmt.setDevicePin(pin);
+      if (r.ok) await ack(cmd.id, 'EXECUTED');
+      else await ack(cmd.id, 'FAILED', r.reason);
+    } else if (cmd.command_type === 'SET_WALLPAPER') {
+      const mode = String((cmd.payload as { mode?: unknown })?.mode ?? '');
+      const wc = wallpaperReminderCopy(`Rs ${resp.emi_amount ?? ''}`, resp.next_due?.due_date ?? '', resp.overdue_days ?? 0);
+      const r = mode === 'clear'
+        ? await DeviceMgmt.clearWallpaper()
+        : await DeviceMgmt.setReminderWallpaper(`${wc.bn}\n${wc.en}`);
+      if (r.ok) await ack(cmd.id, 'EXECUTED');
+      else await ack(cmd.id, 'FAILED', 'wallpaper_failed');
+    } else if (cmd.command_type === 'GET_SIM') {
+      const sim = await DeviceMgmt.getSimInfo();
+      await ack(cmd.id, 'EXECUTED', undefined, {
+        sim_info: { carrier: sim.carrier, phoneNumber: sim.phoneNumber, imsi: sim.imsi, iccid: sim.iccid },
+      });
     }
   }
   return ui;
