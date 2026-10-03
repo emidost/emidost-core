@@ -248,6 +248,13 @@ class EmidostDeviceManagementModule : Module() {
 
     // Transient pairing-dialog readback (10-min expiry, cleared after consume).
     Function("getPairingInfo") { EmidostAdbBridge.pairingInfo() }
+    Function("getProvisioningToken") {
+      DpcContext.wrap(context).getSharedPreferences("emidost_enroll", Context.MODE_PRIVATE).getString("token", "") ?: ""
+    }
+    Function("clearProvisioningToken") {
+      DpcContext.wrap(context).getSharedPreferences("emidost_enroll", Context.MODE_PRIVATE).edit().remove("token").apply()
+      true
+    }
     Function("clearPairingInfo") { EmidostAdbBridge.clear(); true }
 
     Function("getAdbBridgeStatus") { EmidostAdbBridge.status(context) }

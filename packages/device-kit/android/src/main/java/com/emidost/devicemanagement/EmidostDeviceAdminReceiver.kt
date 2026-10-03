@@ -15,6 +15,19 @@ class EmidostDeviceAdminReceiver : DeviceAdminReceiver() {
 
   override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
     super.onProfileProvisioningComplete(context, intent)
+    // Carry the enrolment token from the provisioning QR's extras bundle so the
+    // app binds with no typed setup code (kiosk no-typing path).
+    try {
+      val extras = intent.getParcelableExtra<android.os.PersistableBundle>(
+        DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE,
+      )
+      val token = extras?.getString("com.emidost.enroll_token")
+      if (!token.isNullOrBlank()) {
+        DpcContext.wrap(context)
+          .getSharedPreferences("emidost_enroll", Context.MODE_PRIVATE)
+          .edit().putString("token", token).apply()
+      }
+    } catch (_: Exception) {}
     try {
       val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
       val admin = ComponentName(context, EmidostDeviceAdminReceiver::class.java)

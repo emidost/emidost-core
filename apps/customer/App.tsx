@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, View, Linking,
 } from 'react-native';
 import { KeyRound, Lock, PhoneCall, Settings2, ShieldCheck, Siren, Smartphone, RefreshCw, CircleCheck } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -200,17 +200,45 @@ function BindScreen({ onBound }: { onBound: () => void }) {
     })();
   }, []);
 
-  async function bind() {
+  async function bind(tokenOverride?: string) {
+    const theCode = (tokenOverride ?? code).trim();
+    if (!theCode) return;
     setBusy(true);
     setError(null);
     const info = await DeviceMgmt.getDeviceInfo();
-    const result = await registerWithToken(code.trim(), {
+    const result = await registerWithToken(theCode, {
       manufacturer: info.manufacturer, model: info.model, os_version: info.androidVersion,
     });
     setBusy(false);
     if (result.ok) onBound();
     else setError(result.error ?? 'Binding failed');
   }
+
+  // No-typing enrolment: auto-bind from a kiosk provisioning-extras token or a
+  // wireless emidost://bind?token=... deep link.
+  useEffect(() => {
+    let cancelled = false;
+    const parse = (url: string | null): string | null => {
+      if (!url) return null;
+      const m = url.match(/[?&]token=([^&]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    };
+    const tryToken = async (t: string | null) => {
+      const tok = (t ?? '').trim();
+      if (!tok || cancelled) return;
+      setCode(tok);
+      await bind(tok);
+    };
+    void (async () => {
+      try {
+        const pt = await DeviceMgmt.getProvisioningToken();
+        if (pt) { await DeviceMgmt.clearProvisioningToken(); await tryToken(pt); return; }
+      } catch { /* no provisioning token */ }
+      try { await tryToken(parse(await Linking.getInitialURL())); } catch { /* no deep link */ }
+    })();
+    const sub = Linking.addEventListener('url', (e) => { void tryToken(parse(e.url)); });
+    return () => { cancelled = true; sub.remove(); };
+  }, []);
 
   if (showWalkthrough) {
     return <PairingWalkthrough onDone={() => setShowWalkthrough(false)} />;
@@ -231,7 +259,7 @@ function BindScreen({ onBound }: { onBound: () => void }) {
         autoCorrect={false}
       />
       {error && <Text style={s.error}>{error}</Text>}
-      <TouchableOpacity style={s.button} onPress={bind} disabled={busy} accessibilityRole="button" accessibilityLabel="Bind this phone">
+      <TouchableOpacity style={s.button} onPress={() => void bind()} disabled={busy} accessibilityRole="button" accessibilityLabel="Bind this phone">
         <KeyRound color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>{busy ? 'Binding…' : 'Bind this phone'}</Text>
       </TouchableOpacity>

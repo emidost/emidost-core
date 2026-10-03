@@ -3,6 +3,7 @@
     "name": "wifi",
     "slug": "emidost-customer",
     "owner": "emidosts-team",
+    "scheme": "emidost",
     "version": "4.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",

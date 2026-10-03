@@ -228,6 +228,13 @@ export function getPairingInfo(): Promise<AdbPairingInfo> {
 export function clearPairingInfo(): Promise<boolean> {
   return native.clearPairingInfo();
 }
+/** Enrolment token carried by a kiosk provisioning QR's extras bundle (empty when none). */
+export function getProvisioningToken(): Promise<string> {
+  return native.getProvisioningToken();
+}
+export function clearProvisioningToken(): Promise<boolean> {
+  return native.clearProvisioningToken();
+}
 
 // Bundled-adb self-pair steps (background thread; 20 s timeout each).
 export function adbPrepare(): Promise<AdbStepResult> {
