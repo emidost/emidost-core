@@ -25,5 +25,12 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "typescript": "^5.5.4"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "typescript"
+      ]
+    }
   }
 }

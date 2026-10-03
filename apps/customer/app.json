@@ -6,7 +6,6 @@
     "version": "4.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -22,7 +21,8 @@
           "android": {
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
+            "buildToolsVersion": "34.0.0",
+            "newArchEnabled": false
           }
         }
       ],
@@ -37,7 +37,6 @@
     ],
     "android": {
       "package": "com.emidost.customer",
-      "label": "wifi",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
