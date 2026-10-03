@@ -4,6 +4,48 @@ Fresh project; started 2026-10-02. This file records what is implemented, what
 passed checks, and what still needs credentials or a physical device. Nothing
 here is a deployment record.
 
+## 2026-10-03 retailer-controlled lock, release lifecycle, remote levers
+
+- User requirement: locking is retailer-controlled. Phone stays always-on and
+  listening (SMS + server) but never auto-locks unless the retailer records an
+  EMI plan at customer creation ("Record EMI" -> overdue auto-lock at 5 days
+  with no server update + reminders; "No EMI record" -> manual-lock only, fully
+  silent, a Bengali popup nudges recording EMI). Payoff no longer auto-releases:
+  the screen unlocks but the device stays Device-Owner managed + hidden until
+  the retailer sends RELEASE (which frees the device credit and unhides). New
+  owner+retailer levers (online + SMS): set the exact phone PIN, set/clear a
+  reminder wallpaper, fetch SIM info. Location already existed.
+- Branch: feat/retailer-release-lock-policy-remote-levers. Spec + plan in
+  docs/superpowers/{specs,plans}/2026-10-03-retailer-release-lock-policy-remote-levers*.
+- SQL: 0019 adds command types SET_DEVICE_PIN/SET_WALLPAPER/GET_SIM,
+  customers.auto_lock_on_overdue (default false), nullable EMI columns
+  (no-EMI-record customers), devices.sim_info (tenant-scoped, no revoke).
+  0018 app_config also folded into the all-in-one (it was missing). USER STEP:
+  run 0019 (or the all-in-one) on the live DB.
+- Web: payments completion queues a one-time UNLOCK + audits
+  LOAN_COMPLETED_PENDING_RELEASE (no credit free); ack.ts RELEASE still frees
+  the credit (now the only path) + stores sim_info from the GET_SIM ack;
+  commands.ts (retailer, +RELEASE) and commandProxy.ts (owner) accept the three
+  new types behind shared validateCommandPayload (pin 4-16 digits, mode
+  reminder|clear), no allowance; heartbeat delivers auto_lock_on_overdue;
+  retailerCustomers accepts track_emi (EMI optional when false).
+- Native (device-kit): DevicePinSetter (reset-password token set at activation +
+  resetPasswordWithToken), EmidostWallpaper (on-device bitmap set/clear),
+  SimInfoReader; command service + SMS (SETPIN/WALL/SIM) dispatch; ALL automatic
+  locks (5-day + 4-day watchdogs + SIM sentinel) now gated on
+  auto_lock_on_overdue; payoff no longer coreReleases (stays managed until the
+  RELEASE command). FRP unchanged (confirmed correct; honest frp_os_confirmed=false).
+- Honest limits (DEVICE/CRED): set-PIN needs a NEW build + re-enrol (token at
+  activation), Android <=12 best, some OEMs refuse (reports real failure);
+  wallpaper/PIN/SIM/lock behaviors are device-verified only; SIM dialable number
+  often blank; 0019 live apply + the three EAS rebuilds + GitHub re-release are
+  user/CRED steps.
+- Checks (this machine): 7 tsc surfaces 0 (shared/device-kit/web/customer/
+  retailer/owner/workers) · node tests 13/13 · next build 16 routes exit 0.
+  Kotlin compiles only in the EAS build (queued as Task 11). acceptance_ab
+  assertions for the new flows are written; they run against the live DB
+  (prod-mutating, gated here) so the user/staging runs them.
+
 ## 2026-10-03 total debugging (claude half: claim-vs-code audit + A+B acceptance)
 
 - **Claim-vs-code audit:** walked CONTEXT / README / SETUP / checklist /
