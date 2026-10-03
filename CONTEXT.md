@@ -185,9 +185,10 @@ from `eas credentials`) + `PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION`
 
 (b) Wireless-debugging self-pair (no PC; retailer phone = controller, customer
 phone = target): the target app walks the customer through one overlay grant +
-one accessibility toggle; the accessibility service auto-walks developer
-options, enables wireless debugging (per-OEM matrix) and reads BOTH the
-pairing dialog (pairing ip:port + 6-digit code) and the main screen's connect
+one accessibility toggle; staff then open developer options and start wireless
+debugging + pair device (the walkthrough shows per-OEM guidance), and the
+accessibility service automatically reads BOTH the pairing dialog (pairing
+ip:port + 6-digit code) and the main screen's connect
 ip:port — the pairing port and the connect port are DIFFERENT numbers on stock
 Android (settings package only, 10-min expiry, cleared after). Staff type the
 four values (ip, pairing port, code, connect port) into the retailer app's
