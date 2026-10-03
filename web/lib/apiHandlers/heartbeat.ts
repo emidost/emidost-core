@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
   // FCM/Expo wake token: stored/rotated here in the SAME parallel update wave
   // as last_heartbeat_at (no extra round trip). `fcm_token: null` in the body
   // clears the stored token (e.g. the phone lost push registration).
-  const heartbeatUpdate: Record<string, unknown> = { last_heartbeat_at: new Date().toISOString() };
+  const heartbeatUpdate: Record<string, string | null> = { last_heartbeat_at: new Date().toISOString() };
   const bodyFcm = body?.fcm_token;
   if (typeof bodyFcm === 'string' && bodyFcm.length <= 200 && bodyFcm !== device.fcm_token) {
     heartbeatUpdate.fcm_token = bodyFcm.length > 0 ? bodyFcm : null;

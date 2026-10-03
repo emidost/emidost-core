@@ -143,12 +143,6 @@ export interface HeartbeatRequest {
   fcm_token?: string | null;
 }
 
-/** Ack body for a GET_SIM command: the phone attaches its SIM readback here
- *  (stored into devices.sim_info by the ack route, same pattern as location). */
-export interface AckSimInfo {
-  sim_info: SimInfo;
-}
-
 /** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */
 export interface HeartbeatResponse {
   commands: HeartbeatCommand[];

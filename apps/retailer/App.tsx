@@ -190,8 +190,8 @@ function Customers() {
                 label={c.status === 'NPA' ? 'Missed payment' : c.status === 'RUNNING' ? 'On time' : c.status === 'COMPLETE' ? 'Paid' : c.status === 'SETTLED' ? 'Settled' : c.status}
               />
               <Chip
-                tone={c.lock_mode === 'notify_only' ? colors.textMid : colors.accentTeal}
-                label={c.lock_mode === 'notify_only' ? 'Reminders only' : 'Lock plan'}
+                tone={c.lock_mode === 'notify_only' ? colors.textMid : c.auto_lock_on_overdue ? colors.accentTeal : colors.textMid}
+                label={c.lock_mode === 'notify_only' ? 'Reminders only' : c.auto_lock_on_overdue ? 'Auto lock' : 'Manual lock'}
               />
               {!!c.photo_path && (
                 <Chip tone={colors.accentTeal} label="Photo" />
