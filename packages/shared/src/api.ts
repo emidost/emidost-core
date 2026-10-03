@@ -55,8 +55,10 @@ export function createApi({ baseUrl, getToken }: ApiClientOptions) {
     listCustomers: () => req<Customer[]>('/api/retailer/customers'),
     createCustomer: (body: {
       name: string; phone: string; imei: string; brand: string; model: string;
-      emi_months: number; emi_amount: number; emi_due_day: number;
+      emi_months?: number; emi_amount?: number; emi_due_day?: number;
       lock_mode: 'lock' | 'notify_only';
+      /** false = No EMI record (manual-lock only); default true records the plan. */
+      track_emi?: boolean;
     }) => req<Customer>('/api/retailer/customers', { method: 'POST', body: JSON.stringify(body) }),
     /**
      * Multipart photo upload. RN's FormData sets the multipart boundary itself,
@@ -88,7 +90,11 @@ export function createApi({ baseUrl, getToken }: ApiClientOptions) {
       }),
     getEnrolment: (sessionId: string) => req<EnrolmentSession>(`/api/retailer/enrollments/${sessionId}`),
     listDevices: () => req<Device[]>('/api/retailer/devices'),
-    sendCommand: (deviceId: string, commandType: 'LOCK' | 'UNLOCK' | 'ALERT' | 'REMIND', payload: Record<string, unknown> = {}) =>
+    sendCommand: (
+      deviceId: string,
+      commandType: 'LOCK' | 'UNLOCK' | 'ALERT' | 'REMIND' | 'LOCATION' | 'RELEASE' | 'SET_DEVICE_PIN' | 'SET_WALLPAPER' | 'GET_SIM',
+      payload: Record<string, unknown> = {},
+    ) =>
       req<DeviceCommand>(`/api/retailer/devices/${deviceId}/commands`, {
         method: 'POST', body: JSON.stringify({ command_type: commandType, payload }),
       }),

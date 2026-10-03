@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}));
   const commandType: string | undefined = body?.command_type;
-  const RETAILER_COMMANDS = ['LOCK', 'UNLOCK', 'LOCATION', 'ALERT', 'REMIND', 'SET_DEVICE_PIN', 'SET_WALLPAPER', 'GET_SIM'];
+  const RETAILER_COMMANDS = ['LOCK', 'UNLOCK', 'RELEASE', 'LOCATION', 'ALERT', 'REMIND', 'SET_DEVICE_PIN', 'SET_WALLPAPER', 'GET_SIM'];
   if (!commandType || !RETAILER_COMMANDS.includes(commandType)) {
     return bad('command_type must be one of ' + RETAILER_COMMANDS.join(', '));
   }
