@@ -4,6 +4,7 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { KeyRound, Lock, PhoneCall, Settings2, ShieldCheck, Siren, Smartphone, RefreshCw, CircleCheck } from 'lucide-react-native';
+import QRCode from 'react-native-qrcode-svg';
 import * as DeviceMgmt from '@emidost/device-kit';
 import {
   colors, getOemProfile, dueReminderCopy, lockScreenCopy, locked as LOCKED, type CopyLang,
@@ -405,6 +406,17 @@ function PairingWalkthrough({ onDone }: { onDone: () => void }) {
               ) : (
                 <Text style={s.muted}>Not seen yet. Read it on the phone's Wireless debugging screen.</Text>
               )}
+              {pairing.connectHost && pairing.connectPort ? (
+                <View style={{ alignItems: 'center', marginTop: 16 }}>
+                  <Text style={s.pairLabel}>Or scan this on the retailer phone (no typing)</Text>
+                  <View style={{ backgroundColor: '#ffffff', padding: 12, borderRadius: 8, marginTop: 6 }}>
+                    <QRCode
+                      value={JSON.stringify({ h: pairing.address, pp: pairing.port, cp: pairing.connectPort, c: pairing.code })}
+                      size={200}
+                    />
+                  </View>
+                </View>
+              ) : null}
               <Text style={s.muted}>Valid for 10 minutes.</Text>
             </>
           )}

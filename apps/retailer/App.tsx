@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as DeviceMgmt from '@emidost/device-kit';
 import Svg, { Circle } from 'react-native-svg';
 import mark from './assets/icon.png';
@@ -822,6 +823,8 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
   const [steps, setSteps] = useState<{ label: string; status: 'pending' | 'running' | 'ok' | 'failed'; output: string }[]>([
     { label: 'Prepare adb', status: 'pending', output: '' },
     { label: 'Pair', status: 'pending', output: '' },
@@ -836,10 +839,38 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
     setSteps((prev) => prev.map((s, idx) => (idx === i ? { ...s, status, output } : s)));
   };
 
-  async function run() {
+  // Scan the QR the customer phone shows ({h,pp,cp,c}) -> auto-fill + auto-run.
+  // No typing: the customer's accessibility read already captured the values.
+  async function onScan(raw: string) {
     if (busy) return;
-    if (!host.trim() || !pairPort.trim() || !connectPort.trim() || !code.trim()) {
-      setErr('Type the host, pair port, connect port and pairing code first.');
+    setScanning(false);
+    try {
+      const v = JSON.parse(raw) as { h?: string; pp?: string; cp?: string; c?: string };
+      if (!v.h || !v.pp || !v.cp || !v.c) { setErr('That QR is missing some pairing values.'); return; }
+      setHost(v.h); setPairPort(v.pp); setConnectPort(v.cp); setCode(v.c);
+      await run({ host: v.h, pairPort: v.pp, connectPort: v.cp, code: v.c });
+    } catch {
+      setErr('That QR could not be read. Point at the customer phone pairing QR.');
+    }
+  }
+
+  async function openScanner() {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) { setErr('Camera permission is needed to scan the pairing QR.'); return; }
+    }
+    setErr(null);
+    setScanning(true);
+  }
+
+  async function run(override?: { host: string; pairPort: string; connectPort: string; code: string }) {
+    if (busy) return;
+    const h = (override?.host ?? host).trim();
+    const pp = (override?.pairPort ?? pairPort).trim();
+    const cp = (override?.connectPort ?? connectPort).trim();
+    const c = (override?.code ?? code).trim();
+    if (!h || !pp || !cp || !c) {
+      setErr('Scan the customer QR, or type the host, pair port, connect port and code.');
       return;
     }
     setBusy(true);
@@ -853,12 +884,12 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
       setStep(0, 'ok', r.output);
 
       setStep(1, 'running', '');
-      r = await DeviceMgmt.adbPair(host.trim(), pairPort.trim(), code.trim());
+      r = await DeviceMgmt.adbPair(h, pp, c);
       if (!r.ok) { setStep(1, 'failed', r.error ?? r.output); return; }
       setStep(1, 'ok', r.output);
 
       setStep(2, 'running', '');
-      r = await DeviceMgmt.adbConnect(host.trim(), connectPort.trim());
+      r = await DeviceMgmt.adbConnect(h, cp);
       if (!r.ok) { setStep(2, 'failed', r.error ?? r.output); return; }
       setStep(2, 'ok', r.output);
 
@@ -876,9 +907,9 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
       r = await DeviceMgmt.adbDisableDebugging();
       setStep(5, r.ok ? 'ok' : 'failed', r.error || r.output);
     } finally {
-      if (host.trim() && connectPort.trim()) {
+      if (h && cp) {
         try {
-          const d = await DeviceMgmt.adbDisconnect(host.trim(), connectPort.trim());
+          const d = await DeviceMgmt.adbDisconnect(h, cp);
           setStep(6, d.ok ? 'ok' : 'failed', d.output);
         } catch {
           setStep(6, 'failed', 'disconnect failed');
@@ -890,6 +921,22 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
     }
   }
 
+  if (scanning) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000000' }}>
+        <CameraView
+          style={{ flex: 1 }}
+          facing="back"
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={({ data }) => { void onScan(data); }}
+        />
+        <TouchableOpacity style={[s.button, { margin: 16 }]} onPress={() => setScanning(false)} accessibilityRole="button" accessibilityLabel="Cancel scan">
+          <Text style={s.buttonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={s.page}>
       <View style={s.band}>
@@ -899,13 +946,17 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
         </TouchableOpacity>
         <Text style={s.title}>Wireless enrol</Text>
       </View>
-      <Text style={s.muted}>Type the three numbers from the customer phone: the pair port and code from the pairing dialog, and the connect port from the Wireless debugging screen.</Text>
+      <TouchableOpacity style={s.button} onPress={openScanner} disabled={busy} accessibilityRole="button" accessibilityLabel="Scan customer QR">
+        <QrCode color={colors.onAccent} size={16} />
+        <Text style={s.buttonText}>Scan customer QR (no typing)</Text>
+      </TouchableOpacity>
+      <Text style={s.muted}>Scan the QR on the customer phone - or type the numbers manually:</Text>
       <TextInput style={s.input} placeholder="Host (192.168.1.5)" value={host} onChangeText={setHost} autoCapitalize="none" autoCorrect={false} />
       <TextInput style={s.input} placeholder="Pair port (37001)" value={pairPort} onChangeText={setPairPort} keyboardType="numeric" />
       <TextInput style={s.input} placeholder="Connect port (40051)" value={connectPort} onChangeText={setConnectPort} keyboardType="numeric" />
       <TextInput style={s.input} placeholder="6-digit pairing code" value={code} onChangeText={setCode} keyboardType="numeric" maxLength={6} />
       {err && <Text style={s.error}>{err}</Text>}
-      <TouchableOpacity style={s.button} onPress={run} disabled={busy} accessibilityRole="button" accessibilityLabel="Start wireless enrol">
+      <TouchableOpacity style={s.button} onPress={() => void run()} disabled={busy} accessibilityRole="button" accessibilityLabel="Start wireless enrol">
         <Play color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>{busy ? 'Running…' : 'Start'}</Text>
       </TouchableOpacity>

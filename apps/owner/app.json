@@ -23,6 +23,11 @@
       "permissions": [
         "INTERNET"
       ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "758bb469-873c-4f78-8a7e-98025f866678"
+      }
     }
   }
 }

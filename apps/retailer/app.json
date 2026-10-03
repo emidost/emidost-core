@@ -13,7 +13,13 @@
       "backgroundColor": "#0F141C"
     },
     "plugins": [
-      "./plugin-adb-assets"
+      "./plugin-adb-assets",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan the pairing QR shown on the customer phone."
+        }
+      ]
     ],
     "android": {
       "package": "com.emidost.retailer",
@@ -25,6 +31,11 @@
       "permissions": [
         "INTERNET"
       ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "648fdd26-dc4b-431b-ac61-ea82225652fa"
+      }
     }
   }
 }

@@ -14,7 +14,8 @@ import java.util.Locale
  * Offline SMS commands from the retailer's registered number (allowlist +
  * customer code gate on every command):
  *   LOCK <code>                  — DO + outstanding + lock plan; 60 s debounced
- *   UNLOCK <code> <totp>         — 8-digit TOTP required; always wins
+ *   UNLOCK <code>                — allowlisted retailer number + code; always wins
+ *                                  (optional trailing TOTP still accepted)
  *   REMIND <code>                — friendly bn/hi voice once + notification
  *   ALERT <code>                 — urgent bn/hi voice once + notification
  *   LOCATION <code>              — reply SMS with the Google Maps link (or a
@@ -58,12 +59,15 @@ class EmidostSmsReceiver : BroadcastReceiver() {
           if (!debounced) EmidostCommandService.kick()
         }
         "UNLOCK" -> {
-          // Unlock always wins and stays available after release. The body
-          // must carry a valid TOTP (authenticated factor): bare-SMS unlock
-          // is spoofable and is not accepted.
-          if (parts.size >= 3 && Totp.verify(context, parts[2])) {
-            DeviceActions.releaseLock(context)
-          }
+          // Owner decision: unlock from the allowlisted retailer number with
+          // just the customer code, symmetric with LOCK - no TOTP required.
+          // (A trailing TOTP is still accepted but optional.) The sender
+          // allowlist + customer code were already checked above.
+          // Tradeoff, documented honestly: SMS sender numbers can be spoofed,
+          // so a forged SMS from the retailer's number carrying the customer
+          // code can unlock. Accepted for one-SMS offline convenience. Unlock
+          // always wins and stays available after release.
+          DeviceActions.releaseLock(context)
           EmidostCommandService.kick()
         }
         "REMIND" -> {
