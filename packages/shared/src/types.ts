@@ -5,10 +5,19 @@ export type LoanStatus = 'RUNNING' | 'NPA' | 'COMPLETE' | 'SETTLED';
 export type EnrolmentState =
   | 'created' | 'prechecked' | 'paired' | 'connected' | 'installed'
   | 'owner_verified' | 'access_verified' | 'finalizing' | 'active' | 'expired';
-export type CommandType = 'LOCK' | 'UNLOCK' | 'RELEASE' | 'REBOOT' | 'ALERT' | 'REMIND' | 'DEVICE_ACTION' | 'SET_PIN_POLICY' | 'LOCATION';
+export type CommandType = 'LOCK' | 'UNLOCK' | 'RELEASE' | 'REBOOT' | 'ALERT' | 'REMIND' | 'DEVICE_ACTION' | 'SET_PIN_POLICY' | 'LOCATION' | 'SET_DEVICE_PIN' | 'SET_WALLPAPER' | 'GET_SIM';
 export type CommandStatus = 'PENDING' | 'RECEIVED' | 'EXECUTED' | 'SUPERSEDED' | 'EXPIRED' | 'CANCELLED' | 'FAILED';
 export type DeviceMode = 'none' | 'device_admin' | 'device_owner';
 export type LedgerKind = 'topup' | 'slot_consumed' | 'slot_freed' | 'lock_consumed' | 'adjust';
+
+/** SIM readback reported by the phone (GET_SIM). The dialable number is often
+ *  blank on modern Android; carrier + IMSI/ICCID are the reliable parts. */
+export interface SimInfo {
+  carrier: string;
+  phoneNumber: string;
+  imsi: string | null;
+  iccid: string | null;
+}
 
 export interface Profile {
   id: string;
@@ -36,12 +45,15 @@ export interface Customer {
   imei: string;
   brand: string;
   model: string;
-  emi_months: number;
-  emi_amount: number;
-  emi_due_day: number;
+  emi_months: number | null;
+  emi_amount: number | null;
+  emi_due_day: number | null;
   customer_code: string | null;
   status: LoanStatus;
   lock_mode: 'lock' | 'notify_only';
+  /** Retailer opt-in: true only when an EMI plan is recorded; false = manual-lock
+   *  only (the phone stays always-on + listening but never auto-locks). */
+  auto_lock_on_overdue: boolean;
   photo_path?: string | null;
   photo_url?: string | null;
 }
@@ -58,6 +70,8 @@ export interface Device {
   is_locked: boolean;
   hidden_state: 'visible' | 'hidden';
   last_heartbeat_at: string | null;
+  /** Last SIM readback the phone reported via GET_SIM (null until requested). */
+  sim_info?: SimInfo | null;
 }
 
 export interface Payment {
@@ -127,6 +141,8 @@ export interface HeartbeatRequest {
   locked: boolean;
   /** Expo push token for the FCM kick channel (omitted when unavailable). */
   fcm_token?: string | null;
+  /** SIM readback the phone attaches in response to a GET_SIM command. */
+  sim_info?: SimInfo | null;
 }
 
 /** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */
@@ -139,6 +155,8 @@ export interface HeartbeatResponse {
   loan_status: LoanStatus | '';
   customer_code: string | null;
   lock_mode: 'lock' | 'notify_only';
+  /** Retailer opt-in; the phone gates all automatic locking on this. */
+  auto_lock_on_overdue: boolean;
   emi_amount: number | null;
   emi_months: number | null;
   emi_due_day: number | null;
