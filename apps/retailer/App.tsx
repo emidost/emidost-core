@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as DeviceMgmt from '@emidost/device-kit';
 import Svg, { Circle } from 'react-native-svg';
+import QRCode from 'react-native-qrcode-svg';
 import mark from './assets/icon.png';
 import {
   colors, createApi, getOemProfile, totpCode, totpSecondsLeft,
@@ -52,6 +53,7 @@ export default function App() {
   const [unlockFor, setUnlockFor] = useState<Device | null>(null);
   // Full-screen wireless enrol runner.
   const [wirelessEnrol, setWirelessEnrol] = useState(false);
+  const [enrollQr, setEnrollQr] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -72,6 +74,7 @@ export default function App() {
   if (!session) return <Login onDone={() => setSession(true)} />;
   if (unlockFor) return <UnlockCodeScreen device={unlockFor} onClose={() => setUnlockFor(null)} />;
   if (wirelessEnrol) return <WirelessEnrol onClose={() => setWirelessEnrol(false)} />;
+  if (enrollQr) return <EnrollmentQR onClose={() => setEnrollQr(false)} />;
 
   return (
     <View style={{ flex: 1 }}>
@@ -85,7 +88,7 @@ export default function App() {
       {tab === 'customers' && <Customers />}
       {tab === 'new' && <NewCustomer onDone={() => setTab('customers')} onBrand={setEnrolBrand} />}
       {tab === 'devices' && <Devices onUnlockCode={setUnlockFor} />}
-      {tab === 'enrol' && <Enrol brand={enrolBrand} onWirelessEnrol={() => setWirelessEnrol(true)} />}
+      {tab === 'enrol' && <Enrol brand={enrolBrand} onWirelessEnrol={() => setWirelessEnrol(true)} onEnrollQr={() => setEnrollQr(true)} />}
       <View style={s.tabs}>
         <TabButton icon={Wallet} label="Customers" active={tab === 'customers'} onPress={() => setTab('customers')} />
         <TabButton icon={UserPlus} label="New" active={tab === 'new'} onPress={() => setTab('new')} />
@@ -759,7 +762,7 @@ function UnlockCodeScreen({ device, onClose }: { device: Device; onClose: () => 
   );
 }
 
-function Enrol({ brand, onWirelessEnrol }: { brand: string; onWirelessEnrol: () => void }) {
+function Enrol({ brand, onWirelessEnrol, onEnrollQr }: { brand: string; onWirelessEnrol: () => void; onEnrollQr: () => void }) {
   const [steps, setSteps] = useState<string[]>([]);
   const [hint, setHint] = useState('');
   const [profileName, setProfileName] = useState('');
@@ -794,6 +797,10 @@ function Enrol({ brand, onWirelessEnrol }: { brand: string; onWirelessEnrol: () 
       <TouchableOpacity style={s.button} onPress={() => { if (API_URL) void Linking.openURL(`${API_URL}/qr`); }} accessibilityRole="button" accessibilityLabel="Open portal QR page">
         <QrCode color={colors.onAccent} size={16} />
         <Text style={s.buttonText}>Open portal QR page</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={onEnrollQr} accessibilityRole="button" accessibilityLabel="Enrolment QR">
+        <QrCode color={colors.onAccent} size={16} />
+        <Text style={s.buttonText}>Enrolment QR (download + code, no typing)</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[s.outlineBtn, { marginTop: 12 }]}
@@ -972,6 +979,126 @@ function WirelessEnrol({ onClose }: { onClose: () => void }) {
         ))}
       </View>
     </View>
+  );
+}
+
+const ADMIN_COMPONENT = 'com.emidost.customer/com.emidost.devicemanagement.EmidostDeviceAdminReceiver';
+
+// hex SHA-256 -> unpadded base64url (PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM
+// format, same as the web portal qr page), without relying on btoa in RN.
+function hexToChecksum(hex: string): string {
+  const clean = hex.replace(/[^0-9a-fA-F]/g, '');
+  if (clean.length !== 64) return '';
+  const bytes: number[] = [];
+  for (let i = 0; i < 32; i += 1) bytes.push(parseInt(clean.substr(i * 2, 2), 16));
+  const C = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]; const b1 = bytes[i + 1]; const b2 = bytes[i + 2];
+    out += C[b0 >> 2];
+    out += C[((b0 & 3) << 4) | ((b1 ?? 0) >> 4)];
+    out += i + 1 < bytes.length ? C[((b1 & 15) << 2) | ((b2 ?? 0) >> 6)] : '=';
+    out += i + 2 < bytes.length ? C[(b2 ?? 0) & 63] : '=';
+  }
+  return out.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * Enrolment QR, no typing on the customer phone. The retailer picks the customer
+ * and chooses kiosk or wireless; both encode the owner-set APK download link +
+ * the customer's enrolment token.
+ *  - Kiosk: a real Android device-owner PROVISIONING QR (download + admin +
+ *    signature + token in the extras bundle). Scanned in the setup wizard on a
+ *    factory-reset phone -> installs as Device Owner and auto-binds.
+ *  - Wireless: a bind deep link (emidost://bind?token=...) scanned after the app
+ *    is installed from the link -> auto-binds; then Wireless enrol sets DO.
+ */
+function EnrollmentQR({ onClose }: { onClose: () => void }) {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState('');
+  const [mode, setMode] = useState<'kiosk' | 'wireless'>('kiosk');
+  const [payload, setPayload] = useState<string | null>(null);
+  const [apkUrl, setApkUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => { try { setCustomers(await api.listCustomers()); } catch { /* empty list */ } })();
+  }, []);
+
+  async function generate() {
+    if (busy) return;
+    if (!customerId) { setErr('Pick a customer first.'); return; }
+    setBusy(true); setErr(null); setPayload(null);
+    try {
+      const cfg = await api.getCustomerApkConfig();
+      if (!cfg.customer_apk_url) { setErr('Owner has not set the customer APK link yet (owner app > App link).'); return; }
+      setApkUrl(cfg.customer_apk_url);
+      const sess = await api.createEnrolment(customerId, {});
+      const token = sess.token;
+      if (mode === 'kiosk') {
+        const checksum = hexToChecksum(cfg.customer_apk_sha256 || '');
+        if (!checksum) { setErr('Owner has not set a valid signing SHA-256 (64 hex).'); return; }
+        setPayload(JSON.stringify({
+          'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME': ADMIN_COMPONENT,
+          'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM': checksum,
+          'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': cfg.customer_apk_url,
+          'android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED': true,
+          'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': false,
+          'android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE': { 'com.emidost.enroll_token': token },
+        }));
+      } else {
+        setPayload(`emidost://bind?token=${encodeURIComponent(token)}`);
+      }
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not generate'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <ScrollView style={s.page}>
+      <View style={s.band}>
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Back to enrol" style={s.backBtn}>
+          <ArrowLeft color={ACCENT} size={18} /><Text style={s.backText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={s.title}>Enrolment QR</Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+        <TouchableOpacity style={[s.chip, mode === 'kiosk' && { borderColor: ACCENT }]} onPress={() => { setMode('kiosk'); setPayload(null); }} accessibilityRole="button" accessibilityState={{ selected: mode === 'kiosk' }}>
+          <Text style={s.chipText}>Kiosk (device owner)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.chip, mode === 'wireless' && { borderColor: ACCENT }]} onPress={() => { setMode('wireless'); setPayload(null); }} accessibilityRole="button" accessibilityState={{ selected: mode === 'wireless' }}>
+          <Text style={s.chipText}>Wireless</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={s.muted}>Pick the customer, then Generate. The QR carries the app download link and the customer's setup code, so nothing is typed on the phone.</Text>
+      <View style={s.card}>
+        {customers.length === 0 ? (
+          <Text style={s.muted}>No customers yet. Add one in the New tab.</Text>
+        ) : customers.map((c) => (
+          <TouchableOpacity key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => { setCustomerId(c.id); setPayload(null); }} accessibilityRole="button" accessibilityState={{ selected: customerId === c.id }}>
+            <Smartphone size={14} color={customerId === c.id ? ACCENT : colors.textMid} />
+            <Text style={[s.muted, customerId === c.id && { color: ACCENT, fontWeight: '700' }]}>{c.name} · {c.phone}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {err && <Text style={s.error}>{err}</Text>}
+      <TouchableOpacity style={s.button} onPress={() => void generate()} disabled={busy} accessibilityRole="button" accessibilityLabel="Generate enrolment QR">
+        <QrCode color={colors.onAccent} size={16} />
+        <Text style={s.buttonText}>{busy ? 'Generating…' : 'Generate QR'}</Text>
+      </TouchableOpacity>
+      {payload && (
+        <View style={[s.card, { alignItems: 'center' }]}>
+          <View style={{ backgroundColor: '#ffffff', padding: 12, borderRadius: 8 }}>
+            <QRCode value={payload} size={240} />
+          </View>
+          {mode === 'kiosk' ? (
+            <Text style={[s.muted, { marginTop: 10 }]}>Factory-reset the customer phone. At the first setup screen tap the same spot 6 times, then scan this QR. It installs the app as Device Owner and binds automatically.</Text>
+          ) : (
+            <Text style={[s.muted, { marginTop: 10 }]}>Install the app on the customer phone from {apkUrl}, open it, then scan this QR with the camera - it binds automatically. Then run Wireless enrol to set Device Owner.</Text>
+          )}
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
