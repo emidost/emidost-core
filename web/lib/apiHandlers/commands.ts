@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { bad, forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
 import { sendKick } from '@/lib/fcm';
+import { validateCommandPayload } from '@/lib/commandPayload';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +20,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}));
   const commandType: string | undefined = body?.command_type;
-  if (commandType !== 'LOCK' && commandType !== 'UNLOCK' && commandType !== 'LOCATION' && commandType !== 'ALERT' && commandType !== 'REMIND') {
-    return bad('command_type must be LOCK, UNLOCK, LOCATION, ALERT or REMIND');
+  const RETAILER_COMMANDS = ['LOCK', 'UNLOCK', 'LOCATION', 'ALERT', 'REMIND', 'SET_DEVICE_PIN', 'SET_WALLPAPER', 'GET_SIM'];
+  if (!commandType || !RETAILER_COMMANDS.includes(commandType)) {
+    return bad('command_type must be one of ' + RETAILER_COMMANDS.join(', '));
   }
+  const payloadError = validateCommandPayload(commandType, body?.payload);
+  if (payloadError) return bad(payloadError);
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices')
