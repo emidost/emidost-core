@@ -43,17 +43,28 @@ export async function POST(req: NextRequest) {
   if (!profile.retailer_id) return bad('No retailer bound to this account');
 
   const body = await req.json().catch(() => null);
-  const required = ['name', 'phone', 'imei', 'brand', 'model', 'emi_months', 'emi_amount', 'emi_due_day'];
+  // Retailer choice at creation: "Record EMI" (tracked, overdue auto-lock
+  // available) vs "No EMI record" (track_emi:false -> manual-lock only, EMI
+  // fields omitted, the phone stays always-on + listening but never auto-locks).
+  const trackEmi = body?.track_emi !== false;
+  const required = trackEmi
+    ? ['name', 'phone', 'imei', 'brand', 'model', 'emi_months', 'emi_amount', 'emi_due_day']
+    : ['name', 'phone', 'imei', 'brand', 'model'];
   for (const key of required) {
     if (body?.[key] === undefined || body[key] === null || body[key] === '') return bad(`Missing ${key}`);
   }
-  const emiMonths = parseInt(body.emi_months, 10);
-  const emiAmount = parseFloat(body.emi_amount);
-  const dueDay = parseInt(body.emi_due_day, 10);
-  // NaN fails every comparison, so check integers explicitly.
-  if (!Number.isInteger(emiMonths) || emiMonths < 1 || emiMonths > 60) return bad('EMI months must be 1-60');
-  if (!Number.isFinite(emiAmount) || !(emiAmount > 0)) return bad('EMI amount must be positive');
-  if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) return bad('Due day must be 1-31');
+  let emiMonths = 0;
+  let emiAmount = 0;
+  let dueDay = 0;
+  if (trackEmi) {
+    emiMonths = parseInt(body.emi_months, 10);
+    emiAmount = parseFloat(body.emi_amount);
+    dueDay = parseInt(body.emi_due_day, 10);
+    // NaN fails every comparison, so check integers explicitly.
+    if (!Number.isInteger(emiMonths) || emiMonths < 1 || emiMonths > 60) return bad('EMI months must be 1-60');
+    if (!Number.isFinite(emiAmount) || !(emiAmount > 0)) return bad('EMI amount must be positive');
+    if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) return bad('Due day must be 1-31');
+  }
 
   const svc = serviceClient();
   // Duplicate IMEI within the retailer is rejected.
@@ -67,9 +78,12 @@ export async function POST(req: NextRequest) {
     retailer_id: profile.retailer_id,
     name: String(body.name), phone: String(body.phone), imei: String(body.imei),
     brand: String(body.brand), model: String(body.model),
-    emi_months: emiMonths, emi_amount: emiAmount, emi_due_day: dueDay,
+    emi_months: trackEmi ? emiMonths : null,
+    emi_amount: trackEmi ? emiAmount : null,
+    emi_due_day: trackEmi ? dueDay : null,
     customer_code: code,
     lock_mode: lockMode,
+    auto_lock_on_overdue: trackEmi,
   }).select().single();
   if (error || !data) return Response.json({ error: error?.message ?? 'insert failed' }, { status: 500 });
 
@@ -77,6 +91,9 @@ export async function POST(req: NextRequest) {
     actor_id: profile.id, retailer_id: profile.retailer_id,
     event: 'CUSTOMER_CREATED', detail: { customer_id: data.id, brand: data.brand, model: data.model },
   });
+
+  // No EMI record: no schedule, manual-lock only.
+  if (!trackEmi) return Response.json(data, { status: 201 });
 
   // Generate the full repayment schedule atomically with the customer. Due
   // dates are calendar days in Asia/Calcutta (IST, UTC+05:30): the business
