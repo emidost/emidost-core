@@ -141,8 +141,12 @@ export interface HeartbeatRequest {
   locked: boolean;
   /** Expo push token for the FCM kick channel (omitted when unavailable). */
   fcm_token?: string | null;
-  /** SIM readback the phone attaches in response to a GET_SIM command. */
-  sim_info?: SimInfo | null;
+}
+
+/** Ack body for a GET_SIM command: the phone attaches its SIM readback here
+ *  (stored into devices.sim_info by the ack route, same pattern as location). */
+export interface AckSimInfo {
+  sim_info: SimInfo;
 }
 
 /** Heartbeat response: commands + full offline state + server_now for the unlock-wins watermark. */

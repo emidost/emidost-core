@@ -108,13 +108,6 @@ export async function POST(req: NextRequest) {
     heartbeatUpdate.fcm_token_updated_at = null;
   }
 
-  // SIM readback the phone attaches when answering a GET_SIM command. Stored in
-  // the same update wave (jsonb column; revoked from anon/authenticated in 0019).
-  const bodySim = body?.sim_info;
-  if (bodySim && typeof bodySim === 'object') {
-    heartbeatUpdate.sim_info = bodySim;
-  }
-
   // Customer photo: one signed-URL call per poll, only when a photo exists.
   // Storage failure → null (the photo is a UX nicety, never a lock dependency).
   const photoUrlPromise = customers?.photo_path

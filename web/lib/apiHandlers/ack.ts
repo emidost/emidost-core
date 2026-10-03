@@ -105,6 +105,12 @@ export async function POST(req: NextRequest) {
     }).eq('id', device.id);
   }
 
+  // GET_SIM answer: the phone attaches its SIM readback to the ack body (same
+  // pattern as LOCATION). Stored in devices.sim_info (revoked from anon/auth).
+  if (ackStatus === 'EXECUTED' && command.command_type === 'GET_SIM' && body.sim_info) {
+    await svc.from('devices').update({ sim_info: body.sim_info }).eq('id', device.id);
+  }
+
   await svc.from('device_command_acks').insert({
     command_id: command.id, ack_status: ackStatus, reason: body.reason ?? null,
   });

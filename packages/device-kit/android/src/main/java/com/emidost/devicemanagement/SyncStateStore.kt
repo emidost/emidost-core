@@ -31,11 +31,24 @@ object SyncStateStore {
   fun setDueDate(c: Context, due: String) = prefs(c).edit().putString("due_date", due).apply()
   fun getDueDate(c: Context): String = prefs(c).getString("due_date", "") ?: ""
 
+  fun setEmiAmount(c: Context, amount: String) = prefs(c).edit().putString("emi_amount", amount).apply()
+  fun getEmiAmount(c: Context): String = prefs(c).getString("emi_amount", "") ?: ""
+
+  /**
+   * Retailer opt-in: true only when an EMI plan is recorded for the customer.
+   * When false, ALL automatic locks are suppressed (the phone stays always-on
+   * and listening but never auto-locks); manual retailer LOCK still works.
+   */
+  fun setAutoLockOnOverdue(c: Context, on: Boolean) = prefs(c).edit().putBoolean("auto_lock_on_overdue", on).apply()
+  fun autoLockOnOverdue(c: Context): Boolean = prefs(c).getBoolean("auto_lock_on_overdue", false)
+
   /**
    * Returns true when a lock-enabled outstanding loan has had no successful
    * sync for 5 days and must hard-lock locally. notify_only plans never lock.
    */
   fun offlineLockDue(c: Context): Boolean {
+    // Retailer-controlled: no automatic lock unless the retailer opted in.
+    if (!autoLockOnOverdue(c)) return false
     if (getLockMode(c) != "lock") return false
     if (!SimSentinelStore.loanOutstanding(c)) return false
     val last = getLastSyncOk(c)
@@ -53,6 +66,8 @@ object SyncStateStore {
    * alerts and the day-3+ location SMS, never the lock (documented split).
    */
   fun overdueOfflineLockDue(c: Context): Boolean {
+    // Retailer-controlled: no automatic lock unless the retailer opted in.
+    if (!autoLockOnOverdue(c)) return false
     if (getLockMode(c) != "lock") return false
     if (!SimSentinelStore.loanOutstanding(c)) return false
     val overdue = maxOf(getOverdueDays(c), daysSinceDueDate(c))

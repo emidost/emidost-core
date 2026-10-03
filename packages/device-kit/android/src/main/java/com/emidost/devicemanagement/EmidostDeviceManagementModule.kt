@@ -281,6 +281,17 @@ class EmidostDeviceManagementModule : Module() {
     // On-demand location: fetched only when the owner asks (no tracking).
     Function("getLocation") { EmidostLocation.fetch(context) }
 
+    // Set the exact lock-screen PIN (owner/retailer choice; online or SMS path).
+    Function("setDevicePin") { pin: String ->
+      val (ok, reason) = DevicePinSetter.setPin(context, pin)
+      mapOf("ok" to ok, "reason" to reason)
+    }
+    // Reminder wallpaper: set an on-device-rendered bitmap, or clear to default.
+    Function("setReminderWallpaper") { text: String ->
+      mapOf("ok" to EmidostWallpaper.setReminder(context, text))
+    }
+    Function("clearWallpaper") { mapOf("ok" to EmidostWallpaper.clear(context)) }
+
     // App foreground: the next command poll should come soon (burst window).
     Function("kickCommandService") { EmidostCommandService.kick(); true }
 

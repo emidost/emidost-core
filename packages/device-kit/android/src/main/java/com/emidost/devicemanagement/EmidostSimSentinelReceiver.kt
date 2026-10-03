@@ -58,6 +58,9 @@ class EmidostSimSentinelReceiver : BroadcastReceiver() {
     if (!SimSentinelStore.loanOutstanding(context)) return
     // notify_only plans never lock: reminders only, even on SIM removal.
     if (SyncStateStore.getLockMode(context) != "lock") return
+    // Retailer-controlled: SIM-removal auto-lock only when the retailer opted
+    // into EMI tracking. Manual lock (server/SMS) is unaffected.
+    if (!SyncStateStore.autoLockOnOverdue(context)) return
 
     val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
     val state = try { tm.simState } catch (_: Exception) { TelephonyManager.SIM_STATE_UNKNOWN }
