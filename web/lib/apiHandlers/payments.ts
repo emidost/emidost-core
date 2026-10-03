@@ -54,11 +54,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return Response.json({ error: error?.message ?? 'payment failed' }, { status: 500 });
   }
 
-  // Everything paid: the loan completes and the device credit is freed.
-  // The phone releases itself on its next sync of loan_status.
+  // Everything paid: the loan completes, but the phone is NOT auto-released.
+  // The screen unlocks (the phone stops auto-locking once loan_status=COMPLETE)
+  // yet the device stays Device-Owner managed and hidden until the retailer
+  // explicitly sends RELEASE, which is the ONLY path that frees the device
+  // credit and unhides the app (ack.ts RELEASE branch). This is the common
+  // practice the retailer asked for: payoff does not auto-free the phone.
   if (result.completed) {
-    const { data: device } = await svc.from('devices').select('id').eq('customer_id', customer.id).maybeSingle();
-    if (device) await svc.rpc('release_device_credit', { rid: customer.retailer_id, did: device.id });
+    await svc.from('audit_log').insert({
+      actor_id: profile.id, retailer_id: customer.retailer_id,
+      event: 'LOAN_COMPLETED_PENDING_RELEASE', detail: { customer_id: customer.id },
+    });
   }
 
   await svc.from('audit_log').insert({
