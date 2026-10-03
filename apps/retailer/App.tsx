@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, FlatList, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  AccessibilityInfo, ActivityIndicator, Alert, FlatList, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
@@ -13,7 +13,7 @@ import Svg, { Circle } from 'react-native-svg';
 import QRCode from 'react-native-qrcode-svg';
 import mark from './assets/icon.png';
 import {
-  colors, createApi, getOemProfile, totpCode, totpSecondsLeft,
+  colors, createApi, getOemProfile, recordEmiNudgeCopy, totpCode, totpSecondsLeft,
   type Customer, type Device, type Retailer,
 } from '@emidost/shared';
 import {
@@ -180,7 +180,9 @@ function Customers() {
             </View>
             <Text style={s.muted}>{c.phone} · {c.brand} {c.model} · IMEI {c.imei}</Text>
             <Text style={s.muted}>
-              {c.emi_months} months · Rs {Number(c.emi_amount).toFixed(0)}/month · due day {c.emi_due_day}
+              {c.emi_amount == null
+                ? 'No EMI record · manual lock only'
+                : `${c.emi_months} months · Rs ${Number(c.emi_amount).toFixed(0)}/month · due day ${c.emi_due_day}`}
             </Text>
             <View style={s.chipRow}>
               <Chip
@@ -301,6 +303,7 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
     name: '', phone: '', imei: '', brand: 'Samsung', model: '',
     emi_months: '12', emi_amount: '', emi_due_day: '1',
     lock_mode: 'lock' as 'lock' | 'notify_only',
+    track_emi: true,
   });
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -317,12 +320,21 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
     setBusy(true);
     setErr(null);
     try {
-      const customer = await api.createCustomer({
-        ...form,
-        emi_months: parseInt(form.emi_months, 10),
-        emi_amount: parseFloat(form.emi_amount),
-        emi_due_day: parseInt(form.emi_due_day, 10),
-      });
+      const base = {
+        name: form.name, phone: form.phone, imei: form.imei, brand: form.brand, model: form.model,
+        lock_mode: form.track_emi ? form.lock_mode : ('lock' as 'lock' | 'notify_only'),
+        track_emi: form.track_emi,
+      };
+      const customer = await api.createCustomer(
+        form.track_emi
+          ? {
+              ...base,
+              emi_months: parseInt(form.emi_months, 10),
+              emi_amount: parseFloat(form.emi_amount),
+              emi_due_day: parseInt(form.emi_due_day, 10),
+            }
+          : base,
+      );
       setCreated(customer);
       setMsg('Customer added. Add a photo now, or skip with Done.');
     } catch (e) {
@@ -431,31 +443,61 @@ function NewCustomer({ onDone, onBrand }: { onDone: () => void; onBrand: (brand:
       <Field label="IMEI" value={form.imei} onChange={set('imei')} icon={Hash} />
       <Field label="Brand" value={form.brand} onChange={(v) => { set('brand')(v); onBrand(v); }} icon={Settings2} />
       <Field label="Model" value={form.model} onChange={set('model')} icon={Smartphone} />
-      <Field label="EMI months" value={form.emi_months} onChange={set('emi_months')} icon={CalendarDays} keyboard="numeric" />
-      <Field label="EMI amount per month" value={form.emi_amount} onChange={set('emi_amount')} icon={IndianRupee} keyboard="numeric" />
-      <Field label="Due day (1-31)" value={form.emi_due_day} onChange={set('emi_due_day')} icon={CalendarDays} keyboard="numeric" />
+      <Text style={[s.label, { marginTop: 14 }]}>EMI record</Text>
+      <TouchableOpacity
+        style={[s.choice, form.track_emi && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
+        onPress={() => setForm((f) => ({ ...f, track_emi: true }))}
+        accessibilityRole="button"
+        accessibilityState={{ selected: form.track_emi }}
+      >
+        <CalendarDays size={14} color={form.track_emi ? ACCENT : colors.textMid} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontWeight: '700' }}>Record EMI</Text>
+          <Text style={{ color: colors.textMid, fontSize: 12 }}>Tracks instalments. Overdue can auto-lock, and you can lock manually.</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[s.choice, !form.track_emi && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
+        onPress={() => { setForm((f) => ({ ...f, track_emi: false })); Alert.alert('EMI record', recordEmiNudgeCopy().bn); }}
+        accessibilityRole="button"
+        accessibilityState={{ selected: !form.track_emi }}
+      >
+        <BellRing size={14} color={!form.track_emi ? ACCENT : colors.textMid} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontWeight: '700' }}>No EMI record</Text>
+          <Text style={{ color: colors.textMid, fontSize: 12 }}>Manual lock only. The phone never auto-locks and stays silent.</Text>
+        </View>
+      </TouchableOpacity>
 
-      <Text style={[s.label, { marginTop: 14 }]}>Phone lock plan</Text>
-      <TouchableOpacity
-        style={[s.choice, form.lock_mode === 'lock' && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
-        onPress={() => set('lock_mode')('lock')}
-      >
-        <Lock size={14} color={form.lock_mode === 'lock' ? ACCENT : colors.textMid} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontWeight: '700' }}>Lock on missed payment</Text>
-          <Text style={{ color: colors.textMid, fontSize: 12 }}>Locks the phone when overdue or 5 days offline.</Text>
-        </View>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[s.choice, form.lock_mode === 'notify_only' && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
-        onPress={() => set('lock_mode')('notify_only')}
-      >
-        <BellRing size={14} color={form.lock_mode === 'notify_only' ? ACCENT : colors.textMid} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontWeight: '700' }}>Never lock, only reminders</Text>
-          <Text style={{ color: colors.textMid, fontSize: 12 }}>Due and overdue notices only. The phone never locks.</Text>
-        </View>
-      </TouchableOpacity>
+      {form.track_emi && (
+        <>
+          <Field label="EMI months" value={form.emi_months} onChange={set('emi_months')} icon={CalendarDays} keyboard="numeric" />
+          <Field label="EMI amount per month" value={form.emi_amount} onChange={set('emi_amount')} icon={IndianRupee} keyboard="numeric" />
+          <Field label="Due day (1-31)" value={form.emi_due_day} onChange={set('emi_due_day')} icon={CalendarDays} keyboard="numeric" />
+
+          <Text style={[s.label, { marginTop: 14 }]}>Phone lock plan</Text>
+          <TouchableOpacity
+            style={[s.choice, form.lock_mode === 'lock' && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
+            onPress={() => set('lock_mode')('lock')}
+          >
+            <Lock size={14} color={form.lock_mode === 'lock' ? ACCENT : colors.textMid} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: '700' }}>Lock on missed payment</Text>
+              <Text style={{ color: colors.textMid, fontSize: 12 }}>Locks the phone when overdue or 5 days offline.</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.choice, form.lock_mode === 'notify_only' && { borderColor: ACCENT, backgroundColor: colors.tealSoft }]}
+            onPress={() => set('lock_mode')('notify_only')}
+          >
+            <BellRing size={14} color={form.lock_mode === 'notify_only' ? ACCENT : colors.textMid} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: '700' }}>Never lock, only reminders</Text>
+              <Text style={{ color: colors.textMid, fontSize: 12 }}>Due and overdue notices only. The phone never locks.</Text>
+            </View>
+          </TouchableOpacity>
+        </>
+      )}
 
       <TouchableOpacity style={s.button} onPress={save} disabled={busy} accessibilityRole="button" accessibilityLabel="Add customer">
         <UserPlus color={colors.onAccent} size={16} />
@@ -488,6 +530,8 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [pinFor, setPinFor] = useState<string | null>(null);
+  const [pinVal, setPinVal] = useState('');
 
   const reload = useCallback(async () => {
     setRefreshing(true);
@@ -541,6 +585,34 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
     }
   }
 
+  async function run(d: Device, label: string, fn: () => Promise<unknown>): Promise<void> {
+    if (busyId) return;
+    setBusyId(d.id);
+    setErr(null);
+    try {
+      await fn();
+      setRows(await api.listDevices());
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : `${label} failed`);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function release(d: Device) {
+    Alert.alert('Release device', 'Free this phone from management? The app unhides and protection clears. Only do this once the money is cleared.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Release', style: 'destructive', onPress: () => void run(d, 'Release', () => api.sendCommand(d.id, 'RELEASE')) },
+    ]);
+  }
+  const getSim = (d: Device) => void run(d, 'SIM', () => api.sendCommand(d.id, 'GET_SIM'));
+  const wallpaper = (d: Device, on: boolean) => void run(d, 'Wallpaper', () => api.sendCommand(d.id, 'SET_WALLPAPER', { mode: on ? 'reminder' : 'clear' }));
+  function submitPin(d: Device) {
+    const pin = pinVal.trim();
+    if (!/^\d{4,16}$/.test(pin)) { setErr('PIN must be 4 to 16 digits'); return; }
+    void run(d, 'Set PIN', () => api.sendCommand(d.id, 'SET_DEVICE_PIN', { pin })).then(() => { setPinFor(null); setPinVal(''); });
+  }
+
   return (
     <View style={s.page}>
       <View style={s.band}><Text style={s.title}>Devices</Text></View>
@@ -561,6 +633,9 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
               <Chip tone={d.mode === 'device_owner' ? colors.accentTeal : colors.textMid} label={d.mode === 'device_owner' ? 'Device owner' : d.mode === 'device_admin' ? 'Device admin' : 'Not enrolled'} />
               <Chip tone={d.is_locked ? colors.danger : colors.accentTeal} label={d.is_locked ? 'Locked' : 'Unlocked'} />
             </View>
+            {d.sim_info && (
+              <Text style={s.muted}>SIM: {d.sim_info.carrier || 'unknown'} · {d.sim_info.phoneNumber || 'number n/a'}</Text>
+            )}
             <View style={s.quickRow}>
               <TouchableOpacity
                 style={[s.button, { marginTop: 0, flex: 1 }]}
@@ -605,6 +680,39 @@ function Devices({ onUnlockCode }: { onUnlockCode: (d: Device) => void }) {
                 <Text style={s.outlineBtnText}>{busyId === d.id ? 'Sending…' : 'Alert'}</Text>
               </TouchableOpacity>
             </View>
+            <View style={[s.quickRow, { marginTop: 8 }]}>
+              <TouchableOpacity style={[s.outlineBtn, { marginTop: 0, flex: 1 }]} onPress={() => getSim(d)} disabled={busyId === d.id} accessibilityRole="button" accessibilityLabel="Get SIM info">
+                <Smartphone size={14} color={ACCENT} />
+                <Text style={s.outlineBtnText}>SIM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.outlineBtn, { marginTop: 0, flex: 1 }]} onPress={() => wallpaper(d, true)} disabled={busyId === d.id} accessibilityRole="button" accessibilityLabel="Set reminder wallpaper">
+                <ImagePlus size={14} color={ACCENT} />
+                <Text style={s.outlineBtnText}>Wallpaper</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.outlineBtn, { marginTop: 0, flex: 1 }]} onPress={() => wallpaper(d, false)} disabled={busyId === d.id} accessibilityRole="button" accessibilityLabel="Clear wallpaper">
+                <ImagePlus size={14} color={colors.textMid} />
+                <Text style={s.outlineBtnText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[s.quickRow, { marginTop: 8 }]}>
+              <TouchableOpacity style={[s.outlineBtn, { marginTop: 0, flex: 1 }]} onPress={() => { setPinFor(pinFor === d.id ? null : d.id); setPinVal(''); }} disabled={busyId === d.id} accessibilityRole="button" accessibilityLabel="Set phone PIN">
+                <KeyRound size={14} color={ACCENT} />
+                <Text style={s.outlineBtnText}>Set PIN</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.outlineBtn, { marginTop: 0, flex: 1 }]} onPress={() => release(d)} disabled={busyId === d.id} accessibilityRole="button" accessibilityLabel="Release device">
+                <LockOpen size={14} color={colors.danger} />
+                <Text style={[s.outlineBtnText, { color: colors.danger }]}>Release</Text>
+              </TouchableOpacity>
+            </View>
+            {pinFor === d.id && (
+              <View style={[s.quickRow, { marginTop: 8 }]}>
+                <TextInput style={[s.input, { flex: 1, marginTop: 0 }]} value={pinVal} onChangeText={setPinVal} placeholder="New PIN (4-16 digits)" keyboardType="numeric" secureTextEntry accessibilityLabel="New phone PIN" />
+                <TouchableOpacity style={[s.button, { marginTop: 0 }]} onPress={() => submitPin(d)} disabled={busyId === d.id} accessibilityRole="button" accessibilityLabel="Save phone PIN">
+                  <CheckCircle2 color={colors.onAccent} size={16} />
+                  <Text style={s.buttonText}>Set</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
         ListEmptyComponent={<Text style={s.muted}>No devices yet. Enrol one from the Enrol tab.</Text>}

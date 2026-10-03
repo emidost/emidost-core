@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { bad, forbidden, requireActor, unauthorized } from '@/lib/auth';
 import { serviceClient } from '@/lib/supabaseServer';
 import { sendKick } from '@/lib/fcm';
+import { validateCommandPayload } from '@/lib/commandPayload';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,9 +18,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const deviceId: string | undefined = body?.device_id;
   const commandType: string | undefined = body?.command_type;
-  if (!deviceId || !['LOCK', 'UNLOCK', 'LOCATION', 'RELEASE', 'REBOOT'].includes(commandType ?? '')) {
-    return bad('device_id + command_type (LOCK, UNLOCK, LOCATION, RELEASE or REBOOT) required');
+  const OWNER_COMMANDS = ['LOCK', 'UNLOCK', 'LOCATION', 'RELEASE', 'REBOOT', 'SET_DEVICE_PIN', 'SET_WALLPAPER', 'GET_SIM'];
+  if (!deviceId || !OWNER_COMMANDS.includes(commandType ?? '')) {
+    return bad('device_id + command_type (one of ' + OWNER_COMMANDS.join(', ') + ') required');
   }
+  const payloadError = validateCommandPayload(commandType ?? '', body?.payload);
+  if (payloadError) return bad(payloadError);
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices')

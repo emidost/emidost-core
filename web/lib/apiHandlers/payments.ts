@@ -54,11 +54,29 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return Response.json({ error: error?.message ?? 'payment failed' }, { status: 500 });
   }
 
-  // Everything paid: the loan completes and the device credit is freed.
-  // The phone releases itself on its next sync of loan_status.
+  // Everything paid: the loan completes, but the phone is NOT auto-released.
+  // The screen unlocks (the phone stops auto-locking once loan_status=COMPLETE)
+  // yet the device stays Device-Owner managed and hidden until the retailer
+  // explicitly sends RELEASE, which is the ONLY path that frees the device
+  // credit and unhides the app (ack.ts RELEASE branch). This is the common
+  // practice the retailer asked for: payoff does not auto-free the phone.
   if (result.completed) {
-    const { data: device } = await svc.from('devices').select('id').eq('customer_id', customer.id).maybeSingle();
-    if (device) await svc.rpc('release_device_credit', { rid: customer.retailer_id, did: device.id });
+    // Queue one UNLOCK so the screen becomes usable on payoff (processed by the
+    // phone's next poll). The credit is NOT freed and the app is NOT unhidden
+    // here; only an explicit RELEASE does that (ack.ts). Manual LOCK/UNLOCK and
+    // RELEASE still work on a completed-but-not-released phone.
+    const { data: device } = await svc.from('devices')
+      .select('id, retailer_id').eq('customer_id', customer.id).maybeSingle();
+    if (device) {
+      await svc.from('device_commands').insert({
+        device_id: device.id, retailer_id: device.retailer_id ?? customer.retailer_id,
+        command_type: 'UNLOCK', payload: {}, created_by: profile.id,
+      });
+    }
+    await svc.from('audit_log').insert({
+      actor_id: profile.id, retailer_id: customer.retailer_id,
+      event: 'LOAN_COMPLETED_PENDING_RELEASE', detail: { customer_id: customer.id },
+    });
   }
 
   await svc.from('audit_log').insert({

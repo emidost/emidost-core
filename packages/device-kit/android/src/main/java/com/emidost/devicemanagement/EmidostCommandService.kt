@@ -155,10 +155,11 @@ class EmidostCommandService : Service() {
       ?: return
 
     val loanStatus = resp.optString("loan_status", "")
-    if (loanStatus == "COMPLETE" || loanStatus == "SETTLED") {
-      coreRelease()
-      return
-    }
+    // Payoff is NOT auto-release. COMPLETE/SETTLED stops all automatic locking
+    // (outstanding=false below gates the watchdogs, SIM sentinel and alerter)
+    // and the server queues a one-time UNLOCK, but the device stays managed and
+    // hidden until the explicit RELEASE command. coreRelease() runs ONLY for
+    // RELEASE now, so the tick continues to process queued commands below.
 
     // Full offline capability, native side: install the server truth so SMS
     // unlock, offline TOTP, the watchdog and protection all work with the app
@@ -170,6 +171,10 @@ class EmidostCommandService : Service() {
     SyncStateStore.setOverdueDays(this, resp.optInt("overdue_days", 0))
     val nextDue = resp.optJSONObject("next_due")
     SyncStateStore.setDueDate(this, nextDue?.optString("due_date", "") ?: "")
+    // Retailer opt-in: gates every automatic lock (watchdogs + SIM sentinel).
+    SyncStateStore.setAutoLockOnOverdue(this, resp.optBoolean("auto_lock_on_overdue", false))
+    val emiAmt = resp.optDouble("emi_amount", 0.0)
+    SyncStateStore.setEmiAmount(this, if (emiAmt > 0) emiAmt.toLong().toString() else "")
     val outstanding = loanStatus == "RUNNING" || loanStatus == "NPA"
     SimSentinelStore.setLoanOutstanding(this, outstanding)
 
@@ -250,6 +255,23 @@ class EmidostCommandService : Service() {
           // Fetched only when asked; nothing is tracked in the background.
           val loc = EmidostLocation.fetch(this)
           extraPayload = JSONObject().put("location", JSONObject(loc ?: emptyMap<String, Any>()))
+        }
+        "SET_DEVICE_PIN" -> {
+          // Set the exact lock-screen PIN (owner/retailer choice). Reports the
+          // real OS outcome; a refusal acks FAILED with an honest reason.
+          val pin = cmd.optJSONObject("payload")?.optString("pin", "") ?: ""
+          val (ok, reason) = DevicePinSetter.setPin(this, pin)
+          if (!ok) { ackStatus = "FAILED"; extraPayload = JSONObject().put("reason", reason) }
+        }
+        "SET_WALLPAPER" -> {
+          val mode = cmd.optJSONObject("payload")?.optString("mode", "") ?: ""
+          val ok = if (mode == "clear") EmidostWallpaper.clear(this)
+                   else EmidostWallpaper.setReminder(this, EmidostWallpaper.reminderText(this))
+          if (!ok) ackStatus = "FAILED"
+        }
+        "GET_SIM" -> {
+          // The SIM readback rides the ack body; ack.ts stores devices.sim_info.
+          extraPayload = JSONObject().put("sim_info", SimInfoReader.json(this))
         }
         else -> handled = false
       }

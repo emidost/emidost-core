@@ -32,6 +32,10 @@ class EmidostDeviceAdminReceiver : DeviceAdminReceiver() {
       val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
       val admin = ComponentName(context, EmidostDeviceAdminReceiver::class.java)
       try { dpm.setLockTaskPackages(admin, arrayOf(context.packageName)) } catch (_: Exception) {}
+      // Install the reset-password token now, while a freshly provisioned phone
+      // has no lock-screen password, so the owner/retailer can later set the
+      // exact PIN via SET_DEVICE_PIN (resetPasswordWithToken).
+      try { DevicePinSetter.ensureToken(context) } catch (_: Exception) {}
       LockStateStore.setUninstallProtected(context, true)
       FinancingProtection.restore(context)
     } catch (_: Exception) {}

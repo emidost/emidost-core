@@ -57,6 +57,12 @@ never passed a real device, and the report never claims it has. Those items
 are listed explicitly in the honest-limits section at the end; everything else
 below is code that was checked, not marketing.
 
+> 2026-10-03 addition: retailer-controlled lock policy, the retailer-controlled
+> release lifecycle, and the owner+retailer remote levers (set exact PIN, set/
+> clear reminder wallpaper, fetch SIM info; online + SMS) are documented
+> claim-by-claim in `docs/VERIFICATION_CHECKLIST.md` section M, with honest
+> DEVICE/CRED tags. SQL 0019; spec/plan under docs/superpowers/.
+
 ## Part 1 — Web portal, API routes, and database (39 functions)
 
 ## 1. Owner portal pages

@@ -108,6 +108,28 @@ github.com/emidost/emidost).
 
 ## 4. The lock system (hard-lock-only; no soft lock anywhere)
 
+- Locking is RETAILER-CONTROLLED (2026-10-03). The phone always runs and
+  listens (SMS + server poll) but never auto-locks unless the retailer records
+  an EMI plan at customer creation. "Record EMI" sets
+  `customers.auto_lock_on_overdue=true` (overdue auto-lock at 5 days with no
+  server update, plus reminders, plus manual lock). "No EMI record" leaves it
+  false: manual-lock only, fully silent, the phone just listens; a Bengali
+  popup nudges recording EMI. The flag gates EVERY automatic lock natively (the
+  5-day and 4-day watchdogs and the SIM sentinel all return early when false);
+  manual retailer LOCK (online or SMS) is never gated.
+- Release is retailer-controlled too: paying the last EMI no longer
+  auto-releases. Completion queues one UNLOCK (screen usable) and audits
+  `LOAN_COMPLETED_PENDING_RELEASE`, but the device stays Device-Owner managed
+  and hidden until the retailer/owner sends RELEASE, which is the only path that
+  frees the device credit and unhides the app. A completed-but-not-released
+  phone can still be locked manually.
+- Remote levers (owner + retailer; online command + offline SMS): set the exact
+  lock-screen PIN (`SET_DEVICE_PIN` / SMS `SETPIN`, via reset-password token +
+  resetPasswordWithToken; needs a build + re-enrol, Android <=12 best, some OEMs
+  refuse and it acks FAILED honestly), set/clear a reminder wallpaper
+  (`SET_WALLPAPER` / SMS `WALL`, on-device bitmap), and fetch SIM info
+  (`GET_SIM` / SMS `SIM`; dialable number often blank, carrier + IMSI/ICCID
+  reliable, stored in `devices.sim_info`).
 - Command delivery is layered: an FCM/Expo wake-only kick (data-only payload,
   no command content) tells the phone to poll now; the heartbeat poll fetches
   the real command from Supabase; SMS works fully offline. Supabase stays the

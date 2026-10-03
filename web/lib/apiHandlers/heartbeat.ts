@@ -22,14 +22,14 @@ export async function POST(req: NextRequest) {
 
   const svc = serviceClient();
   const { data: device } = await svc.from('devices')
-    .select('id, customer_id, retailer_id, device_token_hash, device_pin_hash, pin_verify, is_locked, mode, hidden_state, last_heartbeat_at, fcm_token, customers(status, customer_code, lock_mode, emi_amount, emi_months, emi_due_day, photo_path, overdue_escalation_enabled), retailers(phone, is_suspended, name)')
+    .select('id, customer_id, retailer_id, device_token_hash, device_pin_hash, pin_verify, is_locked, mode, hidden_state, last_heartbeat_at, fcm_token, customers(status, customer_code, lock_mode, emi_amount, emi_months, emi_due_day, photo_path, overdue_escalation_enabled, auto_lock_on_overdue), retailers(phone, is_suspended, name)')
     .eq('installation_id', installationId).maybeSingle();
   if (!device || !device.device_token_hash) return Response.json({ error: 'unknown device' }, { status: 401 });
   const tokenHash = createHash('sha256').update(deviceToken).digest('hex');
   if (tokenHash !== device.device_token_hash) return Response.json({ error: 'bad token' }, { status: 401 });
 
   const retailers = device.retailers as unknown as { phone: string | null; is_suspended: boolean | null; name: string | null } | null;
-  const customers = device.customers as unknown as { status: string; customer_code: string | null; lock_mode: 'lock' | 'notify_only' | null; emi_amount: number | null; emi_months: number | null; emi_due_day: number | null; photo_path: string | null; overdue_escalation_enabled: boolean | null } | null;
+  const customers = device.customers as unknown as { status: string; customer_code: string | null; lock_mode: 'lock' | 'notify_only' | null; emi_amount: number | null; emi_months: number | null; emi_due_day: number | null; photo_path: string | null; overdue_escalation_enabled: boolean | null; auto_lock_on_overdue: boolean | null } | null;
   const suspended = retailers?.is_suspended === true;
 
   // Device-reported live state. Promotion to device_owner requires an open
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
   // FCM/Expo wake token: stored/rotated here in the SAME parallel update wave
   // as last_heartbeat_at (no extra round trip). `fcm_token: null` in the body
   // clears the stored token (e.g. the phone lost push registration).
-  const heartbeatUpdate: Record<string, string | null> = { last_heartbeat_at: new Date().toISOString() };
+  const heartbeatUpdate: Record<string, unknown> = { last_heartbeat_at: new Date().toISOString() };
   const bodyFcm = body?.fcm_token;
   if (typeof bodyFcm === 'string' && bodyFcm.length <= 200 && bodyFcm !== device.fcm_token) {
     heartbeatUpdate.fcm_token = bodyFcm.length > 0 ? bodyFcm : null;
@@ -183,6 +183,7 @@ export async function POST(req: NextRequest) {
     loan_status: customers?.status ?? '',
     customer_code: customers?.customer_code ?? null,
     lock_mode: customers?.lock_mode ?? 'lock',
+    auto_lock_on_overdue: customers?.auto_lock_on_overdue ?? false,
     emi_amount: customers?.emi_amount ?? null,
     emi_months: customers?.emi_months ?? null,
     emi_due_day: customers?.emi_due_day ?? null,

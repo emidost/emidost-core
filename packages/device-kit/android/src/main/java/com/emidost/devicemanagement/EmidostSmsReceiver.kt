@@ -111,6 +111,32 @@ class EmidostSmsReceiver : BroadcastReceiver() {
           } catch (_: Exception) {}
           EmidostCommandService.kick()
         }
+        "SETPIN" -> {
+          // SETPIN <code> <pin>: set the exact lock-screen PIN offline. SMS is
+          // spoofable (sender allowlist + customer code gate only), documented.
+          if (parts.size >= 3) DevicePinSetter.setPin(context, parts[2])
+          EmidostCommandService.kick()
+        }
+        "WALL" -> {
+          // WALL <code> ON|OFF: set the reminder wallpaper or clear it.
+          val on = parts.size >= 3 && parts[2].uppercase() == "ON"
+          if (on) EmidostWallpaper.setReminder(context, EmidostWallpaper.reminderText(context))
+          else EmidostWallpaper.clear(context)
+          EmidostCommandService.kick()
+        }
+        "SIM" -> {
+          // Reply by SMS with carrier + number (if available) + last-4 ICCID.
+          val phone = SmsCommandStore.retailerPhone(context)
+          val canSend = try {
+            context.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
+          } catch (_: Exception) { false }
+          if (phone.isNotBlank() && canSend) {
+            try {
+              SmsManager.getDefault().sendTextMessage(phone, null, SimInfoReader.smsSummary(context, code), null, null)
+            } catch (_: Exception) {}
+          }
+          EmidostCommandService.kick()
+        }
       }
     }
   }

@@ -180,6 +180,19 @@ export function getSimInfo(): Promise<{ simState: number; carrier: string; phone
   return native.getSimInfo();
 }
 
+/** Set the EXACT device lock-screen PIN (reset-password token path; owner/retailer). */
+export function setDevicePin(pin: string): Promise<{ ok: boolean; reason: string }> {
+  return native.setDevicePin(pin);
+}
+/** Set an on-device-rendered reminder wallpaper. */
+export function setReminderWallpaper(text: string): Promise<{ ok: boolean }> {
+  return native.setReminderWallpaper(text);
+}
+/** Clear the wallpaper back to default. */
+export function clearWallpaper(): Promise<{ ok: boolean }> {
+  return native.clearWallpaper();
+}
+
 /** On-demand location: fetched only when the owner asks (no background tracking). */
 export function getLocation(): Promise<{ lat: number; lng: number; accuracy: number; at: number } | null> {
   return native.getLocation();

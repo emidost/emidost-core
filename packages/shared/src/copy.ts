@@ -53,6 +53,29 @@ export function reminderVoiceCopy(): { bn: string; hi: string; en: string } {
   };
 }
 
+/** Reminder wallpaper text (SET_WALLPAPER). Short, fits a lock-screen wallpaper;
+ *  the customer app composes this and hands it to the native wallpaper renderer. */
+export function wallpaperReminderCopy(amount: string, due: string, daysOverdue: number): { bn: string; hi: string; en: string } {
+  const en = daysOverdue > 0
+    ? `EMI overdue by ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'}. Pay ${amount}, due ${due}.`
+    : `EMI due ${due}. Pay ${amount} on time.`;
+  return {
+    en,
+    bn: `EMI বকেয়া। ${amount} পরিশোধ করুন, শেষ তারিখ ${due}।`,
+    hi: `EMI बकाया। ${amount} का भुगतान करें, तारीख ${due}।`,
+  };
+}
+
+/** Bengali-first nudge shown when a retailer creates a customer with no EMI
+ *  record: recording the EMI turns on automatic overdue protection. */
+export function recordEmiNudgeCopy(): { bn: string; hi: string; en: string } {
+  return {
+    bn: 'EMI রেকর্ড করলে কিস্তি বকেয়া হলে ফোন নিজে থেকে লক হবে। রেকর্ড না করলে শুধু আপনি নিজে ফোন লক করতে পারবেন।',
+    hi: 'EMI रिकॉर्ड करने पर किस्त बकाया होने पर फोन खुद लॉक होगा। रिकॉर्ड न करने पर केवल आप खुद फोन लॉक कर सकते हैं।',
+    en: 'Record the EMI to auto-lock the phone when payments are overdue. Without it, only you can lock it manually.',
+  };
+}
+
 export type CopyLang = 'en' | 'bn' | 'hi';
 
 export interface LockCopyParams {
