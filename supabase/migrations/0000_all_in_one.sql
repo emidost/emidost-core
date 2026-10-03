@@ -1,6 +1,6 @@
 -- ============================================================================
 -- emidost ALL-IN-ONE (single file). Open a NEW query tab and run this whole file.
--- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012), FCM wake tokens (0013), customer photos (0014), overdue escalation (0015), REMIND command (0016), owner sales ledger (0017).
+-- Contains: schema, indexes, hardening, location, JWT RLS, retention, lock mode, refunds, rate limits, credit lifecycle + atomic payments (0010), rate-limit RLS close (0011), REBOOT command type (0012), FCM wake tokens (0013), customer photos (0014), overdue escalation (0015), REMIND command (0016), owner sales ledger (0017), customer APK config (0018), lock policy + remote levers (0019).
 -- Accounts come from scripts/create_accounts.mjs (the SQL editor cannot write auth.users).
 -- Idempotent: safe to re-run.
 -- ============================================================================
@@ -1022,3 +1022,27 @@ create policy retailer_sales_staff_read on public.retailer_sales for select
          and retailer_id = (auth.jwt() -> 'app_metadata' ->> 'retailer_id')::uuid
          and not exists (select 1 from public.profiles p
              where p.id = auth.uid() and p.is_suspended));
+
+-- ── 0018 app config (owner-set customer APK url + signing SHA-256) ──────────
+create table if not exists public.app_config (
+  key        text primary key,
+  value      text,
+  updated_at timestamptz not null default now(),
+  updated_by uuid
+);
+alter table public.app_config enable row level security;
+revoke all on public.app_config from anon, authenticated;
+
+-- ── 0019 lock policy + remote-lever command types + sim_info ────────────────
+alter type public.command_type add value if not exists 'SET_DEVICE_PIN';
+alter type public.command_type add value if not exists 'SET_WALLPAPER';
+alter type public.command_type add value if not exists 'GET_SIM';
+
+alter table public.customers
+  add column if not exists auto_lock_on_overdue boolean not null default false;
+alter table public.customers alter column emi_months drop not null;
+alter table public.customers alter column emi_amount drop not null;
+alter table public.customers alter column emi_due_day drop not null;
+
+alter table public.devices add column if not exists sim_info jsonb;
+revoke select (sim_info) on public.devices from anon, authenticated;
