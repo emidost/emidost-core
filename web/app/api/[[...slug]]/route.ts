@@ -40,6 +40,7 @@ import {
   POST as ownerSalesPost,
   summaryGET as ownerSalesSummaryGet,
 } from '@/lib/apiHandlers/ownerSales';
+import { GET as appConfigGet, POST as appConfigPost } from '@/lib/apiHandlers/appConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,7 @@ const ROUTES: RouteDef[] = [
   { segments: 2, match: (p) => seg('device')(p, 0) && seg('register')(p, 1), post: registerPost },
   { segments: 2, match: (p) => seg('device')(p, 0) && seg('heartbeat')(p, 1), post: heartbeatPost },
   { segments: 3, match: (p) => seg('device')(p, 0) && seg('command')(p, 1) && seg('ack')(p, 2), post: ackPost },
+  { segments: 2, match: (p) => seg('config')(p, 0) && seg('customer-apk')(p, 1), get: appConfigGet, post: appConfigPost },
   { segments: 1, match: (p) => seg('health')(p, 0), get: async () => Response.json({ ok: true, at: new Date().toISOString() }) },
 ];
 

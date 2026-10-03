@@ -47,6 +47,9 @@ export function createApi({ baseUrl, getToken }: ApiClientOptions) {
       }),
     listAudit: () => req<AuditRow[]>('/api/owner/audit'),
     issueTotp: (deviceId: string) => req<{ code: string }>(`/api/owner/devices/${deviceId}/totp`, { method: 'POST' }),
+    getCustomerApkConfig: () => req<{ customer_apk_url: string; customer_apk_sha256: string }>('/api/config/customer-apk'),
+    setCustomerApkConfig: (body: { customer_apk_url?: string; customer_apk_sha256?: string }) =>
+      req<{ ok: boolean }>('/api/config/customer-apk', { method: 'POST', body: JSON.stringify(body) }),
 
     // retailer
     listCustomers: () => req<Customer[]>('/api/retailer/customers'),
